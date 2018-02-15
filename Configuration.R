@@ -5,7 +5,7 @@
 
 getwd()
 
-## ---------------------------------
+## -----------------------------------
 
 xmin <- -30
 xmax <- 45
@@ -17,4 +17,4 @@ world.shape <- "Data/Shapefiles/gshhs/world_hd.shp" # gshhs/world_hd.shp natural
 missing.islands <- "Data/Shapefiles/missing_islands.shp" # Add new regions
 super.clipper <- "Data/Shapefiles/land_clipper_2.shp"
 
-# ---------------------------------
+# -----------------------------------
