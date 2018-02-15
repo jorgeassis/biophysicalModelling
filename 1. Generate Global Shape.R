@@ -5,7 +5,7 @@
 
 source("Dependences.R")
 
-# ---------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 
 region.as.table <- matrix( NA ,nrow= ((ymax-ymin)/resolution) ,ncol= ((xmax-xmin)/resolution) )
 region.as.raster <- raster(region.as.table)
