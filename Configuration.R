@@ -3,8 +3,6 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
-## 1. If needed, download extra months to allow driffting for the wanted period
-## 2. Expand ocean region (to allow full navigation), and use exlusion region (unwanted.release.sites.poly)
 
 ## ------------------------------------
 
@@ -40,7 +38,8 @@ final.dimensions <- 2
 
 # -----------------------------------
 
+source("Dependences.R")
+
 source("2. Get Data.R")
 
 # Test dimensions of data (currents) as function
-

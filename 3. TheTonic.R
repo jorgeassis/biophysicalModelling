@@ -1,17 +1,9 @@
 ## ------------------------------------------------------------------------------------------------------------------
+## PlankTonic
+## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
-##
-## Digital Aquarium 2016 Versio 3.0
-## Simulation of Dispersal using ocean fields
-##
 
-## Log Changes
-## 1. Reduce memory allocation by following only last position of particles (+time step variable)
-## 2. Keep only full path for videos (prepare matrix to populate day by day)
 
-## Notes
-## 1. Always download an extra month to allow driffting for the period
-## 2. Expand ocean region (to allow full navigation), and use exlusion region for no new particles
 
 ## ------------------------------------------------------------------------------------------------------------------
 ## Main Configuration
