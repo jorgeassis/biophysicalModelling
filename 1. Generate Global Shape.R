@@ -3,9 +3,7 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
-## Dependencies
-
-setwd("/Volumes/Jellyfish/Dropbox/Gist/One Aquarium V2.0") # /Volumes/Laminaria Albacora Jellyfish
+source("Dependences.R")
 
 # ---------------------------------------------------------------------------------------
 
@@ -216,94 +214,3 @@ file.remove("data/ocean_raw.tif")
 
 # --------------------------------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------------
-## 0.05 BIO-ORACLE
-
-# Version with all intertidal
-
-bathy <- raster('/Volumes/Laminaria/Dropbox/Raw Data/Rasters/Bathymetry/Bathymetry _ depth Mean.tif')
-rc <- bathy
-rc[!is.na(rc)] <- 1
-plot(rc)
-Ocean.global.final <- rc
-
-region.as.raster <- rc
-ocean.r.f <- rc
-ocean.r.f[is.na(ocean.r.f)] <- 1
-ocean.r.f[ocean.r.f == 0] <- NA
-sections <- seq(extent(region.as.raster)[3],extent(region.as.raster)[4],length.out = 32)
-
-# ---------------------------------
-
-# Version with open waters
-
-bathy <- raster('/Volumes/Laminaria/Dropbox/Raw Data/Rasters/Bathymetry/Bathymetry _ depth Mean.tif')
-xmin <- -180
-xmax <- 180
-
-## check for small closed seas
-
-rc <- raster::clump(bathy)
-rcfreq <- raster::freq(rc)
-rcfreq <- rcfreq[order(rcfreq[,2], decreasing = TRUE),]
-
-plot(bathy)
-plot(rc)
-plot(rc == 0)
-rc <- rc == 0
-
-region.as.raster <- rc
-ocean.r.f <- rc
-ocean.r.f[is.na(ocean.r.f)] <- 1
-ocean.r.f[ocean.r.f == 0] <- NA
-sections <- seq(extent(region.as.raster)[3],extent(region.as.raster)[4],length.out = 32)
-
-Ocean.global.final <- ocean.r.f
-Ocean.global.final[is.na(Ocean.global.final)] <- 2
-Ocean.global.final[Ocean.global.final == 1] <- NA
-Ocean.global.final[!is.na(Ocean.global.final)] <- 1
-writeRaster(Ocean.global.final,filename="Data/ocean_oracle",format="GTiff",overwrite=T)
-
-# ---------------------------------
-# ---------------------------------
-
-cl.2 <- makeCluster(4)
-registerDoParallel(cl.2)
-Coastline.global <- foreach(s = 1:(length(sections)-1), .verbose=F, .packages=c("raster","gstat","ncdf4")) %dopar% {  
-  
-  section.i <- crop(region.as.raster, extent( xmin , xmax , sections[s] - 0.25 , sections[s+1] + 0.25))
-  shape.ocean.r <- crop(ocean.r.f, section.i)    
-  shape.r <- section.i
-  
-  ocean.cells.1 <- which(getValues(shape.ocean.r) == 1)
-  ocean.cells.0 <- which(is.na(getValues(shape.ocean.r)))
-  ocean.cells.adjacent.1 <- adjacent(shape.ocean.r, ocean.cells.1, directions=8)
-  ocean.cells.adjacent.0 <- adjacent(shape.ocean.r, ocean.cells.0, directions=8)
-  coast.line <- intersect(ocean.cells.adjacent.0,ocean.cells.adjacent.1)
-  shape.r[coast.line] <- 1
-  coast.line.r <- calc(stack(shape.ocean.r,shape.r), function(x) { ifelse( x[1] == 1 & x[2] == 1 , 1 , NA ) })
-  coast.line.r <- mosaic(coast.line.r,region.as.raster,fun=mean,na.rm=TRUE)
-  
-  writeRaster(coast.line.r,file=paste0("Data/Temp/T.",s,".tif"),format="GTiff",overwrite=TRUE)
-  
-}
-stopCluster(cl.2) ; rm(cl.2)
-
-Coastline.global <- list.files(path="Data/Temp" , full.names=TRUE,pattern = "T" ) 
-Coastline.global.final <- stack(Coastline.global)
-Coastline.global.final[Coastline.global.final == 0] <- NA
-
-Coastline.global.final <- calc( Coastline.global.final , fun=mean , na.rm=TRUE)
-crs(Coastline.global.final) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-plot(Coastline.global.final,col="black")
-file.remove(Coastline.global)
-
-writeRaster(Coastline.global.final,filename="Data/coast_line_oracle",format="GTiff",overwrite=T)
-
-clipper <- shapefile(super.clipper)
-clipper <- rasterize(clipper, region.as.raster)
-clipper[!is.na(clipper)] <- 1 ; clipper[is.na(clipper)] <- 2 ; clipper[clipper == 1] <- NA ; clipper[clipper == 2] <- 1
-Coastline.global.final <- mask(Coastline.global.final,clipper)
-n.cells <- as.data.frame(Coastline.global.final,xy=TRUE) ; n.cells <- n.cells[!is.na(n.cells[,3]),] ; nrow(n.cells)
-
-writeRaster(Coastline.global.final,filename="Data/coast_line_oracle",format="GTiff",overwrite=T)
-
