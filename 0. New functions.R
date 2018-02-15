@@ -1,3 +1,12 @@
+
+# Points over Polygon
+
+library(spatialEco)
+new_shape <- point.in.poly(pnts, ind_adm)
+
+library(sp)
+pt.in.poly <- sp::over(ind_adm, pnts, fn = NULL)
+
 # Points along line
 
 require(sp)
