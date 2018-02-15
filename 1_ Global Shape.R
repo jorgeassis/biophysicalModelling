@@ -1,30 +1,13 @@
-
 ## ------------------------------------------------------------------------------------------------------------------
-## Simulation of Dispersal using ocean fields
+## PlankTonic
+## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
-## DEPENDENCES
-
-library("raster")
-library("rgdal")
-library("parallel")
-library("doParallel")
+## Dependencies
 
 setwd("/Volumes/Jellyfish/Dropbox/Gist/One Aquarium V2.0") # /Volumes/Laminaria Albacora Jellyfish
 
 # ---------------------------------------------------------------------------------------
-
-# Asia
-min.lon <- 111.5 ; max.lon <- 145 ; min.lat <- 18 ; max.lat <- 48.5
-# Atlantic
-xmin <- -30 ; xmax <- 45 ; ymin <- 20 ; ymax <- 85
-
-resolution <- 0.01
-world.shape <- "Data/Shapefiles/gshhs/world_hd.shp" # gshhs/world_hd.shp naturalearthdata/world_md.shp
-missing.islands <- "Data/Shapefiles/missing_islands.shp" # Add new regions
-super.clipper <- "Data/Shapefiles/land_clipper_2.shp"
-
-# ---------------------------------
 
 region.as.table <- matrix( NA ,nrow= ((ymax-ymin)/resolution) ,ncol= ((xmax-xmin)/resolution) )
 region.as.raster <- raster(region.as.table)
