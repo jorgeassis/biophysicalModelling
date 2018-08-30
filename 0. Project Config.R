@@ -5,41 +5,64 @@
 
 # Updated
 ## ------------------------------------
-
-getwd()
+## Files and folders
 
 project.name <- "Test"
-folder.data <- ""
+project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript"
+
+coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
+landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
+bathymetry.tif <- NULL
+unwanted.release.sites.shp <- NULL
 
 ## ------------------------------------
 
-land.poly <- "/Volumes/Jellyfish/Dropbox/Raw Data/Shapefiles/World Present/LandMass Polygon HR.shp"
-missing.islands.poly <- "Data/Shapefiles/missing_islands.shp"
-unwanted.release.sites.poly <- "Data/Shapefiles/land_clipper_2.shp"
+number.cores <- 6      # May crash with all cores assigned
 
-## ------------------------------------
+# -----------------------------------
+# Region
 
-xmin <- -30
-xmax <- 45
-ymin <- 20
-ymax <- 85
-resolution <- 0.01
+min.lon <- -20
+max.lon <- 10
+min.lat <- 20
+max.lat <- 50
+source.sink.dist <- 5 # km
 
-## ------------------------------------
-## Hycom
+# -----------------------------------
+# Traits
 
-months.all <- 3:4
+months.all <- 3:6
 from.day <- 1 ; to.day <- 31
 from.year <- 2003 ; to.year <- 2003
 depth.range <- c(0)
+
+kill.by.raft <- TRUE                              # Will eliminate particles that got to another cell - first raft event # May need a new particle every day
+n.hours.per.day <- 12                             # Needs recoding for diferent than 12 # how many tracks for each particle during a day
+n.new.particles.per.day <- 1
+remove.new.particles.last.days <- TRUE            # If last days (particle.max.duration) are not to deliver new particles  
+remove.new.particles.last.days.n.days <- 30
+
+longevity <- TRUE
+particle.max.duration <- 90                       # Days allowed to travel
+behaviour <- FALSE                                # Only settle after period
+
+# -----------------------------------
+# Hycom config
+
 buffer <- TRUE 
 buffer.val <- 0.05 
 final.dimensions <- 2
 
 # -----------------------------------
+# Ilustration (movie)
 
-source("Dependences.R")
+movie.year <- 2003
+movie.sites.xy <- matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 ) , ncol=2 , byrow=TRUE) 
+movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
-source("2. Get Data.R")
+# -----------------------------------
 
-# Test dimensions of data (currents) as function
+source("1. Get Data.R")
+
+## ------------------------------------------------------------------------------------------------------------------
+## ------------------------------------------------------------------------------------------------------------------

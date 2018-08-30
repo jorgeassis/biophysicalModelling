@@ -3,6 +3,9 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
+if( ! "Results" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Results"))) }
+if( ! "Data" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Data"))) }
+
 packages.to.use <- c("gdata",
                      "compiler",
                      "data.table",

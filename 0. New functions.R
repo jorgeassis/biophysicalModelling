@@ -44,8 +44,8 @@ y <- c(44.69540,44.69539,44.69544,44.69552,44.69563,44.69586,44.69608,44.69644,4
        ,44.69775,44.69737,44.69728,44.69717,44.69701,44.69687,44.69671,44.69649,44.69616,44.69598
        ,44.69578,44.69560,44.69539,44.69513,44.69490,44.69476,44.69453)
 
-river<-SpatialLines(list(Lines(Line(cbind(x,y)), ID="a")))
-proj4string(river) <- CRS("+init=epsg:4326")
+
+
 
 
 norm_vec <- function(x) sqrt(sum(x^2))
@@ -55,29 +55,30 @@ new_point <- function(p0, p1, di) { # Finds point in distance di from point p0 i
     return (p0 + u * di)
 }
 
-find <- function(river, M) {
+find <- function(line, M) {
 
-  result = river[1,,drop=FALSE] 
+  result = line[1,,drop=FALSE] 
+  
   # for all subsequent points p1, p2 in this data.frame norm_vec(p2 - p1) = M at all times
-  equidistantPoints = river[1,,drop=FALSE] 
-  river = tail(river, n = -1)
+  
+  equidistantPoints = line[1,,drop=FALSE] 
+  line = tail(line, n = -1)
   accDist = 0
 
-
-  while (length(river) > 0) {
-    point = river[1,]
+  while (length(line) > 0) {
+    point = line[1,]
     lastPoint = result[1,]
 
-    dist = norm_vec(point - lastPoint)    
-
+    dist = spDistsN1( as.matrix(point),as.matrix(lastPoint),longlat=TRUE)
+    
     if ( accDist + dist > M ) {
       np = new_point(lastPoint, point, M - accDist)
       equidistantPoints = rbind(np, equidistantPoints) # add np to equidistantPoints
       result = rbind(np, result) # add np to result
       accDist = 0 # reset accDist
     } else {
-      #move point from river to result  
-      river = tail(river, n = -1)
+      #move point from line to result  
+      line = tail(line, n = -1)
       result = rbind(point, result)    
       #update accDist  
       accDist = accDist + dist
@@ -87,8 +88,11 @@ find <- function(river, M) {
   return(list(newPoints = equidistantPoints, allPoints = allPoints))
 }
 
-r = cbind(x,y) 
-result = find(r, 0.003)
+coastline.pts <- as(coastline, "SpatialPointsDataFrame")
+coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
+
+source.sink.xy = find(coastline.pts, source.sink.dist)
+
 plot(result$allPoints, type="l", col="red", asp = 1)
 points(result$allPoints, col="red")
 points(result$newPoints, col="cyan")
