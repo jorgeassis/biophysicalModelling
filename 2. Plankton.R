@@ -32,108 +32,85 @@ options(warn=0)
 plot(landmass,box=FALSE,legend=FALSE,col=c("grey"))
 lines(coastline,box=FALSE,legend=FALSE,col=c("red"))
 
+## -----------------------------------------------------
+
 ## Define source and sink locations
 
+coastline.pts <- as(coastline, "SpatialPointsDataFrame")
+coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
 
+coastline.pts.t <- coastline.pts
+source.sink.xy <- data.frame()
 
+while( nrow(coastline.pts.t) > 0 ){
+  
+  pt.i = coastline.pts.t[1,,drop=FALSE]
+  
+  dist = spDists( as.matrix(pt.i),as.matrix(coastline.pts.t),longlat=TRUE)
+  to.get <- which(dist <= source.sink.dist)
+  to.get.xy <- coastline.pts.t[to.get,]
+  source.sink.xy <- rbind(source.sink.xy,data.frame(x=sort(to.get.xy[,1])[length(to.get.xy[,1])/2],y=sort(to.get.xy[,2])[length(to.get.xy[,2])/2]))
+  coastline.pts.t <- coastline.pts.t[-to.get,]
 
+}
+
+coordinates(source.sink.xy) <- c("x","y")
+crs(source.sink.xy) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+source.sink.id <- 1:length(source.sink.xy)
+
+## -----------------------------------------------------
+
+## Remove unwanted release sites
+
+if( !is.null(unwanted.release.sites.shp) ) {
+  
+  unwanted <- shapefile(unwanted.release.sites.shp)
+  unwanted <- as(unwanted,"SpatialPolygons")
+  
+  points.over.polygon <- as.vector(which(sp::over( source.sink.xy , unwanted , fn = NULL) == 1))
+  source.sink.xy <- source.sink.xy[-points.over.polygon]
+  
+}
+
+points(source.sink.xy,box=FALSE,legend=FALSE,col=c("black"),pch=16)
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 
-## Test if data for ocean currents is available
+## Define Available raw data and Test if data is available
 
+raw.data.files <- list.files(paste0(project.folder,"/Data"),full.names = TRUE,pattern="nc")
+simulation.parameters.step <- data.frame()
 
-raw.data.currents.files <- list.files(paste0(process.directory,"/",raw.data.directory,"/Currents"),full.names = TRUE,pattern="nc")
-available.raw.data <- data.frame()
-
-for( file in 1:length(raw.data.currents.files)) {
-  nc <- nc_open( raw.data.currents.files[file] , verbose=FALSE )
+for( file in 1:length(raw.data.files)) {
+  nc <- nc_open( raw.data.files[file] , verbose=FALSE )
   nc.date <- as.Date(ncvar_get( nc, "Time"), origin = "1970-01-01")
   nc_close( nc )
-  available.raw.data <- rbind( available.raw.data, data.frame( simulation=file, year=substr(nc.date, 1, 4) , month=substr(nc.date, 6, 7) , day=substr(nc.date, 9, 10)) )
+  simulation.parameters.step <- rbind( simulation.parameters.step, data.frame( simulation=file, file=raw.data.files[file],  year=substr(nc.date, 1, 4) , month=substr(nc.date, 6, 7) , day=substr(nc.date, 9, 10) , stringsAsFactors = FALSE) )
 }
 
-from.year:to.year
+if(sum( !from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"])) + sum( ! months.all %in% as.numeric(simulation.parameters.step[,"month"])) > 0 ) { stop("Data is not available for time window")}
 
-## -----------------------------------------------
+## ------------------------------------------------------------------------------------------------------------------------------
+## Prepare video (animation) points
 
-coast.line <- raster(paste0(gist.directory,"/",raw.data.directory,"/",coast.line.file))
-ocean <- raster(paste0(gist.directory,"/",raw.data.directory,"/",ocean.shape.file))
-
-if( is.null(new.extent) ) { new.extent <- extent( ocean ) }
-
-coast.line <- crop(coast.line, new.extent ); plot(coast.line,col="black")
-ocean <- crop(ocean, new.extent ) ; plot(ocean,col=c("black"))
-simulation.resolution <- res(ocean)[1]
-  
-## ------------------------------------------------------------------
-## Prepare Sites and Surfaces
-
-if( !is.null(unwated.regions.file) ) {
-  
-  unwanted <- shapefile(paste0(process.directory,"/",raw.data.directory,"/",unwated.regions.file))
-  unwanted <- rasterize(unwanted, ocean)
-
-  unwanted.1 <- unwanted
-  unwanted.1[is.na(unwanted.1)] <- -9 ; unwanted.1[unwanted.1 != -9 ] <- NA ; unwanted.1[unwanted.1 == -9 ] <- 1
-  study.region.used <- mask(coast.line,unwanted.1)
-  study.region.used[which(!is.na(getValues(study.region.used)))] <- 1:length(which(!is.na(getValues(study.region.used))))
-  
-  unwanted.2 <- unwanted
-  unwanted.2[!is.na(unwanted.2)] <- 1
-  study.region.unused <- mask(coast.line,unwanted.2)
-  study.region.unused[which(!is.na(getValues(study.region.unused)))] <- -9
-  
-  coast.line <- merge(study.region.used,study.region.unused)
-  rm( unwanted ) ; rm( unwanted.1 ) ; rm( unwanted.2 ) ; rm( study.region.used ) ; rm( study.region.unused )
-
-}
-
-coast.line.val <- getValues(coast.line)
-coast.line.val <- which( !is.na(coast.line.val) & coast.line.val != -9 )
-coast.line[coast.line.val] <- 1:(length(coast.line.val))
-
-## ------------------------------------------------------------------
-## Ocean region
-## -1 for ocean, 0 for land, -9 for unwanted cells and numbered cells
-
-ocean.region.dt <- ocean
-ocean.region.dt[ocean.region.dt == 1] <- (-1)
-ocean.region.dt <- calc(stack(coast.line,ocean.region.dt) , function(x) { ifelse( !is.na(x[1]) , x[1] , x[2] )  } ) 
-ocean.region.dt[is.na(ocean.region.dt)] <- 0 # writeRaster(ocean.region.dt,filename="Data/temp_ocean",format="GTiff",overwrite=T)
-plot(ocean.region.dt)
-
-## ------------------------------------------------------------------
-
-cells <- as.data.frame(ocean.region.dt,xy=TRUE)
-cells <- cells[! cells$layer %in% c(-1,0,-9) ,1:2]
-cells.id <- as.data.frame(ocean.region.dt,xy=TRUE)
-cells.id <- cells.id[! cells.id$layer %in% c(-1,0,-9) ,3]
-number.cells <- nrow(cells)
-
-plot(cells[,1:2])
-
-## ------------------------------------------------------------------
-## Prepare data and Analysis
-
-if( !is.null(parcticles.to.sql.xy) ) {
-    if( ! class(parcticles.to.sql.xy) == "matrix") {   
-            parcticles.to.sql.xy <- shapefile(paste0(process.directory,"/",raw.data.directory,"/",parcticles.to.sql.xy))
-            parcticles.to.sql.xy <-  crop(parcticles.to.sql.xy, new.extent )
-            parcticles.to.sql.xy <- as.data.frame(parcticles.to.sql.xy)[,2:3]
+if( !is.null(movie.sites.xy) ) {
+    if( ! class(movie.sites.xy) == "matrix") {   
+            movie.sites.xy <- shapefile(movie.sites.xy)
+            movie.sites.xy <-  crop(movie.sites.xy, extent(landmass) )
+            movie.sites.xy <- as.data.frame(movie.sites.xy)[,2:3]
     } 
-    else {  parcticles.to.sql.xy <- as.data.frame(parcticles.to.sql.xy) 
+    else {  movie.sites.xy <- as.data.frame(movie.sites.xy) 
     }
   
-    particles.to.sql.cells <- sort( as.vector(get.knnx( cells , parcticles.to.sql.xy , k = 1 + parcticles.to.sql.buffer , algorithm="kd_tree" )$nn.index) )
+    movie.sites.xy <- sort( as.vector(get.knnx( as.data.frame(source.sink.xy) , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
 }
 
-if( !is.null(parcticles.to.sql.id) ) { parcticles.to.sql.xy <- as.data.frame(cells[ parcticles.to.sql.id , ] ) 
-                                       particles.to.sql.cells <- parcticles.to.sql.id 
+if( !is.null(movie.sites.xy) ) { movie.sites.id <- unique(movie.sites.xy)
+                                 movie.sites.xy <- as.data.frame(source.sink.xy[ unique(movie.sites.xy) , ] ) 
+ 
 }
 
-plot(ocean,box=FALSE,legend=FALSE,col=c("black"))
-points(parcticles.to.sql.xy,col="Red")
+points(movie.sites.xy,box=FALSE,legend=FALSE,col=c("red"),pch=16)
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -141,38 +118,15 @@ points(parcticles.to.sql.xy,col="Red")
 
 ## SQL configuration
 
-sql.directory <- paste0(process.directory,"/",results.directory,"/SQLite/")
-
-if( ! results.directory %in% list.files(process.directory) ) { dir.create(file.path(paste0(process.directory),results.directory)) }
-if( ! "SQLite" %in% list.files(paste0(process.directory,"/",results.directory)) ) { dir.create( file.path( sql.directory )) }
-
-## Baseline information
-
-if( paste0(results.files,".reference.particles.sql") %in% list.files(sql.directory) ) {
+if( paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
   
   x <- ""
+  while( x != "Y" & x != "n" ) { x <- readline("SQL database already exists. Do you which to overwrite? (Y/n) ") }
   
-  while( x == "" ) { x <- readline("SQL database already exists. Do you which to overwrite? (Y/n) ") 
-  
-  if ( x == "Y" | x == "n"  ) { break ; } else { x <- "" }
-  
-  }
-  
-  if (x == "Y" ) {
-    
-    file.remove( paste0(sql.directory,"/",results.files,".reference.particles.sql") )
-    
-    if( paste0(results.files,".particles.video.sql") %in% list.files(sql.directory) ) {
-      file.remove( paste0(sql.directory,"/",results.files,".particles.video.sql") )
-    }
-    
-  }
+  if (x == "Y" ) { file.remove( paste0(sql.directory,"/",project.name,"SimulationResults.sql") ) }
 }
   
-## -------------------------------------------------------------------
-## Generate Database
-
-if( ! paste0(results.files,".reference.particles.sql") %in% list.files(sql.directory) ) {
+if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
     
     global.simulation.parameters <- data.frame(   kill.by.raft = kill.by.raft , 
                                                   n.hours.per.day = n.hours.per.day , 
@@ -182,156 +136,220 @@ if( ! paste0(results.files,".reference.particles.sql") %in% list.files(sql.direc
                                                   particle.max.duration = particle.max.duration , 
                                                   behaviour = behaviour   )       
     
-    sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",results.files,".reference.particles.sql"))
-    dbWriteTable(sql, "Cells_coordinates", data.table(cell=cells.id,x=cells[,1],y=cells[,2]) , append=TRUE, overwrite=FALSE )
-    dbWriteTable(sql, "Simulation_parameters", global.simulation.parameters , append=TRUE, overwrite=FALSE )
+    sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+    dbWriteTable(sql, "ReleaseSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
+    dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
     dbDisconnect(sql)
+    
 }
 
+
 ## ------------------------------------------------------------------------------------------------------------------
+
+## Define conditions
+
+norm.time <- expand.grid( hour=1:n.hours.per.day , day=1:(nrow(simulation.parameters.step)) )
+norm.time <- data.table(norm.time)
+
+new.day <- norm.time[,hour == 1]
+end.of.day <- norm.time[,hour == n.hours.per.day]
+
+# ------
+# Remove the last day from new.day because there is no day #367 in the data for currents
+
+last.new.day <- which(new.day)
+new.day[last.new.day[length(last.new.day)]] <- FALSE
+
+# ------
+
+release.particles.t <- seq(from=1,to=n.hours.per.day,by=(n.hours.per.day/n.new.particles.per.day))
+release.particles.condition <- norm.time[,hour %in% release.particles.t] 
+
+if( remove.new.particles.last.days ) { release.particles.condition[ (length(release.particles.condition)-(n.hours.per.day*remove.new.particles.last.days.n.days)):length(release.particles.condition) ] <- FALSE }
+
+n.particles.per.cell <- (nrow(simulation.parameters.step)) * length(release.particles.t)
+n.simulation.steps <- nrow(norm.time)
+
+runge.kutta.sequence <- c(sapply( 1:(n.hours.per.day), function (x) rep( x ,  n.hours.per.day / ( n.hours.per.day ) ) ))
+runge.kutta.sorter <- 1:n.hours.per.day
+
+all.but.first.day <- rep(TRUE,n.simulation.steps)
+all.but.first.day[1] <- FALSE
+
+## --------------------------------------------------------
+
+## Define particles
+
+# data.table particles.reference[id,cell,state,t.start,t.finish,cell.rafted]
+# 0 unborne
+# 1 living
+# 2 rafted 
+# 3 out of space
+# 4 dead by time
+
+particles.reference <- data.table( id = 1:(n.particles.per.cell * length(source.sink.xy) ) )
+particles.reference[ , start.cell := as.numeric( sapply( source.sink.id ,function(x) { rep(x,n.particles.per.cell) })) ]
+particles.reference[ , pos.lon := 0 ]
+particles.reference[ , pos.lat := 0 ]
+particles.reference[ , pos.alt := 0 ]
+particles.reference[ , state := 0 ]
+particles.reference[ , t.start := 0 ]
+particles.reference[ , t.finish := 0 ]
+particles.reference[ , cell.rafted := 0 ]
+setkey(particles.reference, id )
+
+## --------------------------------------------------------
+
+## Data table to alocate path of particles (video)
+
+if( ! is.null(movie.year) ) {
+  
+  particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
+  
+  particles.video.location.x <- data.table( id = particles.to.sql.id )
+  setkey(particles.video.location.x, id )
+  particles.video.location.y <- data.table( id = particles.to.sql.id )
+  setkey(particles.video.location.y, id )
+  particles.video.location.z <- data.table( id = particles.to.sql.id )
+  setkey(particles.video.location.z, id )
+  
+}
+
+
+## ------------------------------------------------------------------------------------------------------------------
+
 ## Start Simulation
-## ------------------------------------------------------------------------------------------------------------------
 
-# unique(available.raw.data$simulation)
-
-for ( simulation.step in 3:10 ) {
+for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 
                 cat('\014') ; cat('\n')
-                cat('\n Preparing Environmental data')
+                cat('\n Running step ', simulation.step ,' out of ' , nrow(simulation.parameters.step))
   
                 ## --------------------------------------------------------
                 
-                simulation.parameters.step <- available.raw.data[which( available.raw.data$simulation == simulation.step ),]
-                simulation.year <- as.numeric(as.character(unique(simulation.parameters.step$year)))
-
-                ## --------------------------------------------------------
-                ## Prepare environmental data
-
-                simulation.raw.data <- nc_open( raw.data.currents.files[1], readunlim=FALSE )
-                dim.i <- ncvar_get( simulation.raw.data, "X" )
-                dim.j <- ncvar_get( simulation.raw.data, "Y" )
-                Longitude <- ncvar_get( simulation.raw.data, "Longitude" )
-                Latitude <- ncvar_get( simulation.raw.data, "Latitude" )
+                simulation.year <- simulation.parameters.step[simulation.step,"year"]
+                simulation.month <- simulation.parameters.step[simulation.step,"month"]
+                simulation.day <- simulation.parameters.step[simulation.step,"day"]
+                simulaton.raw.data.file <- simulation.parameters.step[simulation.step,"file"]
                 
-                nc_close(simulation.raw.data)
+                # Next day 
                 
-                norm.field <- expand.grid( i=dim.i , j=dim.j )
-                raw.data.coords <- cbind( apply( norm.field , 1 , function (x) Longitude[x[1]] ) , apply( norm.field , 1 , function (x) Latitude[x[2]] ) )
-                colnames(raw.data.coords) <- c("x","y")
-                
-                raw.data.u <- matrix(NA , nrow=nrow(raw.data.coords) , ncol=nrow(simulation.parameters.step) )
-                raw.data.v <- matrix(NA , nrow=nrow(raw.data.coords) , ncol=nrow(simulation.parameters.step) )
-
-                for( rd.i in 1:nrow(simulation.parameters.step) ) {
+                if( simulation.step < nrow(simulation.parameters.step) ) {
                   
-                          rd.file <- simulation.parameters.step[rd.i,1]
-                          nc.opened.file <- nc_open( raw.data.currents.files[rd.file], readunlim=FALSE )
-                          
-                          # u component
-                          
-                          velocity.field <- ncvar_get(  nc.opened.file , "UComponent", start=c(1,1,rd.i) , count=c(length(dim.i),length(dim.j),1) )
-                          raw.data.u[,rd.i] <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
-                          
-                          # v component
-                          
-                          velocity.field <- ncvar_get(  nc.opened.file , "VComponent", start=c(1,1,rd.i) , count=c(length(dim.i),length(dim.j),1) )
-                          raw.data.v[,rd.i] <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
-                          
-                          nc_close(nc.opened.file)
-
+                  simulation.year.n <- simulation.parameters.step[simulation.step +1,"year"]
+                  simulation.month.n <- simulation.parameters.step[simulation.step +1,"month"]
+                  simulation.day.n <- simulation.parameters.step[simulation.step +1,"day"]
+                  simulaton.raw.data.file.n <- simulation.parameters.step[simulation.step +1,"file"]
+                  
+                } else {
+                  
+                  simulation.year.n <- simulation.year
+                  simulation.month.n <- simulation.month
+                  simulation.day.n <- simulation.day
+                  simulaton.raw.data.file.n <- simulaton.raw.data.file
+                  
                 }
+                
+                ## --------------------------------------------------------
+                
+                ## Prepare environmental data (first time only)
 
-                raw.data.u <- data.table(raw.data.coords,raw.data.u)
-                setnames(raw.data.u,names(raw.data.u),c("Lon","Lat",sapply(1:(ncol(raw.data.u)-2),function(x) { paste("day.",x,sep="") })))
+                if( simulation.step == 1 ) {
+                  
+                  simulation.raw.data <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
+                  dim.i <- ncvar_get( simulation.raw.data, "X" )
+                  dim.j <- ncvar_get( simulation.raw.data, "Y" )
+                  Longitude <- ncvar_get( simulation.raw.data, "Longitude" )
+                  Latitude <- ncvar_get( simulation.raw.data, "Latitude" )
+                  Time <- ncvar_get( simulation.raw.data, "Time" )
+                  Time <- as.Date(Time, origin = "1970-01-01") 
+                  nc_close(simulation.raw.data)
+
+                  if( ! as.numeric(format(Time, "%Y"))[1] %in% from.year:to.year ) { stop("Code 01: Something is wrong with raw data extraction") }
+                  
+                  norm.field <- expand.grid( i=dim.i , j=dim.j )
+                  raw.data.coords <- cbind( apply( norm.field , 1 , function (x) Longitude[x[1]] ) , apply( norm.field , 1 , function (x) Latitude[x[2]] ) )
+                  colnames(raw.data.coords) <- c("Lon","Lat")
+                  
+                }
                 
-                raw.data.v <- data.table(raw.data.coords,raw.data.v)
-                setnames(raw.data.v,names(raw.data.v),c("Lon","Lat",sapply(1:(ncol(raw.data.v)-2),function(x) { paste("day.",x,sep="") })))
+                ## --------------------------------------------------------
                 
-                coords.cells <- data.table(id=cells.id,cells)
-                setnames(coords.cells,names(coords.cells),c("Cell","Lon","Lat"))
+                nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
+                time.start.day <- ncvar_get( nc.file, "Time" )
+                time.start.day <- as.Date(time.start.day, origin = "1970-01-01") 
+                nc_close(nc.file)
                 
+                nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
+                time.next.day <- ncvar_get( nc.file, "Time" )
+                time.next.day <- as.Date(time.next.day, origin = "1970-01-01") 
+                nc_close(nc.file)
+                
+                rd.start.day <- which( format(time.start.day, "%Y") == simulation.year & format(time.start.day, "%m") == simulation.month & format(time.start.day, "%d") == simulation.day )
+                rd.next.day <- which( format(time.next.day, "%Y") == simulation.year.n & format(time.next.day, "%m") == simulation.month.n & format(time.next.day, "%d") == simulation.day.n )
+                
+                if( length(rd.start.day) == 0 | length(rd.next.day) == 0 ) { stop("Code 01: Something is wrong with raw data extraction") }
+                
+                ## --------------------------------------------------------
+                
+                ## U & V Components
+                
+                nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
+                
+                velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,1,rd.start.day) , count=c(length(dim.i),length(dim.j),1) )
+                start.day.raw.data.u <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
+                velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,1,rd.start.day) , count=c(length(dim.i),length(dim.j),1) )
+                start.day.raw.data.v <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
+                
+                nc_close(nc.file)
+
+                nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
+                
+                velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,1,rd.next.day) , count=c(length(dim.i),length(dim.j),1) )
+                next.day.raw.data.u <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
+                velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,1,rd.next.day) , count=c(length(dim.i),length(dim.j),1) )
+                next.day.raw.data.v <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
+                
+                nc_close(nc.file)
+                
+                ## -------------------
+                
+                ## Interpolate time
+                
+                # HERE!!!!!
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                raw.data.u <- data.table(raw.data.coords,u=simulation.raw.data.u)
+                raw.data.v <- data.table(raw.data.coords,v=simulation.raw.data.v)
+
                 # Crop environmental data by extent (study region)
                 
-                raw.data.u <- raw.data.u[ Lon >= new.extent[1] & Lat >= new.extent[3] & Lon <= new.extent[2] & Lat <= new.extent[4]  , ]
-                raw.data.v <- raw.data.v[ Lon >= new.extent[1] & Lat >= new.extent[3] & Lon <= new.extent[2] & Lat <= new.extent[4]  , ]
-
-                ## --------------------------------------------------------
-                ## Define conditions
-
-                norm.time <- expand.grid( hour=1:n.hours.per.day , day=1:(nrow(simulation.parameters.step)) )
-                norm.time <- data.table(norm.time)
+                raw.data.u <- raw.data.u[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(u) , ]
+                raw.data.v <- raw.data.v[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(v) , ]
                 
-                new.day <- norm.time[,hour == 1]
-                end.of.day <- norm.time[,hour == n.hours.per.day]
+                # plot(raw.data.u[,.(Lon,Lat)])
+                # plot(raw.data.v[,.(Lon,Lat)])
                 
-                # Remove the last day from new.day because there is no day #367 in the data for currents
-                
-                last.new.day <- which(new.day)
-                new.day[last.new.day[length(last.new.day)]] <- FALSE
-                
-                # ------
-                
-                release.particles.t <- seq(from=1,to=n.hours.per.day,by=(n.hours.per.day/n.new.particles.per.day))
-                release.particles.condition <- norm.time[,hour %in% release.particles.t] 
-                
-                if( remove.new.particles.last.days ) { release.particles.condition[ (length(release.particles.condition)-(n.hours.per.day*remove.new.particles.last.days.n.days)):length(release.particles.condition) ] <- FALSE }
-
-                n.particles.per.cell <- (nrow(simulation.parameters.step)) * length(release.particles.t)
-                n.simulation.steps <- nrow(norm.time)
-                  
-                runge.kutta.sequence <- c(sapply( 1:(n.hours.per.day), function (x) rep( x ,  n.hours.per.day / ( n.hours.per.day ) ) ))
-                runge.kutta.sorter <- 1:n.hours.per.day
-
                 ## ---------------------------
                 
-                initial.coords <- data.table(cell=cells.id,x=cells[,1],y=cells[,2])
-                
-                all.but.first.day <- rep(TRUE,n.simulation.steps)
-                all.but.first.day[1] <- FALSE
-                
+                # coords.cells <- data.table(id=cells.id,cells)
+                # setnames(coords.cells,names(coords.cells),c("Cell","Lon","Lat"))
+                 
                 ## --------------------------------------------------------
-                ## Define particles
-                
-                # data.table particles.reference[id,cell,state,t.start,t.finish,cell.rafted]
-                # 0 unborne
-                # 1 living
-                # 2 rafted 
-                # 3 out of space
-                # 4 dead by time
-                
-                particles.reference <- data.table( id = 1:(n.particles.per.cell * number.cells) )
-                particles.reference[ , cell := as.numeric( sapply( cells.id ,function(x) { rep(x,n.particles.per.cell) })) ]
-                particles.reference[ , pos.lon := 0 ]
-                particles.reference[ , pos.lat := 0 ]
-                particles.reference[ , pos.alt := 0 ]
-                particles.reference[ , state := 0 ]
-                particles.reference[ , t.start := 0 ]
-                particles.reference[ , t.finish := 0 ]
-                particles.reference[ , cell.rafted := 0 ]
-                setkey(particles.reference, id )
-                
-                # Data table to alocate path of particles (video)
-                
-                if( particles.to.sql.years == simulation.year ) {
-                  
-                          particles.to.sql.id <- particles.reference[ cell %in% particles.to.sql.cells , id ]
-                          
-                          particles.video.location.x <- data.table( id = particles.to.sql.id )
-                          setkey(particles.video.location.x, id )
-                          particles.video.location.y <- data.table( id = particles.to.sql.id )
-                          setkey(particles.video.location.y, id )
-                          particles.video.location.z <- data.table( id = particles.to.sql.id )
-                          setkey(particles.video.location.z, id )
-                }
-                
-                ## --------------------------------------------------------
-                ## Move particles
+                ## Move particles (per day)
     
                 ptm <- proc.time()
                 cl.2 <- makeCluster(number.cores)
                 registerDoParallel(cl.2)
                 
-                for( t.step in 1:n.simulation.steps ) {
+                for( t.step in 1:n.hours.per.day ) {
                   
                         ## -----------------------
 

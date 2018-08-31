@@ -5,6 +5,11 @@
 
 if( ! "Results" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Results"))) }
 if( ! "Data" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Data"))) }
+if( ! "SQL" %in% list.files(paste0(project.folder,"/Results")) ) { dir.create(file.path(paste0(project.folder,"/Results/SQL"))) }
+
+sql.directory <<- paste0(project.folder,"/Results/SQL/")
+
+## -------------------------
 
 packages.to.use <- c("gdata",
                      "compiler",
