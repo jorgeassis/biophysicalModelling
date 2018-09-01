@@ -25,7 +25,8 @@ packages.to.use <- c("gdata",
                      "igraph",
                      "reshape2",
                      "gdistance",
-                     "ggplot2")
+                     "ggplot2",
+                     "bigmemory")
 
 for(package in packages.to.use) {
   sink("/dev/null") 
@@ -38,6 +39,18 @@ for(package in packages.to.use) {
 ## ---------------------------------------------------------------------------------------------------------------------
 ## ---------------------------------------------------------------------------------------------------------------------
 ## Functions
+
+## Clean Dump
+
+clean.dump.files <- function(clean.dump.files,files,dump.folder) {
+  
+  if( clean.dump.files ) { 
+    file.remove( list.files(dump.folder, full.names = TRUE, pattern = files) ) 
+  }
+  
+}
+
+## ---------------------------------------------------------------------------------------------------------------------
 
 list.memory <- cmpfun( function (pos = 1, pattern, order.by = "Size", decreasing=TRUE, head = TRUE, n = 100) {
   

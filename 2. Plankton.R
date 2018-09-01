@@ -19,7 +19,6 @@ landmass <- gBuffer(landmass, byid=TRUE, width=0)
 
 coastline <- shapefile(coastline.shp)
 crs(coastline) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
-coastline <- gBuffer(coastline, byid=TRUE, width=0)
 
 clipper <- as(extent(min.lon,max.lon,min.lat,max.lat), "SpatialPolygons")
 crs(clipper) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
@@ -215,6 +214,22 @@ if( ! is.null(movie.year) ) {
   
 }
 
+## ------------------------------------------------------------------------------------------------------------------
+
+## Generate regions for simulation (parallel.computational.sections : latitudinal section)
+
+sections.lat <- data.frame( sect.from = seq(min.lat,max.lat,length.out = parallel.computational.sections+1)[-(parallel.computational.sections+1)] , 
+                            sect.to = seq(min.lat,max.lat,length.out = parallel.computational.sections+1)[-1] )
+
+
+for(i in 1:parallel.computational.sections){
+  
+  clipper <- as(extent(min.lon,max.lon, sections.lat[i,1] - parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer ), "SpatialPolygons")
+  crs(clipper) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+  
+  assign( paste0("landmass.sect.",i) , gIntersection(landmass, clipper, byid=TRUE) )
+  
+}
 
 ## ------------------------------------------------------------------------------------------------------------------
 
@@ -222,9 +237,22 @@ if( ! is.null(movie.year) ) {
 
 for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 
-                cat('\014') ; cat('\n')
-                cat('\n Running step ', simulation.step ,' out of ' , nrow(simulation.parameters.step))
+                ## --------------------------------------------------------
+    
+                ## Progress
   
+                time.i <- Sys.time()
+                if(simulation.step == 1) { time.f <- time.i}
+                progress.percent <- round((simulation.step / nrow(simulation.parameters.step)) * 100)
+                time.take.step.min <- round(as.numeric(difftime(time.i, time.f, units = "mins")))
+                
+                cat('\014')
+                cat('\n')
+                cat('\n Running step #',simulation.step,'| Time taken',time.take.step.min,'mins.')
+                cat('\n',paste0(rep("-",100),collapse = ""))
+                cat('\n||',paste0(rep("-",progress.percent),collapse = ""),"(",progress.percent,"% )")
+                cat('\n',paste0(rep("-",100),collapse = ""))
+                
                 ## --------------------------------------------------------
                 
                 simulation.year <- simulation.parameters.step[simulation.step,"year"]
@@ -295,45 +323,76 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 ## U & V Components
                 
                 nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
-                
                 velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,1,rd.start.day) , count=c(length(dim.i),length(dim.j),1) )
-                start.day.raw.data.u <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
+                start.day.raw.data.u <- melt(velocity.field)[,"value"]
                 velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,1,rd.start.day) , count=c(length(dim.i),length(dim.j),1) )
-                start.day.raw.data.v <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
-                
+                start.day.raw.data.v <-  melt(velocity.field)[,"value"]
                 nc_close(nc.file)
 
                 nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
-                
                 velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,1,rd.next.day) , count=c(length(dim.i),length(dim.j),1) )
-                next.day.raw.data.u <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
+                next.day.raw.data.u <-  melt(velocity.field)[,"value"]
                 velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,1,rd.next.day) , count=c(length(dim.i),length(dim.j),1) )
-                next.day.raw.data.v <- apply( norm.field , 1 , function (y) velocity.field[y[1],y[2]] )
-                
+                next.day.raw.data.v <-  melt(velocity.field)[,"value"]
                 nc_close(nc.file)
                 
-                ## -------------------
-                
-                ## Interpolate time
-                
-                # HERE!!!!!
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                raw.data.u <- data.table(raw.data.coords,u=simulation.raw.data.u)
-                raw.data.v <- data.table(raw.data.coords,v=simulation.raw.data.v)
-
                 # Crop environmental data by extent (study region)
                 
-                raw.data.u <- raw.data.u[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(u) , ]
-                raw.data.v <- raw.data.v[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(v) , ]
+                raw.data.u <- data.table(raw.data.coords,u.start=start.day.raw.data.u,u.next=next.day.raw.data.u)
+                raw.data.v <- data.table(raw.data.coords,v.start=start.day.raw.data.v,v.next=next.day.raw.data.v)
                 
+                raw.data.u <- raw.data.u[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(u.start) , ]
+                raw.data.v <- raw.data.v[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(v.start) , ]
+                
+                # plot(raw.data.u[,.(Lon,Lat)])
+
+                ## -------------------------------------
+                
+                ## Out of memory objects
+                
+                raw.data.u <- as.matrix(raw.data.u) ; colnames(raw.data.u) <- NULL
+                raw.data.v <- as.matrix(raw.data.v) ; colnames(raw.data.v) <- NULL
+                
+                clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=project.folder)
+                raw.data.u.bm <- as.big.matrix( raw.data.u , backingpath=project.folder , backingfile = "raw.data.u.bin", descriptorfile = "raw.data.u.desc")
+                raw.data.u.bm.desc <- dget( paste0(project.folder,"/raw.data.u.desc"))
+                raw.data.v.bm <- as.big.matrix(raw.data.v , backingpath=project.folder , backingfile = "raw.data.v.bin", descriptorfile = "raw.data.v.desc")
+                raw.data.v.bm.desc <- dget( paste0(project.folder,"/raw.data.v.desc"))
+                
+                ## -------------------------------------
+                
+                ## Divide computations by sections (parallel.computational.sections)
+                
+                ptm <- proc.time()
+                cl.2 <- makeCluster(number.cores)
+                registerDoParallel(cl.2)
+                
+                for( section in 1:parallel.computational.sections ) {
+                  
+                  raw.data.u.bm.sec <- attach.big.matrix(raw.data.u.bm.desc)
+                  raw.data.v.bm.sec <- attach.big.matrix(raw.data.v.bm.desc)
+                  
+                  sections.lat.f.s <- as.numeric(sections.lat[section,1])
+                  sections.lat.t.s <- as.numeric(sections.lat[section,2])
+                  
+                  raw.data.u.i <- mwhich(raw.data.u.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
+                  raw.data.v.i <- mwhich(raw.data.v.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
+                  
+                  speed.u.sec <- t( sapply( raw.data.u.i , function (x) seq( from = raw.data.u.bm.sec[x,3] , to = raw.data.u.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
+                  speed.v.sec <- t( sapply( raw.data.v.i , function (x) seq( from = raw.data.v.bm.sec[x,3] , to = raw.data.v.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
+                  
+                
+                HERE!!!!!
+                  
+                  
+                
+                
+                # # If NA -> on ocean layer
+                # as.vector(sp::over( source.sink.xy , landmass ))
+                # sections.lat
+                # landmass.sect.1
+                # parallel.computational.sections
+                # 
                 # plot(raw.data.u[,.(Lon,Lat)])
                 # plot(raw.data.v[,.(Lon,Lat)])
                 
@@ -356,43 +415,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                         hour <- norm.time[t.step,hour]
                         day <- norm.time[t.step,day]
                         
-                        ## -----------------------
                         
-                        # Environmental data between days
-                        
-                        if( new.day[t.step] ) {   
-                                                  raw.data.u.t <- subset( raw.data.u[ , .(Lon , Lat , get(paste0("day.",day)) , get(paste0("day.",day+1)) ) ] , !is.na(V3) )
-                                                  raw.data.v.t <- subset( raw.data.v[ , .(Lon , Lat , get(paste0("day.",day)) , get(paste0("day.",day+1)) ) ] , !is.na(V3) )
-
-                                                  comb.to <- round ( seq(  nrow(raw.data.u.t) / number.cores , nrow(raw.data.u.t) , length.out=number.cores) )
-                                                  comb.to <- c(comb.to[-length(comb.to)] , nrow(raw.data.u.t))
-                                                  comb.from <- c(1,comb.to + 1)       
-                                                  combinations <- data.frame(from = comb.from[-length(comb.from)] , to = comb.to )
-
-                                                  speed.u.rk <- foreach(s=1:nrow(combinations), .combine='rbind', .verbose=FALSE, .packages=c("gstat","raster","data.table")) %dopar% {
-                                                    
-                                                                speed.u.rk <- t( sapply( combinations$from[s]:combinations$to[s] , function (x) seq( from = raw.data.u.t[x, V3 ] , to = raw.data.u.t[x, V4 ] , length.out = n.hours.per.day + 1 ) ))
-                                                                speed.u.rk <- data.table(speed.u.rk)
-                                                                setnames(speed.u.rk,sapply( 1:(n.hours.per.day + 1) , function(x) { paste0( "t",x) } ))
-                                                                speed.u.rk[, c("Lon","Lat") := list(raw.data.u.t[ combinations$from[s]:combinations$to[s] , Lon ] , raw.data.u.t[combinations$from[s]:combinations$to[s],Lat])]
-                                                                setcolorder(speed.u.rk,c("Lon","Lat","t1","t2","t3","t4","t5","t6","t7","t8","t9","t10","t11","t12","t13"))
-                                                                return(speed.u.rk)
-                                                                
-                                                  }
-                                                  
-                                                  speed.v.rk <- foreach(s=1:nrow(combinations), .combine='rbind', .verbose=FALSE, .packages=c("gstat","raster","data.table")) %dopar% {
-                                                    
-                                                                speed.v.rk <- t( sapply( combinations$from[s]:combinations$to[s] , function (x) seq( from = raw.data.v.t[x, V3 ] , to = raw.data.v.t[x, V4 ] , length.out = n.hours.per.day + 1 )))
-                                                                speed.v.rk <- data.table(speed.v.rk)
-                                                                setnames(speed.v.rk,sapply( 1:(n.hours.per.day + 1) , function(x) { paste0( "t",x) } ))
-                                                                speed.v.rk[, c("Lon","Lat") := list(raw.data.v.t[ combinations$from[s]:combinations$to[s] , Lon ] , raw.data.v.t[combinations$from[s]:combinations$to[s],Lat])]
-                                                                setcolorder(speed.v.rk,c("Lon","Lat","t1","t2","t3","t4","t5","t6","t7","t8","t9","t10","t11","t12","t13"))
-                                                                return(speed.v.rk)
-                                                                
-                                                  }
-                                                  
-                        }
-                  
                         # -----------------------------------------------
                         # Release new particles, if that is the case
                        
@@ -693,6 +716,9 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                    "particles.reference" , "particles.video.location.z" , "raw.data.u" , "raw.data.v" , "speed.u.rk" , "speed.v.rk" , "raw.data.u.t" , "raw.data.v.t" )
                 
                 for( i in 1:length(objects.to.rm) ) { if( exists(objects.to.rm[i]) ) { rm(list=objects.to.rm[i]) }  }
+         
+                
+                time.f <- Sys.time()
                 
 
 }

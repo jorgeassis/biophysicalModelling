@@ -8,7 +8,7 @@
 ## Files and folders
 
 project.name <- "Test"
-project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript"
+project.folder <- "/Users/jorgeassis/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
@@ -17,7 +17,9 @@ unwanted.release.sites.shp <- NULL
 
 ## ------------------------------------
 
-number.cores <- 6      # May crash with all cores assigned
+number.cores <- 6      
+parallel.computational.sections <- 6
+parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
 # Region
@@ -26,7 +28,7 @@ min.lon <- -20
 max.lon <- 10
 min.lat <- 20
 max.lat <- 50
-source.sink.dist <- 5 # km
+source.sink.dist <- 50 # km
 
 # -----------------------------------
 # Traits
@@ -60,9 +62,10 @@ movie.year <- 2003
 movie.sites.xy <- matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 ) , ncol=2 , byrow=TRUE) 
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
-# -----------------------------------
+# --------------------------------------------------------------
+# --------------------------------------------------------------
 
-source("1. Get Data.R")
+# source("1. Get Data.R")
 
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
