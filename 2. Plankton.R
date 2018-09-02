@@ -73,6 +73,10 @@ if( !is.null(unwanted.release.sites.shp) ) {
 
 points(source.sink.xy,box=FALSE,legend=FALSE,col=c("black"),pch=16)
 
+## ------------------
+
+initial.coords <- as.data.frame(source.sink.xy)
+
 ## ------------------------------------------------------------------------------------------------------------------------------
 
 ## Define Available raw data and Test if data is available
@@ -147,33 +151,26 @@ if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory
 
 ## Define conditions
 
-norm.time <- expand.grid( hour=1:n.hours.per.day , day=1:(nrow(simulation.parameters.step)) )
+norm.time <- data.frame()
+for(n in 1:nrow(simulation.parameters.step)) {
+  norm.time <- rbind(norm.time,data.frame(do.call("rbind", replicate(n.hours.per.day, simulation.parameters.step[n,c("year" , "month" , "day")] , simplify = FALSE)) , hour=1:n.hours.per.day))
+}
 norm.time <- data.table(norm.time)
 
-new.day <- norm.time[,hour == 1]
-end.of.day <- norm.time[,hour == n.hours.per.day]
+# ------------------
 
-# ------
-# Remove the last day from new.day because there is no day #367 in the data for currents
+release.particles.condition <- round(seq(1,n.hours.per.day,n.hours.per.day/n.new.particles.per.day))
 
-last.new.day <- which(new.day)
-new.day[last.new.day[length(last.new.day)]] <- FALSE
+norm.time[ hour == release.particles.condition, release.particles := TRUE ]
+norm.time[ hour != release.particles.condition, release.particles := FALSE ]
 
-# ------
+if(remove.new.particles.last.days) {
+  norm.time[ ( nrow(norm.time)-(remove.new.particles.last.days.n.days*n.hours.per.day)):nrow(norm.time) , release.particles := FALSE ]
+}
 
-release.particles.t <- seq(from=1,to=n.hours.per.day,by=(n.hours.per.day/n.new.particles.per.day))
-release.particles.condition <- norm.time[,hour %in% release.particles.t] 
-
-if( remove.new.particles.last.days ) { release.particles.condition[ (length(release.particles.condition)-(n.hours.per.day*remove.new.particles.last.days.n.days)):length(release.particles.condition) ] <- FALSE }
+# ------------------
 
 n.particles.per.cell <- (nrow(simulation.parameters.step)) * length(release.particles.t)
-n.simulation.steps <- nrow(norm.time)
-
-runge.kutta.sequence <- c(sapply( 1:(n.hours.per.day), function (x) rep( x ,  n.hours.per.day / ( n.hours.per.day ) ) ))
-runge.kutta.sorter <- 1:n.hours.per.day
-
-all.but.first.day <- rep(TRUE,n.simulation.steps)
-all.but.first.day[1] <- FALSE
 
 ## --------------------------------------------------------
 
@@ -196,6 +193,13 @@ particles.reference[ , t.start := 0 ]
 particles.reference[ , t.finish := 0 ]
 particles.reference[ , cell.rafted := 0 ]
 setkey(particles.reference, id )
+
+for( c in source.sink.id) {
+  
+  particles.reference[ start.cell == c, pos.lon := initial.coords$x[c] ]
+  particles.reference[ start.cell == c, pos.lat := initial.coords$y[c] ]
+  
+}
 
 ## --------------------------------------------------------
 
@@ -353,11 +357,20 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 raw.data.u <- as.matrix(raw.data.u) ; colnames(raw.data.u) <- NULL
                 raw.data.v <- as.matrix(raw.data.v) ; colnames(raw.data.v) <- NULL
                 
-                clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=project.folder)
-                raw.data.u.bm <- as.big.matrix( raw.data.u , backingpath=project.folder , backingfile = "raw.data.u.bin", descriptorfile = "raw.data.u.desc")
-                raw.data.u.bm.desc <- dget( paste0(project.folder,"/raw.data.u.desc"))
-                raw.data.v.bm <- as.big.matrix(raw.data.v , backingpath=project.folder , backingfile = "raw.data.v.bin", descriptorfile = "raw.data.v.desc")
-                raw.data.v.bm.desc <- dget( paste0(project.folder,"/raw.data.v.desc"))
+                if( ! "InternalProc" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/InternalProc"))) }
+                
+                clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/InternalProc"))
+                clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/InternalProc"))
+                
+                raw.data.u.bm <- as.big.matrix( raw.data.u , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "raw.data.u.bin", descriptorfile = "raw.data.u.desc")
+                raw.data.u.bm.desc <- dget( paste0(project.folder,"/InternalProc/raw.data.u.desc"))
+                raw.data.v.bm <- as.big.matrix(raw.data.v , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "raw.data.v.bin", descriptorfile = "raw.data.v.desc")
+                raw.data.v.bm.desc <- dget( paste0(project.folder,"/InternalProc/raw.data.v.desc"))
+                
+            # !! Remove column names? !!
+                
+                particles.reference.bm <- as.big.matrix(as.matrix(particles.reference) , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
+                particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
                 
                 ## -------------------------------------
                 
@@ -369,119 +382,75 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 
                 for( section in 1:parallel.computational.sections ) {
                   
-                  raw.data.u.bm.sec <- attach.big.matrix(raw.data.u.bm.desc)
-                  raw.data.v.bm.sec <- attach.big.matrix(raw.data.v.bm.desc)
-                  
-                  sections.lat.f.s <- as.numeric(sections.lat[section,1])
-                  sections.lat.t.s <- as.numeric(sections.lat[section,2])
-                  
-                  raw.data.u.i <- mwhich(raw.data.u.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
-                  raw.data.v.i <- mwhich(raw.data.v.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
-                  
-                  speed.u.sec <- t( sapply( raw.data.u.i , function (x) seq( from = raw.data.u.bm.sec[x,3] , to = raw.data.u.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
-                  speed.v.sec <- t( sapply( raw.data.v.i , function (x) seq( from = raw.data.v.bm.sec[x,3] , to = raw.data.v.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
-                  
-                
-                HERE!!!!!
-                  
-                  
-                
-                
-                # # If NA -> on ocean layer
-                # as.vector(sp::over( source.sink.xy , landmass ))
-                # sections.lat
-                # landmass.sect.1
-                # parallel.computational.sections
-                # 
-                # plot(raw.data.u[,.(Lon,Lat)])
-                # plot(raw.data.v[,.(Lon,Lat)])
-                
-                ## ---------------------------
-                
-                # coords.cells <- data.table(id=cells.id,cells)
-                # setnames(coords.cells,names(coords.cells),c("Cell","Lon","Lat"))
-                 
-                ## --------------------------------------------------------
-                ## Move particles (per day)
-    
-                ptm <- proc.time()
-                cl.2 <- makeCluster(number.cores)
-                registerDoParallel(cl.2)
-                
-                for( t.step in 1:n.hours.per.day ) {
-                  
-                        ## -----------------------
+                      sections.lat.f.s <- as.numeric(sections.lat[section,1])
+                      sections.lat.t.s <- as.numeric(sections.lat[section,2])
+                      
+                      ## --------------------------------------------------------
+                      
+                      raw.data.u.bm.sec <- attach.big.matrix(raw.data.u.bm.desc)
+                      raw.data.v.bm.sec <- attach.big.matrix(raw.data.v.bm.desc)
+                    
+                      raw.data.u.i <- mwhich(raw.data.u.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
+                      raw.data.v.i <- mwhich(raw.data.v.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
+                      
+                      speed.u.sec <- t( sapply( raw.data.u.i , function (x) seq( from = raw.data.u.bm.sec[x,3] , to = raw.data.u.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
+                      speed.v.sec <- t( sapply( raw.data.v.i , function (x) seq( from = raw.data.v.bm.sec[x,3] , to = raw.data.v.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
+                      
+                      speed.u.sec.coords <- raw.data.u.bm.sec[raw.data.u.i,1:2]
+                      speed.v.sec.coords <- raw.data.v.bm.sec[raw.data.v.i,1:2]
+                      
+                      ## --------------------------------------------------------
+                      
+                      particles.reference.bm.sec <- attach.big.matrix(particles.reference.bm.desc)
+                      particles.reference.bm.i <- mwhich(particles.reference.bm.sec,c(4,4),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
+                      particles.reference.bm.sec <- as.data.table(particles.reference.bm.sec[particles.reference.bm.i,])
+                      
+                      ## --------------------------------------------------------
+                      ## Move particles (per day)
+                          
+                      for( h in 1:n.hours.per.day ) {
 
-                        hour <- norm.time[t.step,hour]
-                        day <- norm.time[t.step,day]
-                        
+                        t.step <- ((as.numeric(simulation.step)-1) * n.hours.per.day) + h
                         
                         # -----------------------------------------------
                         # Release new particles, if that is the case
-                       
-                        if( release.particles.condition[t.step] ) {   
+                        
+                        if( norm.time[t.step,release.particles] ) {   
                           
-                                                new.particles.id <- particles.reference[ state == 0 , .SD[1] , by=cell][,id]
-                                                new.particles.cells <- particles.reference[ state == 0 , .SD[1] , by=cell][,cell]
-                                                
-                                                particles.reference[ id %in% new.particles.id , state := 1 ]
-                                                particles.reference[ id %in% new.particles.id , t.start := t.step ]
-                                                particles.reference[ id %in% new.particles.id , pos.lon := initial.coords$x[new.particles.cells] ]
-                                                particles.reference[ id %in% new.particles.id , pos.lat := initial.coords$y[new.particles.cells] ]
-
-                                                
+                          new.particles.id <- particles.reference.bm.sec[ state == 0 , .SD[1] , by=start.cell][,id]
+                          new.particles.cells <- particles.reference.bm.sec[ state == 0 , .SD[1] , by=start.cell][,start.cell]
+                          
+                          particles.reference.bm.sec[ id %in% new.particles.id , state := 1 ]
+                          particles.reference.bm.sec[ id %in% new.particles.id , t.start := t.step ]
+                           
                         }
 
                         # -----------------------------------------------
                         # Which to move and speed
                         
-                        moving.particles.xy <- particles.reference[ state == 1 , .(id,pos.lon,pos.lat,pos.alt) ]
+                        moving.particles.xy <- particles.reference.bm.sec[ state == 1 , ]
                         moving.particles.condition <- nrow(moving.particles.xy) > 0
 
                         if( moving.particles.condition ) {
 
-                                  # Sort Particles By Latitude
-
-                                  moving.particles.xy <- moving.particles.xy[order(pos.lat, decreasing = TRUE), ]
-                                  
                                   moving.particles.ids <- moving.particles.xy[,id]
-                                  moving.particles.cells <- particles.reference[ id %in% moving.particles.ids , cell ]
-                                  moving.particles.tstart <- particles.reference[ id %in% moving.particles.ids , t.start ]
+                                  moving.particles.start.cell <- moving.particles.xy[,start.cell]
+                                  moving.particles.t.start <- moving.particles.xy[,t.start]
                                   
-                                  ## -----------------------
+                                  points.to.interp <- moving.particles.xy[, .(pos.lon,pos.lat) ]
+                                  coordinates(points.to.interp) = ~pos.lon+pos.lat
+                                          
+                                  source.points.to.interp.u <- data.frame(x=speed.u.sec.coords[,1],y=speed.u.sec.coords[,2],var=speed.u.sec[,h])
+                                  coordinates(source.points.to.interp.u) = ~x+y
                                   
-                                  comb.to <- round ( seq(  nrow(moving.particles.xy) / number.cores , nrow(moving.particles.xy) , length.out=number.cores) )
-                                  comb.to <- c(comb.to[-length(comb.to)] , nrow(moving.particles.xy))
-                                  comb.from <- c(1,comb.to + 1)       
-                                  combinations <- data.frame(from = comb.from[-length(comb.from)] , to = comb.to )
+                                  source.points.to.interp.v <- data.frame(x=speed.v.sec.coords[,1],y=speed.v.sec.coords[,2],var=speed.v.sec[,h])
+                                  coordinates(source.points.to.interp.v) = ~x+y
+                      
+                                  # Interpolate speed
 
-                                  positions.fate <- foreach(s=1:nrow(combinations), .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN")) %dopar% { # 
-                                    
-                                          ids.para <- moving.particles.ids[combinations$from[s]:combinations$to[s]]
-                                          cells.para <- moving.particles.cells[combinations$from[s]:combinations$to[s]]
-                                          tstart.para <- moving.particles.tstart[combinations$from[s]:combinations$to[s]]
-                                          
-                                          points.to.interp <- moving.particles.xy[combinations$from[s]:combinations$to[s], .(pos.lon,pos.lat) ]
-                                          coordinates(points.to.interp) = ~pos.lon+pos.lat
-                                          
-                                          extent.para <- c( extent(points.to.interp)[1] - ( simulation.resolution * 25 ) ,
-                                                            extent(points.to.interp)[2] + ( simulation.resolution * 25 ) ,
-                                                            extent(points.to.interp)[3] - ( simulation.resolution * 25 ) ,
-                                                            extent(points.to.interp)[4] + ( simulation.resolution * 25 ) 
-                                                            )
+                                  
+                                  HERE!!!!
 
-                                          ocean.region.dt.t <- crop(ocean.region.dt,extent.para)
-                                          
-                                          source.points.to.interp.u <- speed.u.rk[ Lon >= extent.para[1] & Lon <= extent.para[2] & Lat >= extent.para[3] & Lat <= extent.para[4] , .(Lon,Lat,get(paste0("t",hour))) ]
-                                          setnames(source.points.to.interp.u,c("x","y","var"))
-                                          coordinates(source.points.to.interp.u) = ~x+y
-                                   
-                                          source.points.to.interp.v <- speed.v.rk[ Lon >= extent.para[1] & Lon <= extent.para[2] & Lat >= extent.para[3] & Lat <= extent.para[4] , .(Lon,Lat,get(paste0("t",hour))) ]
-                                          setnames(source.points.to.interp.v,c("x","y","var"))
-                                          coordinates(source.points.to.interp.v) = ~x+y
-
-                                          # invisible
-                                          
                                           invisible( speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax=3)$var1.pred )
                                           invisible( speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax=3)$var1.pred )
                                           mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
@@ -623,8 +592,27 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                               ptm <- proc.time()
 
                         }
-                        
+                            
+                    }
+
                 }
+                
+                
+                
+                # # If NA -> on ocean layer
+                # as.vector(sp::over( source.sink.xy , landmass ))
+                # sections.lat
+                # landmass.sect.1
+                # parallel.computational.sections
+                # 
+                # plot(raw.data.u[,.(Lon,Lat)])
+                # plot(raw.data.v[,.(Lon,Lat)])
+                
+                ## ---------------------------
+                
+                # coords.cells <- data.table(id=cells.id,cells)
+                # setnames(coords.cells,names(coords.cells),c("Cell","Lon","Lat"))
+                
                 
                 stopCluster(cl.2) ; rm(cl.2)
                 
@@ -723,6 +711,16 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 
 }
 
+                stopCluster(cl.2) ; rm(cl.2); gc(reset=TRUE)
+                
+                ## -------------------------------------
+                
+                clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/InternalProc"))
+                clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/InternalProc"))
+                file.remove( paste0(project.folder,"/InternalProc"))
+                
+}
+                
 ##  ---------------------------------------------------------------------------------------------------------------------------------
 ##  ---------------------------------------------------------------------------------------------------------------------------------
 ## End of Code
