@@ -390,8 +390,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       raw.data.u.bm.sec <- attach.big.matrix(raw.data.u.bm.desc)
                       raw.data.v.bm.sec <- attach.big.matrix(raw.data.v.bm.desc)
                     
-                      raw.data.u.i <- mwhich(raw.data.u.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
-                      raw.data.v.i <- mwhich(raw.data.v.bm.sec,c(2,2),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'le') , 'AND')
+                      raw.data.u.i <- mwhich(raw.data.u.bm.sec,c(2,2),list(sections.lat.f.s-parallel.computational.buffer,sections.lat.t.s+parallel.computational.buffer), list('ge', 'le') , 'AND')
+                      raw.data.v.i <- mwhich(raw.data.v.bm.sec,c(2,2),list(sections.lat.f.s-parallel.computational.buffer,sections.lat.t.s+parallel.computational.buffer), list('ge', 'le') , 'AND')
                       
                       speed.u.sec <- t( sapply( raw.data.u.i , function (x) seq( from = raw.data.u.bm.sec[x,3] , to = raw.data.u.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
                       speed.v.sec <- t( sapply( raw.data.v.i , function (x) seq( from = raw.data.v.bm.sec[x,3] , to = raw.data.v.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
@@ -448,14 +448,11 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       
                                   # Interpolate speed
 
+                                  invisible( speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax=3)$var1.pred )
+                                  invisible( speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax=3)$var1.pred )
+                                  mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
+                                  mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
                                   
-                                  HERE!!!!
-
-                                          invisible( speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax=3)$var1.pred )
-                                          invisible( speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax=3)$var1.pred )
-                                          mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
-                                          mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
-                                          
                                           # Assign temporary positions
 
                                           points.to.interp <- as.data.frame(points.to.interp)
