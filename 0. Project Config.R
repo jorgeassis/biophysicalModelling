@@ -8,7 +8,7 @@
 ## Files and folders
 
 project.name <- "Test"
-project.folder <- "/Users/jorgeassis/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript"
+project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
@@ -24,6 +24,7 @@ parallel.computational.buffer <- 2 # degrees
 # -----------------------------------
 # Region
 
+dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 min.lon <- -20
 max.lon <- 10
 min.lat <- 20
