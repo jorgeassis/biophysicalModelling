@@ -29,7 +29,7 @@ coastline <- gIntersection(coastline, clipper, byid=TRUE)
 options(warn=0)
 
 plot(landmass,box=FALSE,legend=FALSE,col=c("grey"))
-lines(coastline,box=FALSE,legend=FALSE,col=c("red"))
+lines(coastline,col=c("yellow"))
 
 ## -----------------------------------------------------
 
@@ -83,7 +83,7 @@ if( !is.null(unwanted.release.sites.shp) ) {
   
 }
 
-points(source.sink.xy,box=FALSE,legend=FALSE,col=c("black"),pch=16)
+points(source.sink.xy,col=c("black"),pch=16)
 
 ## ------------------
 
@@ -125,7 +125,7 @@ if( !is.null(movie.sites.xy) ) { movie.sites.id <- unique(movie.sites.xy)
  
 }
 
-points(movie.sites.xy,box=FALSE,legend=FALSE,col=c("yellow"),pch=16)
+points(movie.sites.xy,col=c("red"),pch=16)
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -277,7 +277,7 @@ for(i in 1:parallel.computational.sections){
 ## Start Simulation
 ## 1:nrow(simulation.parameters.step)
 
-for ( simulation.step in 1:10 ) {
+for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 
                 ## --------------------------------------------------------
     
@@ -292,7 +292,7 @@ for ( simulation.step in 1:10 ) {
                 cat('\n')
                 cat('\n Running step #',simulation.step,'| Time taken',time.take.step.min,'mins.')
                 cat('\n',paste0(rep("-",100),collapse = ""))
-                cat('\n--',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
+                cat('\n --',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
                 cat('\n',paste0(rep("-",100),collapse = ""))
                 
                 ## --------------------------------------------------------

@@ -60,7 +60,7 @@ final.dimensions <- 2
 # Ilustration (movie)
 
 movie.year <- 2003
-movie.sites.xy <- matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 ) , ncol=2 , byrow=TRUE) 
+movie.sites.xy <- matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 , -5 , 50 , - 2 , 45 , -5 , 44 , 5 , 40 , -10 , 30 ) , ncol=2 , byrow=TRUE) 
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
 # --------------------------------------------------------------
