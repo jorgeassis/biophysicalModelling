@@ -131,38 +131,6 @@ points(movie.sites.xy,col=c("red"),pch=16)
 ##
 ## ------------------------------------------------------------------------------------------------------------------------------
 
-## SQL configuration
-
-if( paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
-  
-  x <- ""
-  while( x != "Y" & x != "n" ) { x <- readline("SQL database already exists. Do you which to overwrite? (Y/n) ") }
-  
-  if (x == "Y" ) { file.remove( paste0(sql.directory,"/",project.name,"SimulationResults.sql") ) }
-}
-  
-## -----------------------
-
-if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
-    
-    global.simulation.parameters <- data.frame(   kill.by.raft = kill.by.raft , 
-                                                  n.hours.per.day = n.hours.per.day , 
-                                                  n.new.particles.per.day = n.new.particles.per.day , 
-                                                  remove.new.particles.last.days = remove.new.particles.last.days , 
-                                                  longevity = longevity , 
-                                                  particle.max.duration = particle.max.duration , 
-                                                  behaviour = behaviour   )       
-    
-    sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-    dbWriteTable(sql, "ReleaseSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
-    dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
-    dbDisconnect(sql)
-    
-}
-
-
-## ------------------------------------------------------------------------------------------------------------------
-
 ## Define conditions
 
 norm.time <- data.frame()
@@ -272,6 +240,47 @@ for(i in 1:parallel.computational.sections){
 
 }
 
+## ------------------------------------------------------------------------------------------------------------------
+
+
+## SQL configuration
+
+if( paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
+  
+  x <- ""
+  while( x != "Y" & x != "n" ) { x <- readline("SQL database already exists. Do you which to overwrite? (Y/n) ") }
+  
+  if (x == "Y" ) { file.remove( paste0(sql.directory,"/",project.name,"SimulationResults.sql") ) }
+}
+
+## -----------------------
+
+if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
+  
+  global.simulation.parameters <- data.frame(   project.name = project.name,
+                                                sim.years = from.year:to.year,
+                                                sim.months = paste(months.all,collapse=","),
+                                                kill.by.raft = kill.by.raft , 
+                                                n.hours.per.day = n.hours.per.day , 
+                                                n.new.particles.per.day = n.new.particles.per.day , 
+                                                remove.new.particles.last.days = remove.new.particles.last.days , 
+                                                longevity = longevity , 
+                                                particle.max.duration = particle.max.duration , 
+                                                behaviour = behaviour,
+                                                n.particles.per.cell = n.particles.per.cell,
+                                                movie.year = movie.year, 
+                                                movie.sites.id = paste(movie.sites.id,collapse=",") , 
+                                                particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
+                                                extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
+  
+  sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+  dbWriteTable(sql, "ReleaseSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
+  dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
+  dbDisconnect(sql)
+  
+}
+
+## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
 
 ## Start Simulation
@@ -608,8 +617,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                 
                                 if( particles.to.sql.id.moving.condition ) { 
   
-                                  particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,3])
-                                  particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,4])
+                                  particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,6])
+                                  particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,7])
                                   
                                 }
                             }
@@ -653,6 +662,13 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 ## ------------------------------------------------------------------------------------------------------------------
 # Save Reference Table in SQL
 
+# Erase those that did not acomplish
+# 0 unborne
+# 1 living
+# 2 rafted ***
+# 3 on hold out of space
+# 4 dead by time
+
 particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(2), list('eq'))
 
 ReferenceTable <- data.frame( particles.reference.bm[particles.reference.bm.i,] , 
@@ -661,11 +677,12 @@ ReferenceTable <- data.frame( particles.reference.bm[particles.reference.bm.i,] 
 ## -----------------------
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-dbWriteTable(sql, "ReferenceTable", ReferenceTable , append=FALSE, overwrite=TRUE )
 
-dbWriteTable(sql, "MovieLon", as.data.frame(t(as.matrix(particles.video.location.x.bm))) , append = TRUE)
-dbWriteTable(sql, "MovieLat", as.data.frame(t(as.matrix(particles.video.location.y.bm))) , append = TRUE)
-dbWriteTable(sql, "MovieAlt", as.data.frame(t(as.matrix(particles.video.location.z.bm))) , append = TRUE)
+dbWriteTable(sql, "ReferenceTable", ReferenceTable , append=FALSE, overwrite=TRUE )
+dbWriteTable(sql, "MovieLon", as.data.frame(t(as.matrix(particles.video.location.x.bm))) , append = FALSE)
+dbWriteTable(sql, "MovieLat", as.data.frame(t(as.matrix(particles.video.location.y.bm))) , append = FALSE)
+
+# dbWriteTable(sql, "MovieAlt", as.data.frame(t(as.matrix(particles.video.location.z.bm))) , append = FALSE)
   
 dbDisconnect(sql)
 
