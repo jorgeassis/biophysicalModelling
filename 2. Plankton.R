@@ -242,7 +242,6 @@ for(i in 1:parallel.computational.sections){
 
 ## ------------------------------------------------------------------------------------------------------------------
 
-
 ## SQL configuration
 
 if( paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
