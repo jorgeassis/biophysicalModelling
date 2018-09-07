@@ -82,7 +82,7 @@ if( !is.null(unwanted.release.sites.shp) ) {
   source.sink.xy <- source.sink.xy[-points.over.polygon]
   
 }
-
+ 
 points(source.sink.xy,col=c("black"),pch=16)
 
 ## ------------------
@@ -221,7 +221,7 @@ if( ! is.null(movie.year) ) {
 
 ## Generate regions for simulation
 ## Parallel.computational.sections : latitudinal section
-
+ 
 sections.lat <- data.frame( sect.from = seq(min.lat,max.lat,length.out = parallel.computational.sections+1)[-(parallel.computational.sections+1)] , 
                             sect.to = seq(min.lat,max.lat,length.out = parallel.computational.sections+1)[-1] )
 
@@ -661,12 +661,12 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 ## ------------------------------------------------------------------------------------------------------------------
 # Save Reference Table in SQL
 
-# Erase those that did not acomplish
-# 0 unborne
-# 1 living
-# 2 rafted ***
-# 3 on hold out of space
-# 4 dead by time
+# Erase those that did not acomplish 
+# 0 unborne 
+# 1 living 
+# 2 rafted *** 
+# 3 on hold out of space 
+# 4 dead by time 
 
 particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(2), list('eq'))
 
