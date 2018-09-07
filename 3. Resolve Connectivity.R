@@ -54,11 +54,23 @@ stopCluster(cl.2) ; rm(cl.2)
 
 # -----------------------------------------
 
-# Save pairs to SQL
+# Save pairs to SQL 
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 dbWriteTable(sql, "Connectivity", all.connectivity.pairs.to.sql , overwrite=TRUE, append=FALSE)
 dbDisconnect(sql)
+
+# -----------------------------------------
+
+sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+Connectivity <- data.table(dbReadTable(sql, "Connectivity")) ; Connectivity
+dbDisconnect(sql)
+
+Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
+colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "Max.Probability" , "Mean.Time" , "Max.Time" , "N.events" )
+Connectivity
+
+
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
