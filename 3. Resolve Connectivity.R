@@ -2,12 +2,8 @@
 ## PlankTonic
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
-
-source("Dependences.R")
-
-## ------------------------------------------------------------------------------------------------------------------------------
 ##
-## ------------------------------------------------------------------------------------------------------------------------------
+## ------------------------------------------------------------------------------------------------------------------
 
 # Resolve connectivity
 
@@ -62,15 +58,46 @@ dbDisconnect(sql)
 
 # -----------------------------------------
 
+# Overall Connectivity matrix (mean of all years)
+
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-Connectivity <- data.table(dbReadTable(sql, "Connectivity")) ; Connectivity
+Connectivity <- data.table(dbReadTable(sql, "Connectivity"))
+source.sink.xy <- dbReadTable(sql, "ReleaseSites")
 dbDisconnect(sql)
 
 Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "Max.Probability" , "Mean.Time" , "Max.Time" , "N.events" )
 Connectivity
 
+source.sink.id <- 1:nrow(source.sink.xy)
+Connectivity.matrix.probability <- matrix(NA,nrow=length(source.sink.id),ncol=length(source.sink.id))
+Connectivity.matrix.time <- matrix(NA,nrow=length(source.sink.id),ncol=length(source.sink.id))
+dim(Connectivity.matrix)
 
+for( i in 1:length(source.sink.id)) {
+  for( j in 1:length(source.sink.id)) {
+    
+    prob.i <- Connectivity[Pair.from == i & Pair.to == j , Mean.Probability]
+    time.i <- Connectivity[Pair.from == i & Pair.to == j , Mean.Time]
+    
+    if(length(prob.i) > 0) { Connectivity.matrix.probability[i,j] <- prob.i }
+    if(length(time.i) > 0) { Connectivity.matrix.time[i,j] <- time.i }
+  
+  }
+}
+
+View(Connectivity.matrix.probability)
+View(Connectivity.matrix.time)
+
+plot(source.sink.xy)
+points(source.sink.xy[148,],col="red")
+points(source.sink.xy[2,],col="green")
+
+# -----------------------------------------
+
+# Connectivity matrix (per year)
+
+# TO DO
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
