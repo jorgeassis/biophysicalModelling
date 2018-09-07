@@ -27,7 +27,8 @@ packages.to.use <- c("gdata",
                      "reshape2",
                      "gdistance",
                      "ggplot2",
-                     "bigmemory")
+                     "bigmemory",
+                     "dismo")
 
 for(package in packages.to.use) {
   sink("/dev/null") 

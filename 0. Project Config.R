@@ -7,13 +7,13 @@
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Test"
-project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript"
+project.name <- "NAtlantic"
+project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/Plankton"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
 bathymetry.tif <- NULL
-unwanted.release.sites.shp <- NULL
+unwanted.release.sites.shp <- "/Users/jorgeassis/Desktop/unwanted.shp"
 
 ## ------------------------------------
 

@@ -57,37 +57,42 @@ while( nrow(coastline.pts.t) > 0 ){
   to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
   coastline.pts.t <- coastline.pts.t[-to.extract,]
   
-  # dist = spDists( as.matrix(pt.i),as.matrix(coastline.pts.t),longlat=TRUE)
-  # to.get <- which(dist <= source.sink.dist)
-  # to.get.xy <- coastline.pts.t[to.get,]
-  # source.sink.xy <- rbind(source.sink.xy,data.frame(x=sort(to.get.xy[,1])[length(to.get.xy[,1])/2],y=sort(to.get.xy[,2])[length(to.get.xy[,2])/2]))
-  # coastline.pts.t <- coastline.pts.t[-to.get,]
-
 }
 
-coordinates(source.sink.xy) <- c("x","y")
-crs(source.sink.xy) <- dt.projection
-source.sink.id <- 1:length(source.sink.xy)
+source.sink.xy <- data.frame(cells.id=1:nrow(source.sink.xy),x=source.sink.xy[,1],y=source.sink.xy[,2],source=1) ; head(source.sink.xy)
 
 ## -----------------------------------------------------
 
 ## Remove unwanted release sites
 
-if( !is.null(unwanted.release.sites.shp) ) {
+if( ! is.null(unwanted.release.sites.shp) ) {
   
+  source.sink.xy.t <- source.sink.xy[,2:3]
+  coordinates(source.sink.xy.t) <- c("x","y")
+  crs(source.sink.xy.t) <- dt.projection
+
   unwanted <- shapefile(unwanted.release.sites.shp)
   unwanted <- as(unwanted,"SpatialPolygons")
   
-  points.over.polygon <- as.vector(which(sp::over( source.sink.xy , unwanted , fn = NULL) == 1))
-  source.sink.xy <- source.sink.xy[-points.over.polygon]
+  points.over.polygon <- as.vector(which(sp::over( source.sink.xy.t , unwanted , fn = NULL) == 1))
+  source.points <- as.vector(which( is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )))
   
+  if( length(points.over.polygon) > 0 ) {
+    
+    source.sink.xy <- rbind( data.frame(cells.id=1:length(source.points),x=source.sink.xy[source.points,2],y=source.sink.xy[source.points,3],source=1) ,
+                             data.frame(cells.id=(length(source.points)+1):(length(source.points)+length(points.over.polygon)),x=source.sink.xy[points.over.polygon,2],y=source.sink.xy[points.over.polygon,3],source=0)
+                            )
+    
+  }
+ 
 }
  
-points(source.sink.xy,col=c("black"),pch=16)
+points(source.sink.xy[source.sink.xy$source == 1,2:3],col=c("black"),pch=16)
+points(source.sink.xy[source.sink.xy$source == 0,2:3])
 
 ## ------------------
 
-initial.coords <- as.data.frame(source.sink.xy)
+initial.coords <- source.sink.xy[source.sink.xy$source == 1 , 2:3 ]
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 
@@ -117,11 +122,11 @@ if( !is.null(movie.sites.xy) ) {
     else {  movie.sites.xy <- as.data.frame(movie.sites.xy) 
     }
   
-    movie.sites.xy <- sort( as.vector(get.knnx( as.data.frame(source.sink.xy) , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
+    movie.sites.xy <- sort( as.vector(get.knnx( initial.coords , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
 }
 
 if( !is.null(movie.sites.xy) ) { movie.sites.id <- unique(movie.sites.xy)
-                                 movie.sites.xy <- as.data.frame(source.sink.xy[ unique(movie.sites.xy) , ] ) 
+                                 movie.sites.xy <- initial.coords[ unique(movie.sites.xy) , ]
  
 }
 
@@ -165,8 +170,8 @@ n.particles.per.cell <- (nrow(simulation.parameters.step)) * n.new.particles.per
 # 3 out of space
 # 4 dead by time
 
-particles.reference <- data.table( id = 1:(n.particles.per.cell * length(source.sink.xy) ) )
-particles.reference[ , start.cell := as.numeric( sapply( source.sink.id ,function(x) { rep(x,n.particles.per.cell) })) ]
+particles.reference <- data.table( id = 1:(n.particles.per.cell * nrow(initial.coords) ) )
+particles.reference[ , start.cell := as.numeric( sapply( 1:nrow(initial.coords) ,function(x) { rep(x,n.particles.per.cell) })) ]
 particles.reference[ , start.year := 0 ]
 particles.reference[ , start.month := 0 ]
 particles.reference[ , start.day := 0 ]
@@ -273,7 +278,7 @@ if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory
                                                 extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
   
   sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-  dbWriteTable(sql, "ReleaseSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
+  dbWriteTable(sql, "SourceSinkSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
   dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
   dbDisconnect(sql)
   

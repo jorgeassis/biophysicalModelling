@@ -30,7 +30,7 @@ movie.sites.id <- as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$movi
 
 n.hours.per.day <- dbReadTable(sql, "Parameters")$n.hours.per.day
 n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell
-source.sink.xy <- dbReadTable(sql, "ReleaseSites")
+source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
 
 dbDisconnect(sql)
 

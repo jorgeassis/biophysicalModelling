@@ -5,10 +5,12 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
+
+ONLY THOSe THAt HAVe SOURCE == 1
 # Resolve connectivity
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-cell.to.process <- 1:nrow(dbReadTable(sql, "ReleaseSites"))
+cell.to.process <- 1:nrow(dbReadTable(sql, "SourceSinkSites"))
 particles.reference <- as.data.table(dbReadTable(sql, "ReferenceTable"))
 n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell
 dbDisconnect(sql)
