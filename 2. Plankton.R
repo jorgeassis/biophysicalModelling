@@ -684,10 +684,6 @@ ReferenceTable <- data.frame( particles.reference.bm[particles.reference.bm.i,] 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 
 dbWriteTable(sql, "ReferenceTable", ReferenceTable , append=FALSE, overwrite=TRUE )
-dbWriteTable(sql, "MovieLon", as.data.frame(t(as.matrix(particles.video.location.x.bm))) , append = FALSE)
-dbWriteTable(sql, "MovieLat", as.data.frame(t(as.matrix(particles.video.location.y.bm))) , append = FALSE)
-
-# dbWriteTable(sql, "MovieAlt", as.data.frame(t(as.matrix(particles.video.location.z.bm))) , append = FALSE)
   
 dbDisconnect(sql)
 
