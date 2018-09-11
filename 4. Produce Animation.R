@@ -9,19 +9,17 @@ source("Dependences.R")
 ##
 ## ------------------------------------------------------------------------------------------------------------------------------
 
-project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript"
-
-## ------------------------------------
-
 # Produce Animation
+
+particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
+particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
+
+particles.lat <- attach.big.matrix(particles.video.location.x.bm.desc)
+particles.lon <- attach.big.matrix(particles.video.location.y.bm.desc)
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 
-project.name <- dbReadTable(sql, "Parameters")$project.name
 sim.extent <- as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$extent, split=",")))
-
-particles.lat <- dbReadTable(sql, "MovieLat")
-particles.lon <- dbReadTable(sql, "MovieLon") # dbReadTable(sql, "MovieAlt")
 
 movie.year <- dbReadTable(sql, "Parameters")$movie.year
 months <- as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$sim.months , split=",")))
