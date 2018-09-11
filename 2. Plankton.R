@@ -26,11 +26,6 @@ crs(clipper) <- dt.projection
 landmass <- gIntersection(landmass, clipper, byid=TRUE)
 coastline <- gIntersection(coastline, clipper, byid=TRUE)
 
-options(warn=0)
-
-plot(landmass,box=FALSE,legend=FALSE,col=c("grey"))
-lines(coastline,col=c("yellow"))
-
 ## -----------------------------------------------------
 
 ## Define source and sink locations
@@ -74,7 +69,7 @@ if( ! is.null(unwanted.release.sites.shp) ) {
   unwanted <- shapefile(unwanted.release.sites.shp)
   unwanted <- as(unwanted,"SpatialPolygons")
   
-  points.over.polygon <- as.vector(which(sp::over( source.sink.xy.t , unwanted , fn = NULL) == 1))
+  points.over.polygon <- as.vector(which( ! is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )) )
   source.points <- as.vector(which( is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )))
   
   if( length(points.over.polygon) > 0 ) {
@@ -87,8 +82,15 @@ if( ! is.null(unwanted.release.sites.shp) ) {
  
 }
  
+options(warn=0)
+
+## ------------------
+
+plot(landmass,box=FALSE,legend=FALSE,col=c("grey"))
+lines(coastline,col=c("yellow"))
+
 points(source.sink.xy[source.sink.xy$source == 1,2:3],col=c("black"),pch=16)
-points(source.sink.xy[source.sink.xy$source == 0,2:3])
+points(source.sink.xy[source.sink.xy$source == 0,2:3],col=c("yellow"))
 
 ## ------------------
 
