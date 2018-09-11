@@ -1,4 +1,9 @@
 # PlankTonic
+
+Simulations of potential dispersal using HYCOM velocity fields.
+
+# References
+
 Assis, J., Zupan, M., Nicastro, K. R., Zardi, G. I., McQuaid, C. D., & Serrão, E. A. (2015). Oceanographic Conditions Limit the Spread of a Marine Invader along Southern African Shores. Plos One, 10(6), e0128124. doi:10.1371/journal.pone.0128124
 
 Cunha, R. L., Assis, J., Madeira, C., Seabra, R., Lima, F. P., Lopes, E. P., … Castilho, R. (2017). Drivers of Cape Verde archipelagic endemism in keyhole limpets. Scientific Reports, (7), 41817. doi:10.1038/srep41817
