@@ -116,14 +116,7 @@ if(sum( !from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"]))
 ## Prepare video (animation) points
 
 if( !is.null(movie.sites.xy) ) {
-    if( ! class(movie.sites.xy) == "matrix") {   
-            movie.sites.xy <- shapefile(movie.sites.xy)
-            movie.sites.xy <-  crop(movie.sites.xy, extent(landmass) )
-            movie.sites.xy <- as.data.frame(movie.sites.xy)[,2:3]
-    } 
-    else {  movie.sites.xy <- as.data.frame(movie.sites.xy) 
-    }
-  
+
     movie.sites.xy <- sort( as.vector(get.knnx( initial.coords , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
 }
 
@@ -285,6 +278,12 @@ if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory
   dbDisconnect(sql)
   
 }
+
+## -----------------------
+
+rm(particles.video.location.x) ; rm(particles.video.location.y) ; rm(particles.video.location.z)
+rm(data.u) ; rm(data.v) ; rm(particles.reference) ; rm(landmass) ; rm(coastline) ; gc(reset=TRUE)
+list.memory()
 
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
