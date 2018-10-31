@@ -117,7 +117,10 @@ if(sum( !from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"]))
 
 if( !is.null(movie.sites.xy) ) {
 
+    if(class(movie.sites.xy) =="character") { movie.sites.xy <- as.data.frame(shapefile(movie.sites.xy))[,2:3] }
+  
     movie.sites.xy <- sort( as.vector(get.knnx( initial.coords , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
+
 }
 
 if( !is.null(movie.sites.xy) ) { movie.sites.id <- unique(movie.sites.xy)
@@ -179,7 +182,7 @@ particles.reference[ , t.finish := 0 ]
 particles.reference[ , cell.rafted := 0 ]
 setkey(particles.reference, id )
 
-for( c in source.sink.id) {
+for( c in source.sink.xy[source.sink.xy$source == 1 , 1 ] ) {
   
   particles.reference[ start.cell == c, pos.lon := initial.coords$x[c] ]
   particles.reference[ start.cell == c, pos.lat := initial.coords$y[c] ]
@@ -294,7 +297,6 @@ list.memory()
 for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 
                 ## --------------------------------------------------------
-    
                 ## Progress
   
                 time.i <- Sys.time()
@@ -306,7 +308,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 cat('\n')
                 cat('\n Running step #',simulation.step,'| Time taken',time.take.step.min,'mins.')
                 cat('\n',paste0(rep("-",100),collapse = ""))
-                cat('\n --',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
+                cat('\n',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
                 cat('\n',paste0(rep("-",100),collapse = ""))
                 
                 ## --------------------------------------------------------
