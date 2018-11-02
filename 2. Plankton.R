@@ -247,16 +247,6 @@ for(i in 1:parallel.computational.sections){
 
 ## SQL configuration
 
-if( paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
-  
-  x <- ""
-  while( x != "Y" & x != "n" ) { x <- readline("SQL database already exists. Do you which to overwrite? (Y/n) ") }
-  
-  if (x == "Y" ) { file.remove( paste0(sql.directory,"/",project.name,"SimulationResults.sql") ) }
-}
-
-## -----------------------
-
 if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
   
   global.simulation.parameters <- data.frame(   project.name = project.name,
@@ -402,7 +392,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 raw.data.u <- raw.data.u[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(u.start) , ]
                 raw.data.v <- raw.data.v[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(v.start) , ]
                 
-                # points(raw.data.u[,.(Lon,Lat)])
+                # plot(raw.data.u[,.(Lon,Lat)])
 
                 ## -------------------------------------
                 
@@ -438,6 +428,19 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       particles.reference.bm.i <- mwhich(particles.reference.bm.all,c(7,7),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'lt') , 'AND')
                       particles.reference.bm.sec <- as.data.table(particles.reference.bm.all[particles.reference.bm.i,])
                       
+                      if( length(particles.reference.bm.i) > 1 ) { 
+                        
+                        particles.reference.bm.sec <- as.data.table(particles.reference.bm.all[particles.reference.bm.i,])
+                        
+                       } else {
+                          
+                        particles.reference.bm.sec <- as.data.table(particles.reference.bm.all[c(particles.reference.bm.i,particles.reference.bm.i),])[-1,]
+                        
+                        }
+                        
+                      if( nrow(particles.reference.bm.sec) > 0  ) { existing.particles <- TRUE  }
+                      if( nrow(particles.reference.bm.sec) == 0 ) { existing.particles <- FALSE }
+                      
                       ## --------------------------------------------------------
                       
                       raw.data.u.bm.sec <- attach.big.matrix(raw.data.u.bm.desc)
@@ -457,6 +460,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                           
                       for( h in 1:n.hours.per.day ) {
     
+                            if( ! existing.particles ) { next }
+                        
                             t.step <- ((as.numeric(simulation.step)-1) * n.hours.per.day) + h
                             
                             # -----------------------------------------------
@@ -554,7 +559,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                                   
                                                   true.rafters.id <- who.at.land.id[ displacement != 0 ]
                                                   true.rafters.cell <- cells.rafted[ displacement != 0 ]
-                                                  moving.particles.xy[ id %in% true.rafters.id , c("cell.rafted","state","t.finish") := list(true.rafters.cell,2,t.step) ] 
+                                                  moving.particles.xy[ id %in% true.rafters.id , c("cell.rafted","state","t.finish") := list(as.numeric(true.rafters.cell),2,as.numeric(t.step)) ] 
                                   
                                                   # For non-Rafters New Particles
                                                   
@@ -637,7 +642,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 
                       particles.reference.bm.i <- numeric()
                       
-                      for( bm.i in particles.reference.bm.sec[state!=0,id] ) {
+                      for( bm.i in particles.reference.bm.sec[ state != 0 ,id] ) {
                         
                         particles.reference.bm.i <- c( particles.reference.bm.i , mwhich(particles.reference.bm.all,1,list(bm.i),list('eq')) )
                         
@@ -657,6 +662,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       # -----------------------------------------------
 
                       return(NULL)
+                      
                 }
                 
                 stopCluster(cl.2) ; rm(cl.2)
