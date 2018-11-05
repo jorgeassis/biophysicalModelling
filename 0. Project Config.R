@@ -17,7 +17,7 @@ unwanted.release.sites.shp <- NULL # "/Volumes/Laminaria/Dropbox/Manuscripts/Tra
 
 ## ------------------------------------
 
-number.cores <- 4
+number.cores <- 12
 parallel.computational.sections <- 12
 parallel.computational.buffer <- 2 # degrees
 
@@ -36,7 +36,7 @@ source.sink.dist <- 1 # km
 
 months.all <- c(1:5) # Spawning 5:10 (30 days off)
 from.day <- 1 ; to.day <- 31
-from.year <- 2008 ; to.year <- 2012
+from.year <- 2010 ; to.year <- 2011
 depth.range <- c(0)
 
 kill.by.raft <- TRUE                              # Will eliminate particles that got to another cell - first raft event # May need a new particle every day
@@ -46,7 +46,7 @@ remove.new.particles.last.days <- TRUE            # If last days (particle.max.d
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 60                       # Days allowed to travel
+particle.max.duration <- 30                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------

@@ -64,7 +64,7 @@ dbDisconnect(sql)
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 Connectivity <- data.table(dbReadTable(sql, "Connectivity"))
-source.sink.xy <- dbReadTable(sql, "ReleaseSites")
+source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
 dbDisconnect(sql)
 
 Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
@@ -74,32 +74,25 @@ Connectivity
 source.sink.id <- 1:nrow(source.sink.xy)
 Connectivity.matrix.probability <- matrix(NA,nrow=length(source.sink.id),ncol=length(source.sink.id))
 Connectivity.matrix.time <- matrix(NA,nrow=length(source.sink.id),ncol=length(source.sink.id))
-dim(Connectivity.matrix)
+dim(Connectivity.matrix.probability)
 
-for( i in 1:length(source.sink.id)) {
-  for( j in 1:length(source.sink.id)) {
-    
-    prob.i <- Connectivity[Pair.from == i & Pair.to == j , Mean.Probability]
-    time.i <- Connectivity[Pair.from == i & Pair.to == j , Mean.Time]
-    
-    if(length(prob.i) > 0) { Connectivity.matrix.probability[i,j] <- prob.i }
-    if(length(time.i) > 0) { Connectivity.matrix.time[i,j] <- time.i }
-  
-  }
-}
+Connectivity.matrix.probability <- acast(Connectivity[,.(Pair.from , Pair.to ,  Mean.Probability)], Pair.from~Pair.to, value.var="Mean.Probability")
+Connectivity.matrix.time <- acast(Connectivity[,.(Pair.from , Pair.to ,  Mean.Time)], Pair.from~Pair.to, value.var="Mean.Time")
 
 View(Connectivity.matrix.probability)
 View(Connectivity.matrix.time)
 
-plot(source.sink.xy)
-points(source.sink.xy[148,],col="red")
-points(source.sink.xy[2,],col="green")
+plot(source.sink.xy[,2:3])
+points(source.sink.xy[148,2:3],col="red")
+points(source.sink.xy[2,2:3],col="green")
 
 # -----------------------------------------
 
-# Connectivity matrix (per year)
+save(Connectivity,file=paste0(sql.directory,"/",project.name,"ConnectPairs.RData"))
 
-# TO DO
+save(Connectivity.matrix.probability,file=paste0(sql.directory,"/",project.name,"ConnectMatrixProb.RData"))
+save(Connectivity.matrix.time,file=paste0(sql.directory,"/",project.name,"ConnectMatrixTime.RData"))
+save(source.sink.xy,file=paste0(sql.directory,"/",project.name,"SourceSinkXY.RData"))
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
