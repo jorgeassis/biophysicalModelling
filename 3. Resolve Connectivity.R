@@ -5,8 +5,6 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-
-ONLY THOSe THAt HAVe SOURCE == 1
 # Resolve connectivity
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
@@ -72,19 +70,13 @@ colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "Max.
 Connectivity
 
 source.sink.id <- 1:nrow(source.sink.xy)
-Connectivity.matrix.probability <- matrix(NA,nrow=length(source.sink.id),ncol=length(source.sink.id))
-Connectivity.matrix.time <- matrix(NA,nrow=length(source.sink.id),ncol=length(source.sink.id))
-dim(Connectivity.matrix.probability)
 
 Connectivity.matrix.probability <- acast(Connectivity[,.(Pair.from , Pair.to ,  Mean.Probability)], Pair.from~Pair.to, value.var="Mean.Probability")
 Connectivity.matrix.time <- acast(Connectivity[,.(Pair.from , Pair.to ,  Mean.Time)], Pair.from~Pair.to, value.var="Mean.Time")
+dim(Connectivity.matrix.probability)
 
 View(Connectivity.matrix.probability)
 View(Connectivity.matrix.time)
-
-plot(source.sink.xy[,2:3])
-points(source.sink.xy[148,2:3],col="red")
-points(source.sink.xy[2,2:3],col="green")
 
 # -----------------------------------------
 
