@@ -29,7 +29,8 @@ packages.to.use <- c("gdata",
                      "gdistance",
                      "ggplot2",
                      "bigmemory",
-                     "dismo")
+                     "dismo",
+                     "randomcoloR")
 
 for(package in packages.to.use) {
   sink("/dev/null") 
