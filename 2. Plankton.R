@@ -68,7 +68,7 @@ if( ! is.null(unwanted.release.sites.shp) ) {
   coordinates(source.sink.xy.t) <- c("x","y")
   crs(source.sink.xy.t) <- dt.projection
 
-  unwanted <- shapefile(unwanted.release.sites.shp)
+  unwanted <- shapefile(paste0(project.folder,unwanted.release.sites.shp))
   unwanted <- as(unwanted,"SpatialPolygons")
   
   points.over.polygon <- as.vector(which( ! is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )) )
@@ -123,7 +123,7 @@ if(sum( !from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"]))
 
 if( !is.null(movie.sites.xy) ) {
 
-    if(class(movie.sites.xy) =="character") { movie.sites.xy <- as.data.frame(shapefile(movie.sites.xy))[,2:3] }
+    if(class(movie.sites.xy) =="character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
   
     movie.sites.xy <- sort( as.vector(get.knnx( initial.coords , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
 
