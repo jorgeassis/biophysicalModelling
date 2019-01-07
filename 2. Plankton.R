@@ -35,28 +35,40 @@ coastline <- gIntersection(coastline, clipper, byid=TRUE)
 coastline.pts <- as(coastline, "SpatialPointsDataFrame")
 coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
 
+source.sink.xy <- data.frame(Lon=rep(NA,nrow(coastline.pts)),Lat=rep(NA,nrow(coastline.pts)),stringsAsFactors = FALSE)
+source.sink.xy.i <- 0
+
+coastline.pts.t.i <- coastline.pts
+coordinates(coastline.pts.t.i) <- c("x","y")
+crs(coastline.pts.t.i) <- dt.projection
+
 coastline.pts.t <- coastline.pts
-source.sink.xy <- data.frame()
+source.sink.xy.o <- nrow(coastline.pts.t)
 
 while( nrow(coastline.pts.t) > 0 ){
   
   pt.i = coastline.pts.t[1,,drop=FALSE]
   
-  source.sink.xy <- rbind(source.sink.xy,as.data.frame(pt.i))
+  source.sink.xy.i <- source.sink.xy.i + 1
+  source.sink.xy[source.sink.xy.i,] <- as.data.frame(pt.i,stringsAsFactors = FALSE)
                           
-  coastline.pts.t.i <- coastline.pts.t
-  coordinates(coastline.pts.t.i) <- c("x","y")
-  crs(coastline.pts.t.i) <- dt.projection
   circle <- circles(pt.i, lonlat=TRUE, d=source.sink.dist*1000, dissolve=FALSE)
   circle <- geometry(circle)
   crs(circle) <- dt.projection
   
   to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
-  coastline.pts.t <- coastline.pts.t[-to.extract,]
+  
+  coastline.pts.t <- coastline.pts.t[-which(rownames(coastline.pts.t) %in% names(to.extract)),]
+  
+  cat('\014')
+  cat('\n')
+  cat('\n')
+  cat('\n Progress:', 100 - round((nrow(coastline.pts.t) / source.sink.xy.o) * 100 , digits = 2) , '%' )
   
 }
 
-source.sink.xy <- data.frame(cells.id=1:nrow(source.sink.xy),x=source.sink.xy[,1],y=source.sink.xy[,2],source=1) ; head(source.sink.xy)
+source.sink.xy <- source.sink.xy[complete.cases(source.sink.xy),]
+source.sink.xy <- data.frame(cells.id=1:nrow(source.sink.xy),x=source.sink.xy[,"Lon"],y=source.sink.xy[,"Lat"],source=1,stringsAsFactors = FALSE) ; head(source.sink.xy)
 
 ## -----------------------------------------------------
 

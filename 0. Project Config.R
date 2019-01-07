@@ -29,7 +29,7 @@ min.lon <- -25
 max.lon <- 32
 min.lat <- 22
 max.lat <- 80
-source.sink.dist <- 1 # km
+source.sink.dist <- 5 # km
 
 # -----------------------------------
 # Traits
