@@ -224,16 +224,21 @@ if( ! is.null(movie.year) ) {
   
   particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
   
-  particles.video.location.x <- matrix( 0 , nrow = length(particles.to.sql.id) , ncol = (nrow(simulation.parameters.step) * n.hours.per.day ) )
-  particles.video.location.y <- matrix( 0 , nrow = length(particles.to.sql.id) , ncol = (nrow(simulation.parameters.step) * n.hours.per.day ) )
-  particles.video.location.z <- matrix( 0 , nrow = length(particles.to.sql.id) , ncol = (nrow(simulation.parameters.step) * n.hours.per.day ) )
-
   clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/InternalProc"))
   
-  particles.video.location.x.bm <- as.big.matrix(particles.video.location.x , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "particles.video.location.x.bin", descriptorfile = "particles.video.location.x.desc")
-  particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
+  particles.video.location.x.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
+                                                          ncol = (nrow(simulation.parameters.step) * n.hours.per.day ), 
+                                                          backingfile = "particles.video.location.x.bin",
+                                                          descriptorfile = "particles.video.location.x.desc",
+                                                          backingpath=paste0(project.folder,"/InternalProc"))
+                                    
+  particles.video.location.y.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
+                                                          ncol = (nrow(simulation.parameters.step) * n.hours.per.day ), 
+                                                          backingfile = "particles.video.location.y.bin",
+                                                          descriptorfile = "particles.video.location.y.desc",
+                                                          backingpath=paste0(project.folder,"/InternalProc"))
 
-  particles.video.location.y.bm <- as.big.matrix(particles.video.location.y , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "particles.video.location.y.bin", descriptorfile = "particles.video.location.y.desc")
+  particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
   particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
   
 }
