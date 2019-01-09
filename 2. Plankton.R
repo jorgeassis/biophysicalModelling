@@ -3,8 +3,6 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
-# ulimit -s 16384
-
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -576,7 +574,11 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                                 coordinates(points.to.test) <- c("pos.lon","pos.lat")
                                                 crs(points.to.test) <- dt.projection
             
-                                                particles.on.land <- as.vector(which(!is.na(over(points.to.test,get(paste0("landmass.sect.",section))@polyobj))))
+                                                sp.poly <- get(paste0("landmass.sect.",section))
+                                                
+                                                if( class(sp.poly) != "SpatialPolygons" ) { sp.poly <- get(paste0("landmass.sect.",section))@polyobj }
+
+                                                particles.on.land <- as.vector(which(!is.na(over(points.to.test,sp.poly))))
                                                 particles.on.land.condition <- length(particles.on.land) > 0
             
                                                 if( particles.on.land.condition ) {    
