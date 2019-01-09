@@ -3,6 +3,8 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
+# ulimit -s 16384
+
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -297,7 +299,6 @@ if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory
 
 ## -----------------------
 
-rm(particles.video.location.x) ; rm(particles.video.location.y) ; rm(particles.video.location.z)
 rm(particles.reference) ; gc(reset=TRUE)
 list.memory()
 
@@ -575,7 +576,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                                 coordinates(points.to.test) <- c("pos.lon","pos.lat")
                                                 crs(points.to.test) <- dt.projection
             
-                                                particles.on.land <- as.vector(which(!is.na(over(points.to.test,get(paste0("landmass.sect.",section))))))
+                                                particles.on.land <- as.vector(which(!is.na(over(points.to.test,get(paste0("landmass.sect.",section))@polyobj))))
                                                 particles.on.land.condition <- length(particles.on.land) > 0
             
                                                 if( particles.on.land.condition ) {    
