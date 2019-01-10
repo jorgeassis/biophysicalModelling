@@ -260,7 +260,7 @@ for(i in 1:parallel.computational.sections){
   clipper <- as(extent(min.lon,max.lon, sections.lat[i,1] - parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer ), "SpatialPolygons")
   crs(clipper) <- dt.projection 
   
-  assign( paste0("landmass.sect.",i) , gIntersection(landmass, clipper, byid=TRUE) )
+  assign( paste0("landmass.sect.",i) , crop(landmass, clipper) )
   
   list.of.polygons <- c(list.of.polygons,paste0("landmass.sect.",i))
 
