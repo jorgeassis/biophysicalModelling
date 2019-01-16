@@ -683,7 +683,10 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
         
                               setkey(particles.reference.bm.sec,id)
                               bm.i.all <- particles.reference.bm.sec[ state != 0 ,id]
-                              particles.reference.bm.i <- mwhich(particles.reference.bm.all,rep(1,length(bm.i.all)),list(bm.i.all),list(rep('eq',length(bm.i.all))),op = "OR")
+                              
+                              # particles.reference.bm.i <- mwhich(particles.reference.bm.all,rep(1,length(bm.i.all)),list(bm.i.all),list(rep('eq',length(bm.i.all))),op = "OR")
+                              
+                              particles.reference.bm.i <- which(particles.reference.bm.all[ , "id"] %in% bm.i.all)
                               
                               particles.reference.bm.all[particles.reference.bm.i , 3 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.year]
                               particles.reference.bm.all[particles.reference.bm.i , 4 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.month]

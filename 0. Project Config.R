@@ -8,7 +8,7 @@
 ## Files and folders
 
 project.name <- "NorthAtlantic"
-project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/"
+project.folder <- "/home/jorgeassis/Desktop/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
@@ -17,8 +17,8 @@ unwanted.release.sites.shp <- "Data/Shapefiles/unwanted.shp" # NULL
 
 ## ------------------------------------
 
-number.cores <- 8
-parallel.computational.sections <- 16
+number.cores <- 40
+parallel.computational.sections <- 40
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
