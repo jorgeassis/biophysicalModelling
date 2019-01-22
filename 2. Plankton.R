@@ -209,9 +209,13 @@ for( c in source.sink.xy[source.sink.xy$source == 1 , 1 ] ) {
 
 nrow(particles.reference)
 
+## --------------------------------------------------------
+
 ## Out of memory objects
 
+clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/InternalProc"))
 clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/InternalProc"))
+clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/InternalProc"))
 
 particles.reference.bm <- as.big.matrix(as.matrix(particles.reference) , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
 particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
@@ -223,8 +227,6 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/partic
 if( ! is.null(movie.year) ) {
   
   particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
-  
-  clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/InternalProc"))
   
   particles.video.location.x.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
                                                           ncol = (nrow(simulation.parameters.step) * n.hours.per.day ), 
@@ -270,30 +272,26 @@ for(i in 1:parallel.computational.sections){
 
 ## SQL configuration
 
-if( ! paste0(project.name,"SimulationResults.sql") %in% list.files(sql.directory) ) {
-  
-  global.simulation.parameters <- data.frame(   project.name = project.name,
-                                                sim.years = from.year:to.year,
-                                                sim.months = paste(months.all,collapse=","),
-                                                kill.by.raft = kill.by.raft , 
-                                                n.hours.per.day = n.hours.per.day , 
-                                                n.new.particles.per.day = n.new.particles.per.day , 
-                                                remove.new.particles.last.days = remove.new.particles.last.days , 
-                                                longevity = longevity , 
-                                                particle.max.duration = particle.max.duration , 
-                                                behaviour = behaviour,
-                                                n.particles.per.cell = n.particles.per.cell,
-                                                movie.year = movie.year, 
-                                                movie.sites.id = paste(movie.sites.id,collapse=",") , 
-                                                particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
-                                                extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
-  
-  sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-  dbWriteTable(sql, "SourceSinkSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
-  dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
-  dbDisconnect(sql)
-  
-}
+global.simulation.parameters <- data.frame(   project.name = project.name,
+                                              sim.years = from.year:to.year,
+                                              sim.months = paste(months.all,collapse=","),
+                                              kill.by.raft = kill.by.raft , 
+                                              n.hours.per.day = n.hours.per.day , 
+                                              n.new.particles.per.day = n.new.particles.per.day , 
+                                              remove.new.particles.last.days = remove.new.particles.last.days , 
+                                              longevity = longevity , 
+                                              particle.max.duration = particle.max.duration , 
+                                              behaviour = behaviour,
+                                              n.particles.per.cell = n.particles.per.cell,
+                                              movie.year = movie.year, 
+                                              movie.sites.id = paste(movie.sites.id,collapse=",") , 
+                                              particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
+                                              extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
+
+sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+dbWriteTable(sql, "SourceSinkSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
+dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
+dbDisconnect(sql)
 
 ## -----------------------
 
