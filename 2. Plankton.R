@@ -650,7 +650,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                     particles.reference.bm.sec[ id %in% moving.particles.xy[,id] , cell.rafted := moving.particles.xy[,cell.rafted] ]
                                     
                                     ## ---------------------------------------------------------------
-                                    ## Save positions to Video matrix (if condition matched)
+                                    ## Save positions to Video matrix (if condition matched) 
         
                                     if( movie.year == simulation.year ) {
         

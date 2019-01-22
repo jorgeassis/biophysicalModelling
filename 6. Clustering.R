@@ -7,6 +7,8 @@
 
 source("0. Project Config.R")
 
+## ---------------
+
 produce.network <- function(network.type,extract.simulation.days,crop.network,buffer) {
   
   cells <- source.sink.xy
@@ -89,9 +91,10 @@ produce.network <- function(network.type,extract.simulation.days,crop.network,bu
 
 ## ------------------------------------------------------------------------------------------------------------------
 
-load(paste0(sql.directory,"/",project.name,"SourceSinkXY.RData"))
-load(paste0(sql.directory,"/",project.name,"ConnectPairs.RData"))
-load(paste0(sql.directory,"/",project.name,"ConnectMatrixProb.RData"))
+sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+Connectivity <- data.table(dbReadTable(sql, "Connectivity"))
+source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
+dbDisconnect(sql)
 
 ## -------------------
 

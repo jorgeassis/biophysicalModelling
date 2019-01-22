@@ -56,8 +56,8 @@ land.polygon <- gBuffer(land.polygon, byid=TRUE, width=0)
 land.polygon <- crop(land.polygon, extent(sim.extent + c(-2,+2,-2,+2)) )
 plot(land.polygon, col="grey")
 
-legend.x <- -58
-legend.y <- -48
+legend.x <- 70
+legend.y <- 22
   
 # ------------------
 
@@ -95,8 +95,8 @@ cells.colors <- data.frame(cell=cells.colors,color=distinctColorPalette(length(c
 particles.lon.t <- as.matrix(particles.lon)
 particles.lat.t <- as.matrix(particles.lat)
 
-polygon.region.interest.xx <-  c( min(particles.lon.t[particles.lon.t != 0],na.rm=T) , min(particles.lon.t[particles.lon.t != 0],na.rm=T) , max(particles.lon.t[particles.lon.t != 0],na.rm=T) , max(particles.lon.t[particles.lon.t != 0],na.rm=T) )
-polygon.region.interest.yy <-  c( min(particles.lat.t[particles.lat.t != 0],na.rm=T) , max(particles.lat.t[particles.lat.t != 0],na.rm=T) , max(particles.lat.t[particles.lat.t != 0],na.rm=T) , min(particles.lat.t[particles.lat.t != 0],na.rm=T) )
+polygon.region.interest.xx <-  c( sim.extent[1] , sim.extent[1] , sim.extent[2] , sim.extent[2] )
+polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[3] , sim.extent[4] , sim.extent[4] )
 
 # ---------------------------------
 

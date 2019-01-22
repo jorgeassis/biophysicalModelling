@@ -10,16 +10,23 @@
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 cell.to.process <- 1:nrow(dbReadTable(sql, "SourceSinkSites"))
 particles.reference <- as.data.table(dbReadTable(sql, "ReferenceTable"))
-n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell
+n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell[1]
 dbDisconnect(sql)
+
+particles.reference.bm <- as.big.matrix(as.matrix(particles.reference) , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "particles.reference.final.bin", descriptorfile = "particles.reference.final.desc")
+particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.final.desc"))
+
+## ------------------
 
 cl.2 <- makeCluster(number.cores)
 registerDoParallel(cl.2)
 
-all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN")) %dopar% { # 
+all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
   
+  particles.reference.bm.i <- attach.big.matrix(particles.reference.bm.desc)
+  connectivity.temp.m <- particles.reference.bm.i[ mwhich(particles.reference.bm.i,2,list(cell.id.ref.f), list('eq')) , ]
+  connectivity.temp.m <- as.data.table(connectivity.temp.m)
   connectivity.pairs.to.sql <- data.frame()
-  connectivity.temp.m <- particles.reference[ start.cell == cell.id.ref.f , ]
   
   for(y in unique(connectivity.temp.m$start.year)) {
     
@@ -37,16 +44,17 @@ all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose
                                                           Time.max = max(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
                                                           Time.sd = sd(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
                                                           Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / n.particles.per.cell,
-                                                          Year = simulation.year ) )
+                                                          Year = y ) )
         }
     
   }
   
   connectivity.pairs.to.sql[is.na(connectivity.pairs.to.sql)] <- 0
   return( connectivity.pairs.to.sql )
+  
 }
 
-stopCluster(cl.2) ; rm(cl.2)
+stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 
 # -----------------------------------------
 
