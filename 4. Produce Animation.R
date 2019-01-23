@@ -96,7 +96,7 @@ particles.lon.t <- as.matrix(particles.lon)
 particles.lat.t <- as.matrix(particles.lat)
 
 polygon.region.interest.xx <-  c( sim.extent[1] , sim.extent[1] , sim.extent[2] , sim.extent[2] )
-polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[3] , sim.extent[4] , sim.extent[4] )
+polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[4] , sim.extent[4] , sim.extent[3] )
 
 # ---------------------------------
 

@@ -255,15 +255,29 @@ sections.lat <- data.frame( sect.from = seq(min.lat,max.lat,length.out = paralle
 
 ## Generate polygons defining land regions for simulation
 
+gClip <- function(shp, bb){
+       if(class(bb) == "matrix") b_poly <- as(extent(as.vector(t(bb))), "SpatialPolygons")
+       else b_poly <- as(extent(bb), "SpatialPolygons")
+       gIntersection(shp, b_poly, byid = T)
+ }
+
 list.of.polygons <- character()
 
 for(i in 1:parallel.computational.sections){
   
+  cat('\014')
+  cat('\n')
+  cat('\n')
+  cat('\n Progress:', 100 - round((length(parallel.computational.sections) / i) * 100 , digits = 2) , '%' )
+  
   clipper <- as(extent(min.lon,max.lon, sections.lat[i,1] - parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer ), "SpatialPolygons")
   crs(clipper) <- dt.projection 
+
+  try( geometry.i <- gClip(landmass, sp::bbox(clipper)) , silent = TRUE)
+  if( class(geometry.i)[1] ==  "SpatialCollections" ) { geometry.i <- geometry.i@polyobj }
+  if( class(geometry.i)[1] !=  "SpatialPolygons" ) { geometry.i <- crop( landmass,clipper ) }
   
-  assign( paste0("landmass.sect.",i) , crop(landmass, clipper) )
-  
+  assign( paste0("landmass.sect.",i) , geometry.i )
   list.of.polygons <- c(list.of.polygons,paste0("landmass.sect.",i))
 
 }
