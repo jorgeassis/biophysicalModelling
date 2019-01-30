@@ -107,11 +107,13 @@ network <- produce.network("Prob",Connectivity,30,TRUE,2,source.sink.xy)
 g2 <- network[[2]]
 
 gs <- g2
-gs <- as.undirected(g2, mode = "collapse", edge.attr.comb = "max") # For Probabilities
+gs <- graph <- as.undirected(g2, mode = "collapse", edge.attr.comb = "min") # min / max
 
-clustering.method <- "edge.betweenness.community" # fastgreedy.community** leading.eigenvector.community walktrap.community fastgreedy.community clusters edge.betweenness.community(slow)
+clustering.method <- "fastgreedy.community" # Uni: fastgreedy.community** walktrap.community leading.eigenvector.community Bi: walktrap.community edge.betweenness.community(slow)
 
-length.of.tests <- 100
+## --------------------------------
+
+length.of.tests <- 1000
 tests.modularity <- round(seq(from=1,to=ecount(gs),length.out=length.of.tests))
 e.weight <- edge.attributes(gs)$weight
 e.weight <- sort(e.weight, decreasing = FALSE, index.return =TRUE)$ix
@@ -138,19 +140,41 @@ legend("topleft",col=c("black","black"),lty=c(1,2),legend=c("modularity","cluste
 
 ## --------------------------------
 
-ModTab <- ModTab[which(ModTab[,3] <= 30),]
-best.edges <- 2533
+ModTab <- ModTab[which.min(ModTab[,3]),]
+best.edges <- 9147
 
+graph <- gs
 graph <- delete.edges(gs, e.weight[seq(length=best.edges)] )
-membership.graph <- get(clustering.method)(graph)$membership
-n.clusters <- length(unique(membership.graph))
-n.clusters
-modularity(graph,get(clustering.method)(graph)$membership) 
 
-library(randomcoloR)
-#landmass <- crop(shapefile(landmass.shp),extent(-62,-55,-60.25,-50))
+membership.graph <- get(clustering.method)(graph)$membership
+membership.graph.cells <- data.frame(Cell=source.sink.xy[as.numeric(vertex.attributes(graph)$name),1],source.sink.xy[as.numeric(vertex.attributes(graph)$name),2:3],Membership=membership.graph)
+
+# Remove isolated cells
+
+membership.graph.t <- aggregate(membership.graph.cells$Membership, by=list(Category=membership.graph.cells$Membership), FUN=sum)
+membership.graph.t <- membership.graph.t[sort(membership.graph.t$x,decreasing = FALSE,index.return = T)$ix,]
+hist(membership.graph.cells$Membership)
+
+isolated.cells <- membership.graph.t[which(membership.graph.t$x == 1),1]
+membership.graph.cells <- membership.graph.cells[ ! membership.graph.cells$Cell %in% isolated.cells, ]
+
+# Rotine to get closest Membership could be implemented.
+
+landmass <- shapefile(landmass.shp)
+crs(landmass) <- dt.projection
+landmass <- gBuffer(landmass, byid=TRUE, width=0)
+clipper <- as(extent(min(source.sink.xy[,2] - 2),max(source.sink.xy[,2] + 2),min(source.sink.xy[,3] - 2),max(source.sink.xy[,3] + 2)), "SpatialPolygons")
+crs(clipper) <- dt.projection
+landmass <- gIntersection(landmass, clipper, byid=TRUE)
+
 plot(landmass, col="grey" , border="grey")
-points(source.sink.xy[as.numeric(vertex.attributes(graph)$name),2:3],pch=20,cex=0.4,col=distinctColorPalette(length(unique(membership.graph)))[membership.graph])
+points(membership.graph.cells[,2:3],pch=20,cex=0.4,col=distinctColorPalette(max(membership.graph.cells$Membership))[membership.graph.cells$Membership])
+
+modularity(graph,get(clustering.method)(graph)$membership) 
+n.clusters <- length(unique(membership.graph.cells$Membership))
+n.clusters
+
+## --------------------------------
 
 raster.memberships <- rasterFromXYZ(cbind(source.sink.xy[as.numeric(vertex.attributes(graph)$name),2:3],membership.graph))
 projection(raster.memberships) <- CRS("+proj=longlat +datum=WGS84")
@@ -169,7 +193,7 @@ mods <- sapply(1:permutat, function(i){
 
 signif(sum( mods > modularity(graph,get(clustering.method)(graph)$membership) ) / permutat,digits=4)
 
-# ----------
+## ----------------------------------------
 
 V(graph)$size <- 16 * (evcent(graph)$vector) # Centrality score # edge.betweenness(graph) degree(graph)    
 V(graph)$label <- 1:npops

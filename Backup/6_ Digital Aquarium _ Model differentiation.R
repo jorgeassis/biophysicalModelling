@@ -11,17 +11,6 @@
 gist.directory <- "/Volumes/Laminaria/Dropbox/Gist/One Aquarium V2.0" # Albacora Jellyfish
 results.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Phylogeographic patterns in the North Atlantic and Adjacent Seas/Dispersal simulations/Results/"
 
-# Saccorhiza.polyschides (Done)
-# Fucus.vesiculosus
-# Fucus.vesiculosus.59
-# Fucus.ceranoides
-# Fucus.ceranoides.68
-# Chondrus.crispus.94.cox
-# Chondrus.crispus.94.its
-# Palmaria.palmata
-# Fucus.serratus
-# Ascophyllum.nodosum
-
 results.files <- "Bifurcaria.bifurcata.fst.60day"
 distance.geographic.file <- "distance.Bifurcaria.bifurcata.txt"
 distance.currents.file <- "conn.ss.Bifurcaria.bifurcata.60.days.txt"
@@ -29,7 +18,6 @@ distance.differentition.file <- "fst.Bifurcaria.bifurcata.txt"
 
 ## ------------------------
 
-source(paste0(gist.directory,"/","Dependences.R"))
 
 distance.geographic.file <- paste0(results.folder,distance.geographic.file)
 distance.currents.file <- paste0(results.folder,distance.currents.file)
