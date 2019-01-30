@@ -9,30 +9,29 @@ source("0. Project Config.R")
 
 ## ---------------
 
-produce.network <- function(network.type,extract.simulation.days,crop.network,buffer) {
+produce.network <- function(network.type,connectivity,extract.simulation.days,crop.network,buffer,cells) {
   
-  cells <- source.sink.xy
-  Connectivity <- as.data.table(Connectivity)
+  Connectivity <- as.data.table(connectivity)
   
-  if(crop.network) {  final.cells <- which( cells[,2] >= (min( cells[position.matrix,2] ) - buffer) & 
-                                            cells[,2] <= (max( cells[position.matrix,2] ) + buffer) & 
-                                            cells[,3] >= (min( cells[position.matrix,3] ) - buffer) & 
-                                            cells[,3] <= (max( cells[position.matrix,3] ) + buffer) )   
+  if(crop.network) {  final.cells <- which( cells[,2] >= (min( cells[,2] ) - buffer) & 
+                                            cells[,2] <= (max( cells[,2] ) + buffer) & 
+                                            cells[,3] >= (min( cells[,3] ) - buffer) & 
+                                            cells[,3] <= (max( cells[,3] ) + buffer) )   
   
   final.cells <- cells[final.cells,1]
   
   }
   
-  if( !crop.network ) {  final.cells <- cells[,1]  }
+  if( ! crop.network ) {  final.cells <- cells[,1]  }
   
   if( network.type == "Prob" ) {
     
-    comb <- Connectivity[Max.Time <= extract.simulation.days,.(Pair.from,Pair.to,Mean.Probability)]
+    comb <- Connectivity[Time.max <= extract.simulation.days,.(Pair.from,Pair.to,Probability)]
     comb <- comb[Pair.from %in% final.cells,]
     comb <- comb[Pair.to %in% final.cells,]
     comb <- comb[Pair.from != Pair.to,]
-    comb <- as.data.frame( comb[ sort(comb[,Mean.Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
-    # 
+    comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
+     
     # norm <- t(combn(position.matrix, 2))
     # 
     # for( i in 1:nrow(norm)) {
@@ -57,11 +56,11 @@ produce.network <- function(network.type,extract.simulation.days,crop.network,bu
   
   if( network.type == "Time" ) {
     
-    comb <- Connectivity[Max.Time <= extract.simulation.days,.(Pair.from,Pair.to,Mean.Time)]
+    comb <- Connectivity[Time.max <= extract.simulation.days,.(Pair.from,Pair.to,Time.mean)]
     comb <- comb[Pair.from %in% final.cells,]
     comb <- comb[Pair.to %in% final.cells,]
     comb <- comb[Pair.from != Pair.to,]
-    comb <- as.data.frame( comb[ sort(comb[,Mean.Time] , decreasing = TRUE, index.return =TRUE)$ix , ] )
+    comb <- as.data.frame( comb[ sort(comb[,Time.mean] , decreasing = TRUE, index.return =TRUE)$ix , ] )
     
     # norm <- t(combn(position.matrix, 2))
     # 
@@ -102,7 +101,9 @@ source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% unique(c(Connectiv
 
 ## -------------------
 
-network <- produce.network("Prob",30,FALSE,NULL)
+max(Connectivity$Time.max)
+
+network <- produce.network("Prob",Connectivity,30,TRUE,2,source.sink.xy)
 g2 <- network[[2]]
 
 gs <- g2
