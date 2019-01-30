@@ -7,87 +7,6 @@
 
 source("0. Project Config.R")
 
-## ---------------
-
-produce.network <- function(network.type,connectivity,extract.simulation.days,crop.network,buffer,cells) {
-  
-  Connectivity <- as.data.table(connectivity)
-  
-  if(crop.network) {  final.cells <- which( cells[,2] >= (min( cells[,2] ) - buffer) & 
-                                            cells[,2] <= (max( cells[,2] ) + buffer) & 
-                                            cells[,3] >= (min( cells[,3] ) - buffer) & 
-                                            cells[,3] <= (max( cells[,3] ) + buffer) )   
-  
-  final.cells <- cells[final.cells,1]
-  
-  }
-  
-  if( ! crop.network ) {  final.cells <- cells[,1]  }
-  
-  if( network.type == "Prob" ) {
-    
-    comb <- Connectivity[Time.max <= extract.simulation.days,.(Pair.from,Pair.to,Probability)]
-    comb <- comb[Pair.from %in% final.cells,]
-    comb <- comb[Pair.to %in% final.cells,]
-    comb <- comb[Pair.from != Pair.to,]
-    comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
-     
-    # norm <- t(combn(position.matrix, 2))
-    # 
-    # for( i in 1:nrow(norm)) {
-    #   
-    #   t.1 <- which( comb[,1] == norm[i,1] & comb[,2] == norm[i,2] )
-    #   
-    #   if( length(t.1) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,1] , Pair.to = norm[i,2] ,  Mean.Probability = 0)) }
-    #   
-    #   t.2 <- which( comb[,1] == norm[i,2] & comb[,2] == norm[i,1] )
-    #   
-    #   if( length(t.2) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,2] , Pair.to = norm[i,1] ,  Mean.Probability = 0)) }
-    #   
-    # }
-    
-    net.function <<- prod
-    graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
-    # E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
-    E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
-    graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
-    
-  }
-  
-  if( network.type == "Time" ) {
-    
-    comb <- Connectivity[Time.max <= extract.simulation.days,.(Pair.from,Pair.to,Time.mean)]
-    comb <- comb[Pair.from %in% final.cells,]
-    comb <- comb[Pair.to %in% final.cells,]
-    comb <- comb[Pair.from != Pair.to,]
-    comb <- as.data.frame( comb[ sort(comb[,Time.mean] , decreasing = TRUE, index.return =TRUE)$ix , ] )
-    
-    # norm <- t(combn(position.matrix, 2))
-    # 
-    # for( i in 1:nrow(norm)) {
-    #   
-    #   t.1 <- which( comb[,1] == norm[i,1] & comb[,2] == norm[i,2] )
-    #   
-    #   if( length(t.1) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,1] , Pair.to = norm[i,2] ,  Mean.Time = 9e9999)) }
-    #   
-    #   t.2 <- which( comb[,1] == norm[i,2] & comb[,2] == norm[i,1] )
-    #   
-    #   if( length(t.2) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,2] , Pair.to = norm[i,1] ,  Mean.Time = 9e9999)) }
-    #   
-    #   
-    # }
-    
-    net.function <<- sum
-    graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
-    E(graph.obj)$weight = comb[,3]
-    graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
-    
-  }
-  
-  return(list(comb,graph.obj))
-  
-}
-
 ## ------------------------------------------------------------------------------------------------------------------
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
@@ -103,7 +22,7 @@ source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% unique(c(Connectiv
 
 max(Connectivity$Time.max)
 
-network <- produce.network("Prob",Connectivity,30,TRUE,2,source.sink.xy)
+network <- produce.network("Prob",Connectivity,30,FALSE,NULL,source.sink.xy,new.extent)
 g2 <- network[[2]]
 
 gs <- g2
