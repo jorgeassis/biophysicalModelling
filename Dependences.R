@@ -103,9 +103,7 @@ monitor.processes <- cmpfun( function (process.name) {
 
 ## ---------------------------------------------------------------------------------------------------------------------
 
-produce.network <- function(network.type,connectivity,extract.simulation.days,crop.network,buffer,cells,new.extent) {
-  
-  Connectivity <- as.data.table(connectivity)
+produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,new.extent) {
   
   if(crop.network) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
                                               cells[,2] <= (new.extent[2] + buffer) & 
@@ -121,7 +119,8 @@ produce.network <- function(network.type,connectivity,extract.simulation.days,cr
   
   if( network.type == "Prob" ) {
     
-    comb <- Connectivity[Time.max <= extract.simulation.days,.(Pair.from,Pair.to,Probability)]
+    comb <- comb[Time.max >= n.days,Probability := 0]
+    comb <- comb[,.(Pair.from,Pair.to,Probability)]
     comb <- comb[Pair.from %in% final.cells,]
     comb <- comb[Pair.to %in% final.cells,]
     comb <- comb[Pair.from != Pair.to,]
