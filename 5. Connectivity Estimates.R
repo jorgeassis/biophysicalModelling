@@ -128,14 +128,14 @@ differentiation <- read.table(file.differentiation,header = T,sep=";",stringsAsF
 differentiation[lower.tri(differentiation)] <- t(differentiation)[lower.tri(differentiation)]
 data.frame(colnames(differentiation) , sampling.sites.n)
 
-subseter <- which(sampling.sites$Lon >= min(source.sink.xy[,2]) & sampling.sites$Lon <= max(source.sink.xy[,2]),
-                  sampling.sites$Lat >= min(source.sink.xy[,3]) & sampling.sites$Lat <= max(source.sink.xy[,3]))
-
 ## ---------------
 
-sampling.sites <- sampling.sites[subseter,]
-sampling.sites.n <- sampling.sites.n[subseter]
-differentiation <- differentiation[subseter,subseter]
+# subseter <- which(sampling.sites$Lon >= min(source.sink.xy[,2]) & sampling.sites$Lon <= max(source.sink.xy[,2]),
+#                  sampling.sites$Lat >= min(source.sink.xy[,3]) & sampling.sites$Lat <= max(source.sink.xy[,3]))
+#
+# sampling.sites <- sampling.sites[subseter,]
+# sampling.sites.n <- sampling.sites.n[subseter]
+# differentiation <- differentiation[subseter,subseter]
 
 ## ---------------
 
@@ -232,7 +232,7 @@ for(n.days in 1:max.days.sim) {
     connectivity <- connectivity[!is.na(connectivity[,5]),]
     connectivity[connectivity[,5] == 0,5] <- 1e-299
     
-    if( nrow(connectivity) > 2 ) {
+    if( length(unique(connectivity$probability.ss)) > 2 ) {
             
           ## ---------------
           
@@ -279,35 +279,57 @@ for(n.days in 1:max.days.sim) {
           cor.mean <- cor(connectivity.final$Connectivity.mean,connectivity.final$Differantiation , use = "complete.obs",method="pearson")
           fit.mean <- lm(Differantiation ~ Connectivity.mean, data=connectivity.final)
           
+          connectivity.per.days <- rbind(connectivity.per.days, data.frame( day = n.days,
+                                                                            aic.ibd= AIC(fit.ibd),
+                                                                            r2.ibd = summary(fit.ibd)$adj.r.squared,
+                                                                            cor.ibd = cor.ibd,
+                                                                            p.ibd=summary(fit.ibd)$coefficients[2,4],
+                                                                            aic.min= AIC(fit.min),
+                                                                            r2.min = summary(fit.min)$adj.r.squared,
+                                                                            cor.min = cor.min,
+                                                                            p.min=summary(fit.min)$coefficients[2,4],
+                                                                            aic.mean= AIC(fit.mean),
+                                                                            r2.mean = summary(fit.mean)$adj.r.squared,
+                                                                            cor.mean = cor.mean,
+                                                                            p.mean=summary(fit.mean)$coefficients[2,4],
+                                                                            aic.max= AIC(fit.max),
+                                                                            r2.max = summary(fit.max)$adj.r.squared,
+                                                                            cor.max = cor.max,
+                                                                            p.max=summary(fit.max)$coefficients[2,4]) )
+          
     }
     
-    if( nrow(connectivity) <= 2 ) {
+    if( length(unique(connectivity$probability.ss)) <= 2 ) {
       
       cor.ibd <- cor.min <- cor.max <- cor.mean <- NA
       fit.ibd <- fit.min <- fit.max <- fit.mean <- NA
       
       connectivity.per.days.matrices <- c(connectivity.per.days.matrices,list(NA))
 
+      connectivity.per.days <- rbind(connectivity.per.days, data.frame( day = n.days,
+                                                                        aic.ibd= NA,
+                                                                        r2.ibd = NA,
+                                                                        cor.ibd = NA,
+                                                                        p.ibd=NA,
+                                                                        aic.min= NA,
+                                                                        r2.min = NA,
+                                                                        cor.min = NA,
+                                                                        p.min=NA,
+                                                                        aic.mean= NA,
+                                                                        r2.mean = NA,
+                                                                        cor.mean = NA,
+                                                                        p.mean=NA,
+                                                                        aic.max= NA,
+                                                                        r2.max = NA,
+                                                                        cor.max = NA,
+                                                                        p.max=NA) )
     }
     
-    connectivity.per.days <- rbind(connectivity.per.days, data.frame( day = n.days,
-                                                                      aic.ibd= AIC(fit.ibd),
-                                                                      r2.ibd = summary(fit.ibd)$adj.r.squared,
-                                                                      cor.ibd = cor.ibd,
-                                                                      aic.min= AIC(fit.min),
-                                                                      r2.min = summary(fit.min)$adj.r.squared,
-                                                                      cor.min = cor.min,
-                                                                      aic.mean= AIC(fit.mean),
-                                                                      r2.mean = summary(fit.mean)$adj.r.squared,
-                                                                      cor.mean = cor.mean,
-                                                                      aic.max= AIC(fit.max),
-                                                                      r2.max = summary(fit.max)$adj.r.squared,
-                                                                      cor.max = cor.max) )
-
 }
 
 ## ---------------
 
+connectivity.per.days <- connectivity.per.days[complete.cases(connectivity.per.days),]
 limits.plot <- c(min(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]),max(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]))
 threshold <- which(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")] == min(limits.plot) , arr.ind = TRUE)
 
@@ -329,14 +351,14 @@ lines(connectivity.per.days$day,connectivity.per.days$aic.min,ylim=limits.plot,l
 lines(connectivity.per.days$day,connectivity.per.days$aic.mean,ylim=limits.plot,lty=3,col="#5E5E5E")
 lines(connectivity.per.days$day,connectivity.per.days$aic.max,ylim=limits.plot,lty=4,col="#5E5E5E")
 abline(h = connectivity.per.days[1,2], lty=3, col="#902828")
-points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c(2,5,8,11)[threshold[1,2]]],pch=21,bg="#902828",col="black")
-legend(47, limits.plot[1] + 30, legend=c("Distance", "Ocean Min.", "Ocean Mean.", "Ocean Max."),border = "gray",col=c("#902828","#5E5E5E", "#5E5E5E","#5E5E5E","#5E5E5E"), lty=c(3,1,2,3,4), cex=0.8)
+points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c(2,6,10,14)[threshold[1,2]]],pch=21,bg="#902828",col="black")
+legend(49, limits.plot[1] + (limits.plot[2] - limits.plot[1])/5, legend=c("Distance", "Ocean Min.", "Ocean Mean.", "Ocean Max."),border = "gray",col=c("#902828","#5E5E5E", "#5E5E5E","#5E5E5E","#5E5E5E"), lty=c(3,1,2,3,4), cex=0.8)
 
 dev.off()
 
 # Plot IBD vs Best Ocean Model
 
-connectivity.final <- connectivity.per.days.matrices[[threshold[1,1]]]
+connectivity.final <- connectivity.per.days.matrices[[connectivity.per.days[threshold[1,1],1]]]
 
 fit.ibd <- lm(Differantiation ~ Distance, data=connectivity.final , na.action = na.omit)
 fit.min <- lm(Differantiation ~ Connectivity.min, data=connectivity.final)
