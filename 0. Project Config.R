@@ -9,8 +9,8 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "NorthAtlantic"
-project.folder <- "/home/jorgeassis/Desktop/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/"
+project.name <- "SouthAfrica"
+project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Southern Africa Shores/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
@@ -23,18 +23,18 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- detectCores() - 1
-parallel.computational.sections <- 40
+number.cores <- 10
+parallel.computational.sections <- 10
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -25
-max.lon <- 32
-min.lat <- 22
-max.lat <- 80
+min.lon <- 7
+max.lon <- 44
+min.lat <- -42.5
+max.lat <- -10
 source.sink.dist <- 5 # km
 
 # -----------------------------------
@@ -52,7 +52,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 60                       # Days allowed to travel
+particle.max.duration <- 30                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------

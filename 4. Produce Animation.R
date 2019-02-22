@@ -56,8 +56,8 @@ land.polygon <- gBuffer(land.polygon, byid=TRUE, width=0)
 land.polygon <- crop(land.polygon, extent(sim.extent + c(-2,+2,-2,+2)) )
 plot(land.polygon, col="grey")
 
-legend.x <- 70
-legend.y <- 22
+legend.x <- 35
+legend.y <- -22
   
 # ------------------
 

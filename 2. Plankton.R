@@ -229,13 +229,13 @@ if( ! is.null(movie.year) ) {
   particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
   
   particles.video.location.x.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
-                                                          ncol = (nrow(simulation.parameters.step) * n.hours.per.day ), 
+                                                          ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.x.bin",
                                                           descriptorfile = "particles.video.location.x.desc",
                                                           backingpath=paste0(project.folder,"/InternalProc"))
                                     
   particles.video.location.y.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
-                                                          ncol = (nrow(simulation.parameters.step) * n.hours.per.day ), 
+                                                          ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.y.bin",
                                                           descriptorfile = "particles.video.location.y.desc",
                                                           backingpath=paste0(project.folder,"/InternalProc"))
@@ -276,6 +276,17 @@ for(i in 1:parallel.computational.sections){
   try( geometry.i <- gClip(landmass, sp::bbox(clipper)) , silent = TRUE)
   if( class(geometry.i)[1] ==  "SpatialCollections" ) { geometry.i <- geometry.i@polyobj }
   if( class(geometry.i)[1] !=  "SpatialPolygons" ) { geometry.i <- crop( landmass,clipper ) }
+
+  if( is.null(geometry.i) ) { 
+    
+    fakePoint <- as.matrix(data.frame(Lon=extent(clipper)[1],Lat=extent(clipper)[3]))
+    fakePoint <- mapview::coords2Polygons(fakePoint,ID=1)
+    crs(fakePoint) <- dt.projection 
+    
+    fakeLandmass <- raster::aggregate(rbind(landmass, fakePoint))
+    geometry.i <- gClip(fakeLandmass, sp::bbox(clipper))
+    
+    }
   
   assign( paste0("landmass.sect.",i) , geometry.i )
   list.of.polygons <- c(list.of.polygons,paste0("landmass.sect.",i))
@@ -461,6 +472,11 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       sections.lat.f.s <- as.numeric(sections.lat[section,1])
                       sections.lat.t.s <- as.numeric(sections.lat[section,2])
                   
+                      ## --------------------------------------------------------
+                      
+                      particles.video.location.x.bm.i <- attach.big.matrix(particles.video.location.x.bm.desc)
+                      particles.video.location.y.bm.i <- attach.big.matrix(particles.video.location.y.bm.desc)
+                      
                       ## --------------------------------------------------------
                       
                       particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
@@ -666,24 +682,21 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                     ## ---------------------------------------------------------------
                                     ## Save positions to Video matrix (if condition matched) 
         
-                                    if( movie.year == simulation.year ) {
+                                    if( movie.year == as.numeric(simulation.year) ) {
         
                                         ## --------------------------------------------------------
                                         
-                                        particles.video.location.x.bm.i <- attach.big.matrix(particles.video.location.x.bm.desc)
-                                        particles.video.location.y.bm.i <- attach.big.matrix(particles.video.location.y.bm.desc)
-                                        
-                                        ## --------------------------------------------------------
-                                        
                                         setkey(particles.reference.bm.sec,id)
-                                        particles.to.sql.id.moving <- particles.reference.bm.sec[state==1,id]
+                                        particles.to.sql.id.moving <- particles.reference.bm.sec[state == 1,id]
                                         particles.to.sql.id.moving <- particles.to.sql.id.moving[particles.to.sql.id.moving %in% particles.to.sql.id]
                                         particles.to.sql.id.moving.condition <- length(particles.to.sql.id.moving) > 0
                                         
                                         if( particles.to.sql.id.moving.condition ) { 
-          
-                                          particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,pos.lon])
-                                          particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,pos.lat])
+
+                                          t.step.movie <- ((as.numeric(which( which(as.numeric(simulation.parameters.step[,3]) == movie.year) == simulation.step))-1) * n.hours.per.day) + h
+                                          
+                                          particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,pos.lon])
+                                          particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,pos.lat])
                                           
                                         }
                                     }
