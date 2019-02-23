@@ -56,9 +56,6 @@ land.polygon <- gBuffer(land.polygon, byid=TRUE, width=0)
 land.polygon <- crop(land.polygon, extent(sim.extent + c(-2,+2,-2,+2)) )
 plot(land.polygon, col="grey")
 
-legend.x <- 35
-legend.y <- -22
-  
 # ------------------
 
 if( ! "Video" %in% list.files(paste0(project.folder,"/Results")) ) { dir.create(file.path(paste0(project.folder,"/Results/Video"))) }
@@ -100,6 +97,20 @@ polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[4] , sim.extent[4] 
 
 # ---------------------------------
 
+fakePoint <- as.matrix(data.frame( Lon=46,Lat= -43.5))
+fakePoint <- mapview::coords2Polygons(fakePoint,ID=1)
+crs(fakePoint) <- dt.projection 
+
+land.polygon <- as(land.polygon,"SpatialPolygons")
+crs(land.polygon) <- dt.projection 
+
+land.polygon <- raster::aggregate(rbind(as(land.polygon,"SpatialPolygons"), fakePoint))
+
+# ---------------------------------
+
+legend.x <- 38
+legend.y <- -11
+
 show.polygon.region.interest <- TRUE
 print.day <- 0
 
@@ -140,7 +151,7 @@ dev.off()
 
 paste0(project.folder,"/Results/Video/Video map_%02d.png")
 
-system( 'ffmpeg -s 1280x720 -i "/Volumes/Laminaria/Dropbox/Manuscripts/Transport simulations explain genetic differention of North Atlantic marine forests/TestScript/Results/Video/Video map_%02d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p output.mp4 -y' )
+system( 'ffmpeg -s 1280x720 -i "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Southern Africa Shores/Results/Video/Video map_%02d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p output.mp4 -y' )
 file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
 
 # ------------------------------------------------------------------------------------------------------
