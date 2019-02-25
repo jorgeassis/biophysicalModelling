@@ -88,11 +88,10 @@ View(Connectivity.matrix.time)
 
 # -----------------------------------------
 
-save(Connectivity,file=paste0(sql.directory,"/",project.name,"ConnectPairs.RData"))
-
-save(Connectivity.matrix.probability,file=paste0(sql.directory,"/",project.name,"ConnectMatrixProb.RData"))
-save(Connectivity.matrix.time,file=paste0(sql.directory,"/",project.name,"ConnectMatrixTime.RData"))
-save(source.sink.xy,file=paste0(sql.directory,"/",project.name,"SourceSinkXY.RData"))
+# save(Connectivity,file=paste0(sql.directory,"/",project.name,"ConnectPairs.RData"))
+# save(Connectivity.matrix.probability,file=paste0(sql.directory,"/",project.name,"ConnectMatrixProb.RData"))
+# save(Connectivity.matrix.time,file=paste0(sql.directory,"/",project.name,"ConnectMatrixTime.RData"))
+# save(source.sink.xy,file=paste0(sql.directory,"/",project.name,"SourceSinkXY.RData"))
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
