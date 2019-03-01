@@ -126,25 +126,11 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
     comb <- comb[Pair.from != Pair.to,]
     comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
     
-    # norm <- t(combn(position.matrix, 2))
-    # 
-    # for( i in 1:nrow(norm)) {
-    #   
-    #   t.1 <- which( comb[,1] == norm[i,1] & comb[,2] == norm[i,2] )
-    #   
-    #   if( length(t.1) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,1] , Pair.to = norm[i,2] ,  Mean.Probability = 0)) }
-    #   
-    #   t.2 <- which( comb[,1] == norm[i,2] & comb[,2] == norm[i,1] )
-    #   
-    #   if( length(t.2) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,2] , Pair.to = norm[i,1] ,  Mean.Probability = 0)) }
-    #   
-    # }
-    
     net.function <<- prod
     graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
     # E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
     E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
-    graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
+    #graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
     
   }
   

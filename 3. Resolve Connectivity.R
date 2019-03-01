@@ -5,15 +5,29 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-# Resolve connectivity
+rm(list=(ls()[ls()!="v"]))
+gc(reset=TRUE)
+
+source("0. Project Config.R")
+
+## ------------------------------------
+## Files and folders
+
+project.name <- "SouthAfrica"
+project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Southern Africa Shores/"
+
+## ------------------------------------
+## Resolve connectivity
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 cell.to.process <- 1:nrow(dbReadTable(sql, "SourceSinkSites"))
 particles.reference <- as.data.table(dbReadTable(sql, "ReferenceTable"))
 n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell[1]
+n.new.particles.per.day <- dbReadTable(sql, "Parameters")$n.new.particles.per.day[1]
 dbDisconnect(sql)
 
-particles.reference.bm <- as.big.matrix(as.matrix(particles.reference) , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "particles.reference.final.bin", descriptorfile = "particles.reference.final.desc")
+## ------------------
+
 particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.final.desc"))
 
 ## ------------------
@@ -43,7 +57,7 @@ all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose
                                                           Time.min = min(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
                                                           Time.max = max(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
                                                           Time.sd = sd(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                          Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / n.particles.per.cell,
+                                                          Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / round( n.particles.per.cell / length(unique(connectivity.temp.m$start.year)) ),
                                                           Year = y ) )
         }
     
