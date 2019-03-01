@@ -32,10 +32,10 @@ parallel.computational.buffer <- 2 # degrees
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 min.lon <- 7
-max.lon <- 44
+max.lon <- 32
 min.lat <- -42.5
 max.lat <- -10
-source.sink.dist <- 5 # km
+source.sink.dist <- 1 # km
 
 # -----------------------------------
 # Traits
@@ -52,7 +52,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 30                       # Days allowed to travel
+particle.max.duration <- 60                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------
