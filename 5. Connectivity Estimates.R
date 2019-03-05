@@ -7,7 +7,6 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-
 source("0. Project Config.R")
 
 sql.project.name <- "SouthAfrica"
@@ -32,6 +31,9 @@ source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% unique(c(Connectiv
 ##
 
 cost.surface <- raster("Data/Rasters/Mask.tif")
+
+# cost.surface <- disaggregate(cost.surface, fact=4)
+
 clipper <- as(extent(min(source.sink.xy[,2] - 2),max(source.sink.xy[,2] + 2),min(source.sink.xy[,3] - 2),max(source.sink.xy[,3] + 2)), "SpatialPolygons")
 cost.surface <- crop(cost.surface,clipper)
 
@@ -56,20 +58,22 @@ cl.2 <- makeCluster(number.cores.t) ; registerDoParallel(cl.2)
 marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packages=c("gdistance","raster","data.table","reshape2")) %dopar% {
   
   x.to <- Connectivity[ Pair.from == x , Pair.to ]
+  x.to <- x.to[x.to != 0]
   partial.distances <- costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ x , 2:3 ]) , as.matrix(source.sink.xy[ x.to , 2:3 ]) )
-  partial.distances <- data.frame(Pair.from=x,Pair.to=x.to,distance=c(partial.distances)/1000)
+  partial.distances <- data.frame(Pair.from=rep(x,length(partial.distances)),Pair.to=x.to,distance=c(partial.distances)/1000)
   return( partial.distances )
   
 }
 stopCluster(cl.2) ; rm(cl.2)
 head(marine.distances)
 
-marine.distances[marine.distances == Inf] <- 0
-
 # ----------------------------------
 
 distance.probability <- cbind( Connectivity, marine.distances$distance) 
 colnames(distance.probability) <- c("Pair.from" , "Pair.to" , "Probability", "Max.Probability", "Time.mean", "Time.max", "Number.events","Distance")
+
+distance.probability <- distance.probability[distance.probability$Distance != Inf,]
+
 save(marine.distances,file=paste0(project.folder,"/Data/marine.distances.RData"))
 
 # ----------------------------------
