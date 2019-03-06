@@ -51,7 +51,7 @@ costDistance(raster_tr_corrected, as.matrix(source.sink.xy[source.sink.xy$cells.
 
 # ----------------------------------
 
-number.cores.t <- 4
+number.cores.t <- 2
 n.cells <- unique(Connectivity[,Pair.from])
 
 cl.2 <- makeCluster(number.cores.t) ; registerDoParallel(cl.2)
@@ -71,8 +71,8 @@ head(marine.distances)
 
 distance.probability <- cbind( Connectivity, marine.distances$distance) 
 colnames(distance.probability) <- c("Pair.from" , "Pair.to" , "Probability", "Max.Probability", "Time.mean", "Time.max", "Number.events","Distance")
-
 distance.probability <- distance.probability[distance.probability$Distance != Inf,]
+distance.probability <- distance.probability[distance.probability$Pair.from != 0 & distance.probability$Pair.to != 0,]
 
 save(marine.distances,file=paste0(project.folder,"/Data/marine.distances.RData"))
 

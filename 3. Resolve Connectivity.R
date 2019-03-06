@@ -29,6 +29,7 @@ cell.to.process <- 1:nrow(dbReadTable(sql, "SourceSinkSites"))
 particles.reference <- as.data.table(dbReadTable(sql, "ReferenceTable"))
 n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell[1]
 n.new.particles.per.day <- dbReadTable(sql, "Parameters")$n.new.particles.per.day[1]
+n.steps.per.day <- dbReadTable(sql, "Parameters")$n.hours.per.day[1]
 dbDisconnect(sql)
 
 ## ------------------
@@ -44,6 +45,9 @@ all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose
   
   particles.reference.bm.i <- attach.big.matrix(particles.reference.bm.desc)
   connectivity.temp.m <- particles.reference.bm.i[ mwhich(particles.reference.bm.i,2,list(cell.id.ref.f), list('eq')) , ]
+  connectivity.temp.m <- as.data.table(connectivity.temp.m)
+  connectivity.temp.m <- connectivity.temp.m[connectivity.temp.m$cell.rafted != 0,]
+  connectivity.temp.m <- data.frame(connectivity.temp.m,travel.time=(connectivity.temp.m$t.finish - connectivity.temp.m$t.start)/n.steps.per.day)
   connectivity.temp.m <- as.data.table(connectivity.temp.m)
   connectivity.pairs.to.sql <- data.frame()
   
