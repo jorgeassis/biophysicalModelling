@@ -11,6 +11,8 @@ source("0. Project Config.R")
 
 sql.project.name <- "SouthAfrica"
 
+number.cores <- 16
+
 ## ------------------------------------------------------------------------------------------------------------------
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",sql.project.name,"SimulationResults.sql"))
@@ -51,10 +53,9 @@ costDistance(raster_tr_corrected, as.matrix(source.sink.xy[source.sink.xy$cells.
 
 # ----------------------------------
 
-number.cores.t <- 2
 n.cells <- unique(Connectivity[,Pair.from])
 
-cl.2 <- makeCluster(number.cores.t) ; registerDoParallel(cl.2)
+cl.2 <- makeCluster(number.cores) ; registerDoParallel(cl.2)
 marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packages=c("gdistance","raster","data.table","reshape2")) %dopar% {
   
   x.to <- Connectivity[ Pair.from == x , Pair.to ]
@@ -73,19 +74,18 @@ distance.probability <- cbind( Connectivity, marine.distances$distance)
 colnames(distance.probability) <- c("Pair.from" , "Pair.to" , "Probability", "Max.Probability", "Time.mean", "Time.max", "Number.events","Distance")
 distance.probability <- distance.probability[distance.probability$Distance != Inf,]
 distance.probability <- distance.probability[distance.probability$Pair.from != 0 & distance.probability$Pair.to != 0,]
-
 save(marine.distances,file=paste0(project.folder,"/Data/marine.distances.RData"))
 
 # ----------------------------------
 
-extract.simulation.days <- 30
+extract.simulation.days <- 5
 
-distance.probability <- distance.probability[Time.max <= extract.simulation.days,]
-max(distance.probability$Time.max)
+distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
+max(distance.probability.t$Time.max)
 
-# Summary 0
+# Summary 10:8
 
-ggplot(distance.probability , aes(x=Distance,y=Probability)) + 
+ggplot(distance.probability.t , aes(x=Distance,y=Probability)) + 
   geom_point(alpha = 0.3) + 
   theme_bw(base_size = 14) + 
   labs(x = "Distance (km)" , y = "Mean probability of connectivity") +
@@ -188,7 +188,7 @@ points(source.sink.xy[position.matrix,2:3],col="red")
 
 ## ---------------
 
-max.days.sim <- 30
+max.days.sim <- 60
 connectivity.per.days <- data.frame()
 connectivity.per.days.matrices <- list()
 
@@ -225,15 +225,15 @@ for(n.days in 1:max.days.sim) {
     ## ---------------------------------------------------
       
     new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
-    network <- produce.network("Prob",Connectivity.av,n.days,FALSE,5,source.sink.xy,new.extent)
+    network <- produce.network("Prob",Connectivity.av,n.days,FALSE,NULL,source.sink.xy,new.extent)
     
     ## ---------------------------------------------------
     
-    cl.3 <- makeCluster(2) ; registerDoParallel(cl.3)
+    cl.3 <- makeCluster(number.cores) ; registerDoParallel(cl.3)
     
     connectivity <- foreach(from=position.matrix, .verbose=FALSE, .packages=c("data.table","sp","gdistance","igraph")) %dopar% { 
       
-      neightbors.n <- 4
+      neightbors.n <- 3
       
       options(warn=-1)
       
@@ -247,12 +247,17 @@ for(n.days in 1:max.days.sim) {
         # HAVe A BETTEr APPROCH TO INCREASE PROBS!
         # Try with those that are zero
         
-        neightbors <- spDistsN1(as.matrix(source.sink.xy[,2:3]),as.matrix(source.sink.xy[from,2:3]),longlat = TRUE)
-        neightbors <- sort(neightbors,decreasing = FALSE,index.return=TRUE)$ix[2:(neightbors.n+1)] 
+        neightbors.from <- spDistsN1(as.matrix(source.sink.xy[,2:3]),as.matrix(source.sink.xy[from,2:3]),longlat = TRUE)
+        neightbors.from <- sort(neightbors.from,decreasing = FALSE,index.return=TRUE)$ix[1:neightbors.n] 
+
+        neightbors.to <- spDistsN1(as.matrix(source.sink.xy[,2:3]),as.matrix(source.sink.xy[to,2:3]),longlat = TRUE)
+        neightbors.to <- sort(neightbors.to,decreasing = FALSE,index.return=TRUE)$ix[1:neightbors.n] 
         
-        res.connectivity.to.t <- sapply(1:neightbors.n,function(x) {
+        comb.pair.cells <- expand.grid(from=neightbors.from,to=neightbors.to)
+        
+        res.connectivity.to.t <- apply(comb.pair.cells,1,function(x) {
                   
-                possible.paths.y <- get.shortest.paths(network.x,as.character( neightbors[x] ) , as.character( to ),mode="out")$vpath
+                possible.paths.y <- get.shortest.paths(network.x,as.character( x[1] ) , as.character( x[2] ),mode="out")$vpath
                 stones.t <- as.numeric(names(possible.paths.y[[1]]))
                 stones.t.interm <- cbind(stones.t[-length(stones.t)],stones.t[-1])
                 path.values <- apply( stones.t.interm , 1 , function(z) { connectivity.x[ connectivity.x[,1] == z[1] & connectivity.x[,2] == z[2] , 3 ][1] }   )
