@@ -119,7 +119,7 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   
   if( network.type == "Prob" ) {
     
-    comb <- comb[Time.mean >= n.days,Probability := 0]
+    comb <- comb[Time.max >= n.days,Probability := 0]
     
     # comb <- comb[Time.max <= n.days,]
     

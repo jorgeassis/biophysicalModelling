@@ -74,7 +74,9 @@ distance.probability <- cbind( Connectivity, marine.distances$distance)
 colnames(distance.probability) <- c("Pair.from" , "Pair.to" , "Probability", "Max.Probability", "Time.mean", "Time.max", "Number.events","Distance")
 distance.probability <- distance.probability[distance.probability$Distance != Inf,]
 distance.probability <- distance.probability[distance.probability$Pair.from != 0 & distance.probability$Pair.to != 0,]
-save(marine.distances,file=paste0(project.folder,"/Data/marine.distances.RData"))
+save(marine.distances,raster_tr_corrected,file=paste0(project.folder,"/Data/marine.distances.RData"))
+
+# load(paste0(project.folder,"/Data/marine.distances.RData"))
 
 # ----------------------------------
 
@@ -401,6 +403,8 @@ for(n.days in 1:max.days.sim) {
     }
     
 }
+
+VER SE MELHOROU MUITO COM A PRODUCAO Da NETWORK COm BASe NO TMEPO MAXIMO E NAO MEDIA: AIC -227? VER txt DOS resultados!
 
 ## ---------------
 

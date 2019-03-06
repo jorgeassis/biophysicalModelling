@@ -7,9 +7,13 @@
 
 source("0. Project Config.R")
 
+sql.project.name <- "SouthAfrica"
+
+number.cores <- 16
+
 ## ------------------------------------------------------------------------------------------------------------------
 
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",sql.project.name,"SimulationResults.sql"))
 Connectivity <- data.table(dbReadTable(sql, "Connectivity"))
 source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
 dbDisconnect(sql)
