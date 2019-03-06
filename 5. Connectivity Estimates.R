@@ -406,11 +406,15 @@ for(n.days in 1:max.days.sim) {
 
 connectivity.per.days <- connectivity.per.days[complete.cases(connectivity.per.days),]
 limits.plot <- c(min(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]),max(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]))
+
 threshold <- which(connectivity.per.days[,c("aic.min","aic.mean","aic.max")] == min(connectivity.per.days[,c("aic.min","aic.mean","aic.max")]) , arr.ind = TRUE)
+threshold <- data.frame(28,2)
 
 connectivity.per.days[threshold[1,1],]
 
 write.table( connectivity.per.days[threshold[1,1],] , file =paste0(project.folder,"Results/",project.name,".result.txt") , col.names = TRUE , sep=";" , dec="." ,  quote = FALSE)
+
+## ------------------------------------
 
 par(mfrow=c(1,1),mar = c(1, 1, 1, 1))
 
@@ -427,10 +431,12 @@ title(ylab="Model performance (AIC)",mgp=c(4,1,0))
 lines(connectivity.per.days$day,connectivity.per.days$aic.mean,ylim=limits.plot,lty=3,col="#5E5E5E")
 lines(connectivity.per.days$day,connectivity.per.days$aic.max,ylim=limits.plot,lty=4,col="#5E5E5E")
 abline(h = min(connectivity.per.days[,2]), lty=3, col="#902828")
-points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c(2,6,10,14)[threshold[1,2]]],pch=21,bg="#902828",col="black")
+points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c(6,10,14)[threshold[1,2]]],pch=21,bg="#902828",col="black")
 legend(49, limits.plot[1] + (limits.plot[2] - limits.plot[1])/5, legend=c("Distance", "Ocean Min.", "Ocean Mean.", "Ocean Max."),border = "gray",col=c("#902828","#5E5E5E", "#5E5E5E","#5E5E5E","#5E5E5E"), lty=c(3,1,2,3,4), cex=0.8)
 
 dev.off()
+
+## ------------------------------------
 
 # Plot IBD vs Best Ocean Model
 
@@ -440,6 +446,16 @@ fit.ibd <- lm(Differantiation ~ Distance, data=connectivity.final , na.action = 
 fit.min <- lm(Differantiation ~ Connectivity.min, data=connectivity.final)
 fit.mean <- lm(Differantiation ~ Connectivity.mean, data=connectivity.final)
 fit.max <- lm(Differantiation ~ Connectivity.max, data=connectivity.final)
+
+fit.mix <- lm(Differantiation ~ Connectivity.mean+Distance, data=connectivity.final)
+summary(fit.mix)
+AIC(fit.mix)
+anova(fit.mix,fit.ibd)
+par(mfrow=c(1,1),mar = c(5, 5, 5, 5))
+plot(connectivity.final$Differantiation,  predict(fit.mix))
+plot(connectivity.final$Differantiation,  connectivity.final$Distance)
+
+## ------------------------------------
 
 pdf( file=paste0(project.folder,"Results/",project.name,".lm.fit.pdf") , width = 9, height = 9 )
 
