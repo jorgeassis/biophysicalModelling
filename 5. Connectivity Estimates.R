@@ -404,15 +404,12 @@ for(n.days in 1:max.days.sim) {
     
 }
 
-VER SE MELHOROU MUITO COM A PRODUCAO Da NETWORK COm BASe NO TMEPO MAXIMO E NAO MEDIA: AIC -227? VER txt DOS resultados!
-
 ## ---------------
 
 connectivity.per.days <- connectivity.per.days[complete.cases(connectivity.per.days),]
 limits.plot <- c(min(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]),max(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]))
 
 threshold <- which(connectivity.per.days[,c("aic.min","aic.mean","aic.max")] == min(connectivity.per.days[,c("aic.min","aic.mean","aic.max")]) , arr.ind = TRUE)
-threshold <- data.frame(28,2)
 
 connectivity.per.days[threshold[1,1],]
 
@@ -442,22 +439,13 @@ dev.off()
 
 ## ------------------------------------
 
-# Plot IBD vs Best Ocean Model
-
+threshold <- data.frame(25,2)
 connectivity.final <- connectivity.per.days.matrices[[connectivity.per.days[threshold[1,1],1]]]
 
 fit.ibd <- lm(Differantiation ~ Distance, data=connectivity.final , na.action = na.omit)
 fit.min <- lm(Differantiation ~ Connectivity.min, data=connectivity.final)
 fit.mean <- lm(Differantiation ~ Connectivity.mean, data=connectivity.final)
 fit.max <- lm(Differantiation ~ Connectivity.max, data=connectivity.final)
-
-fit.mix <- lm(Differantiation ~ Connectivity.mean+Distance, data=connectivity.final)
-summary(fit.mix)
-AIC(fit.mix)
-anova(fit.mix,fit.ibd)
-par(mfrow=c(1,1),mar = c(5, 5, 5, 5))
-plot(connectivity.final$Differantiation,  predict(fit.mix))
-plot(connectivity.final$Differantiation,  connectivity.final$Distance)
 
 ## ------------------------------------
 
@@ -498,4 +486,25 @@ dev.off()
 # }
 
 ## ------------------------------------------------------------------------------------------------------------------------------
+
+# Plot IBD vs Best Ocean Model
+# 8:8
+
+fit.mix <- lm(Differantiation ~ Connectivity.mean+Distance, data=connectivity.final)
+summary(fit.ibd)
+summary(fit.mean)
+summary(fit.mix)
+AIC(fit.mix) ; AIC(fit.ibd) ; AIC(fit.mean)
+anova(fit.ibd,fit.mean)
+anova(fit.mix,fit.ibd)
+anova(fit.mix,fit.mean)
+par(mfrow=c(1,1),mar = c(5, 5, 5, 5))
+
+plot(connectivity.final$Differantiation,predict(fit.mix),lty=1,col="#5E5E5E",ylab="",xlab="Observed genetic differentiation",axes=FALSE)
+axis(2,las=2,col="White",col.ticks="Black")
+axis(1,las=0,col="White",col.ticks="Black")
+box()
+title(ylab="Predicted genetic differentiation",mgp=c(4,1,0)) 
+fit.mix.line <- lm(Pred ~ Differantiation, data=data.frame(Differantiation=connectivity.final$Differantiation,Pred=predict(fit.mix)), na.action = na.omit)
+lines(seq(min(connectivity.final$Differantiation),max(connectivity.final$Differantiation),length.out = 100),predict(fit.mix.line, data.frame(Differantiation=seq(min(connectivity.final$Differantiation),max(connectivity.final$Differantiation),length.out = 100))) ,lty=2,col="#902828")
 

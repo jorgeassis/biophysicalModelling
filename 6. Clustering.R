@@ -9,7 +9,7 @@ source("0. Project Config.R")
 
 sql.project.name <- "SouthAfrica"
 
-number.cores <- 16
+number.cores <- 6
 
 ## ------------------------------------------------------------------------------------------------------------------
 
@@ -26,11 +26,12 @@ source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% unique(c(Connectiv
 
 max(Connectivity$Time.max)
 
-network <- produce.network("Prob",Connectivity,30,FALSE,NULL,source.sink.xy,new.extent)
+network <- produce.network("Prob",Connectivity,28,FALSE,NULL,source.sink.xy,new.extent)
 g2 <- network[[2]]
 
 gs <- g2
 gs <- graph <- as.undirected(g2, mode = "collapse", edge.attr.comb = "min") # min / max
+gs <- simplify(gs,remove.multiple = TRUE)
 
 clustering.method <- "fastgreedy.community" # Uni: fastgreedy.community** walktrap.community leading.eigenvector.community Bi: walktrap.community edge.betweenness.community(slow)
 
@@ -41,7 +42,7 @@ tests.modularity <- round(seq(from=1,to=ecount(gs),length.out=length.of.tests))
 e.weight <- edge.attributes(gs)$weight
 e.weight <- sort(e.weight, decreasing = FALSE, index.return =TRUE)$ix
 
-cl <- makeCluster(10) ; registerDoParallel(cl)
+cl <- makeCluster(number.cores) ; registerDoParallel(cl)
 mods <- foreach( i = tests.modularity, .verbose=FALSE, .packages=c("igraph") ) %dopar% {
   graph <- delete.edges( gs, e.weight[seq(length=i)] )
   try( membership.graph <- get(clustering.method)(graph)$membership , silent=TRUE )
@@ -63,8 +64,9 @@ legend("topleft",col=c("black","black"),lty=c(1,2),legend=c("modularity","cluste
 
 ## --------------------------------
 
-ModTab <- ModTab[which.min(ModTab[,3]),]
-best.edges <- 9147
+ModTab <- ModTab[ModTab[,3] == min(ModTab[,3]),]
+ModTab <- ModTab[ModTab[,2] == max(ModTab[,2]),]
+best.edges <- 1
 
 graph <- gs
 graph <- delete.edges(gs, e.weight[seq(length=best.edges)] )
