@@ -37,6 +37,23 @@ coastline <- gIntersection(coastline, clipper, byid=TRUE)
 coastline.pts <- as(coastline, "SpatialPointsDataFrame")
 coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
 
+if( ! is.null(additional.islands.shp) ) {
+  
+  additional.isl <- shapefile(paste0(project.folder,additional.islands.shp))
+  additional.isl <- gIntersection(additional.isl, clipper, byid=TRUE)
+  coastline.pts <- rbind(coastline.pts,additional.isl@polygons[[2]]@Polygons[[1]]@coords)
+
+}
+
+
+
+
+
+
+
+
+
+
 source.sink.xy <- data.frame(Lon=rep(NA,nrow(coastline.pts)),Lat=rep(NA,nrow(coastline.pts)),stringsAsFactors = FALSE)
 source.sink.xy.i <- 0
 
@@ -59,7 +76,6 @@ while( nrow(coastline.pts.t) > 0 ){
   crs(circle) <- dt.projection
   
   to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
-  
   coastline.pts.t <- coastline.pts.t[-which(rownames(coastline.pts.t) %in% names(to.extract)),]
   
   cat('\014')

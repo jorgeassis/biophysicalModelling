@@ -133,6 +133,9 @@ reference.table[ cell %in% cells.i & cell.rafted %in% cells.j , ]
 
 # for(sp in 3:31) {
 
+# REMOVE THOSE VERY DISTAN APART!!
+
+
 file.sampling.sites <- paste0(project.folder,"/Connectivity of Laminaria Pallida/Data/Coords.csv")
 file.differentiation <- paste0(project.folder,"/Connectivity of Laminaria Pallida/Data/FST.csv")
 

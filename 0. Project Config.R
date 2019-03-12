@@ -9,11 +9,12 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "SouthAfrica"
-project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Southern Africa Shores/"
+project.name <- "Atlantic"
+project.folder <- "/media/Nautilus1/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
+additional.islands.shp <- "Data/Shapefiles/Additional islands.shp"
 bathymetry.tif <- NULL
 unwanted.release.sites.shp <- "Data/Shapefiles/unwanted.shp" # NULL
 
@@ -23,24 +24,24 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 10
-parallel.computational.sections <- 10
+number.cores <- 30
+parallel.computational.sections <- 30
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- 7
-max.lon <- 32
-min.lat <- -42.5
-max.lat <- -10
+min.lon <- -20
+max.lon <- 37
+min.lat <- 22.5
+max.lat <- 74.5
 source.sink.dist <- 1 # km
 
 # -----------------------------------
 # Traits
 
-months.all <- 1:12 # Spawning 5:10 (30 days off)
+months.all <- 4:10 # Spawning 5:10 (30 days off)
 from.day <- 1 ; to.day <- 31
 from.year <- 2003 ; to.year <- 2012
 depth.range <- c(0)
@@ -48,7 +49,7 @@ depth.range <- c(0)
 kill.by.raft <- TRUE                              # Will eliminate particles that got to another cell - first raft event # May need a new particle every day
 n.hours.per.day <- 12                             # Needs recoding for diferent than 12 # how many tracks for each particle during a day
 n.new.particles.per.day <- 1
-remove.new.particles.last.days <- FALSE            # If last days (particle.max.duration) are not to deliver new particles  
+remove.new.particles.last.days <- TRUE            # If last days (particle.max.duration) are not to deliver new particles  
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
