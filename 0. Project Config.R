@@ -16,7 +16,7 @@ coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
 additional.islands.shp <- "Data/Shapefiles/Additional islands.shp"
 bathymetry.tif <- NULL
-unwanted.release.sites.shp <- "Data/Shapefiles/unwanted.shp" # NULL
+unwanted.release.sites.shp <- "Data/Shapefiles/Unwanted.shp" # NULL
 
 ## ------------------------------------
 
@@ -24,8 +24,8 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 30
-parallel.computational.sections <- 30
+number.cores <- 40
+parallel.computational.sections <- 40
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
@@ -69,7 +69,7 @@ final.dimensions <- 2
 movie.year <- 2012
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
-movie.sites.xy <- "Data/Shapefiles/movie.shp" 
+movie.sites.xy <- "Data/Shapefiles/Movie.shp" 
 # matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 , -5 , 50 , - 2 , 45 , -5 , 44 , 5 , 40 , -10 , 30 ) , ncol=2 , byrow=TRUE) 
 
 

@@ -12,7 +12,7 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------
 
-packages.to.use <- c("gdata",
+packages.to.use <- c("dggridR","gdata","dplyr",
                      "gstat",
                      "compiler",
                      "data.table",

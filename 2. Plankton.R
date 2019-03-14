@@ -45,48 +45,29 @@ if( ! is.null(additional.islands.shp) ) {
 
 }
 
+# https://cran.r-project.org/web/packages/dggridR/vignettes/dggridR.html
 
+dggs <- dgconstruct(res=16, metric=TRUE, resround='down')
+dgcoastline.pts <- dgGEO_to_SEQNUM(dggs,coastline.pts$x,coastline.pts$y)$seqnum
+cellcenters   <- dgSEQNUM_to_GEO(dggs,dgcoastline.pts)
+new.coastline.pts <- data.frame(x=cellcenters$lon_deg,y=cellcenters$lat_deg)
+new.coastline.pts <- unique(new.coastline.pts)
 
-
-
-
-
-
-
-
-source.sink.xy <- data.frame(Lon=rep(NA,nrow(coastline.pts)),Lat=rep(NA,nrow(coastline.pts)),stringsAsFactors = FALSE)
-source.sink.xy.i <- 0
-
-coastline.pts.t.i <- coastline.pts
-coordinates(coastline.pts.t.i) <- c("x","y")
-crs(coastline.pts.t.i) <- dt.projection
-
-coastline.pts.t <- coastline.pts
-source.sink.xy.o <- nrow(coastline.pts.t)
-
-while( nrow(coastline.pts.t) > 0 ){
+cl.2 <- makeCluster(40)
+registerDoParallel(cl.2)
+source.sink.xy <- foreach(i=1:nrow(new.coastline.pts), .verbose=FALSE, .combine=rbind , .packages=c("sp")) %dopar% { 
   
-  pt.i = coastline.pts.t[1,,drop=FALSE]
-  
-  source.sink.xy.i <- source.sink.xy.i + 1
-  source.sink.xy[source.sink.xy.i,] <- as.data.frame(pt.i,stringsAsFactors = FALSE)
-                          
-  circle <- circles(pt.i, lonlat=TRUE, d=source.sink.dist*1000, dissolve=FALSE)
-  circle <- geometry(circle)
-  crs(circle) <- dt.projection
-  
-  to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
-  coastline.pts.t <- coastline.pts.t[-which(rownames(coastline.pts.t) %in% names(to.extract)),]
-  
-  cat('\014')
-  cat('\n')
-  cat('\n')
-  cat('\n Progress:', 100 - round((nrow(coastline.pts.t) / source.sink.xy.o) * 100 , digits = 2) , '%' )
+  pt.i = new.coastline.pts[i,]
+  all.distances <- spDistsN1(as.matrix(coastline.pts),as.matrix(pt.i),longlat=TRUE)
+  return(coastline.pts[which.min(all.distances),])
   
 }
+stopCluster(cl.2) ; rm(cl.2)
+
+head(source.sink.xy)
 
 source.sink.xy <- source.sink.xy[complete.cases(source.sink.xy),]
-source.sink.xy <- data.frame(cells.id=1:nrow(source.sink.xy),x=source.sink.xy[,"Lon"],y=source.sink.xy[,"Lat"],source=1,stringsAsFactors = FALSE) ; head(source.sink.xy)
+source.sink.xy <- data.frame(cells.id=1:nrow(source.sink.xy),x=source.sink.xy[,"x"],y=source.sink.xy[,"y"],source=1,stringsAsFactors = FALSE) ; head(source.sink.xy)
 
 ## -----------------------------------------------------
 
@@ -235,8 +216,14 @@ clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(proj
 clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/InternalProc"))
 clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/InternalProc"))
 
-particles.reference.bm <- as.big.matrix(as.matrix(particles.reference) , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
-particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
+particles.reference.bm <- big.matrix(nrow=nrow(particles.reference),ncol=ncol(particles.reference) , backingpath=paste0(project.folder,"InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
+particles.reference.bm.desc <- dget( paste0(project.folder,"InternalProc/particles.reference.desc"))
+
+particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
+particles.reference.bm[,1] <- unlist(particles.reference[,1])
+particles.reference.bm[,2] <- unlist(particles.reference[,2])
+particles.reference.bm[,6] <- unlist(particles.reference[,6])
+particles.reference.bm[,7] <- unlist(particles.reference[,7])
 
 ## --------------------------------------------------------
 
@@ -768,6 +755,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 # 3 on hold out of space 
 # 4 dead by time 
 
+particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(2), list('eq'))
 
 ReferenceTable <- data.frame( particles.reference.bm[particles.reference.bm.i,] , 
