@@ -24,8 +24,8 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 40
-parallel.computational.sections <- 40
+number.cores <- 15
+parallel.computational.sections <- 30
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------

@@ -3,6 +3,10 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
+
+??? Which part is inflating memory ???
+
+  
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
@@ -197,6 +201,9 @@ particles.reference[ , state := 0 ]
 particles.reference[ , t.start := 0 ]
 particles.reference[ , t.finish := 0 ]
 particles.reference[ , cell.rafted := 0 ]
+
+particles.reference.names <- colnames(particles.reference)
+
 setkey(particles.reference, id )
 
 for( c in source.sink.xy[source.sink.xy$source == 1 , 1 ] ) {
@@ -325,7 +332,8 @@ dbDisconnect(sql)
 
 ## -----------------------
 
-rm(particles.reference) ; gc(reset=TRUE)
+rm(landmass) ; rm(coastline) ; rm(particles.reference.bm) ; rm(particles.reference)
+gc(reset=TRUE)
 list.memory()
 
 ## ------------------------------------------------------------------------------------------------------------------
@@ -465,9 +473,11 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 raw.data.v.bm <- as.big.matrix(raw.data.v , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "raw.data.v.bin", descriptorfile = "raw.data.v.desc")
                 raw.data.v.bm.desc <- dget( paste0(project.folder,"/InternalProc/raw.data.v.desc"))
 
-                ## -------------------------------------
+                ## ------------------------------------- 
                 
                 ## Divide computations by sections (parallel.computational.sections)
+                
+                gc(reset=TRUE)
                 
                 cl.2 <- makeCluster(number.cores)
                 registerDoParallel(cl.2)
@@ -486,8 +496,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       
                       particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
                       particles.reference.bm.i <- mwhich(particles.reference.bm.all,c(7,7),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'lt') , 'AND')
-                      particles.reference.bm.sec <- as.data.table(particles.reference.bm.all[particles.reference.bm.i,])
-                      
+
                       if( length(particles.reference.bm.i) > 0 ) { 
                         
                       ## --------------------------------------------------------
@@ -499,6 +508,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                               if( length(particles.reference.bm.i) == 1 ) { 
                                particles.reference.bm.sec <- as.data.table(particles.reference.bm.all[c(particles.reference.bm.i,particles.reference.bm.i),])[-1,]
                               }
+                                
+                              colnames(particles.reference.bm.sec) <- particles.reference.names
                                 
                               setkey(particles.reference.bm.sec,id)
                         
@@ -567,8 +578,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                   
                                               # Interpolate speed
             
-                                              invisible( speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax=3)$var1.pred )
-                                              invisible( speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax=3)$var1.pred )
+                                              speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax=3)$var1.pred
+                                              speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax=3)$var1.pred
                                               mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
                                               mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
                                       
@@ -711,12 +722,14 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                               ## ---------------------------------------------------
                               ## Inject particles to final object [ particles.reference.bm.all ] 
         
+                              # dev.off()
+                              
                               setkey(particles.reference.bm.sec,id)
                               bm.i.all <- particles.reference.bm.sec[ state != 0 ,id]
                               
                               # particles.reference.bm.i <- mwhich(particles.reference.bm.all,rep(1,length(bm.i.all)),list(bm.i.all),list(rep('eq',length(bm.i.all))),op = "OR")
                               
-                              particles.reference.bm.i <- which(particles.reference.bm.all[ , "id"] %in% bm.i.all)
+                              particles.reference.bm.i <- which(particles.reference.bm.all[ , 1] %in% bm.i.all)
                               
                               particles.reference.bm.all[particles.reference.bm.i , 3 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.year]
                               particles.reference.bm.all[particles.reference.bm.i , 4 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.month]
