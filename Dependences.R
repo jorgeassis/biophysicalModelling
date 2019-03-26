@@ -57,17 +57,24 @@ clean.dump.files <- function(clean.dump.files,files,dump.folder) {
 
 ## ---------------------------------------------------------------------------------------------------------------------
 
+list.memory.used <- function(type) {
+  
+  if(type==1) { return(sum(gc()[,7]) ) }
+  if(type==2) { return(sum(list.memory()$Size)) }
+  
+}
+
+## ---------------------------------------------------------------------------------------------------------------------
+
 list.memory <- cmpfun( function (pos = 1, pattern, order.by = "Size", decreasing=TRUE, head = TRUE, n = 100) {
   
-  napply <- function(names, fn) sapply(names, function(x)
-    fn(get(x, pos = pos)))
+  napply <- function(names, fn) sapply(names, function(x) fn(get(x, pos = pos)))
   names <- ls(pos = pos, pattern = pattern)
   obj.class <- napply(names, function(x) as.character(class(x))[1])
   obj.mode <- napply(names, mode)
   obj.type <- ifelse(is.na(obj.class), obj.mode, obj.class)
   obj.size <- napply(names, object.size) / 10^6 # megabytes
-  obj.dim <- t(napply(names, function(x)
-    as.numeric(dim(x))[1:2]))
+  obj.dim <- t(napply(names, function(x) as.numeric(dim(x))[1:2]))
   vec <- is.na(obj.dim)[, 1] & (obj.type != "function")
   obj.dim[vec, 1] <- napply(names, length)[vec]
   out <- data.frame(obj.type, obj.size, obj.dim)
@@ -170,3 +177,145 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   
 }
 
+## ---------------------------------------------------------------------------------------------------------------------
+
+padlock <- function(dir,fun,id) {
+  
+  if( missing(id) ) { id <- NULL } 
+  if( missing(dir) ) { dir <- NULL } 
+  if( missing(fun) ) { fun <- NULL } 
+  
+  options(warn=-1)
+  
+  file.t <- paste0("Padlocker#",id,".Lk")
+  
+  ## ---------------------------
+  
+  if( fun == "LockAndHaltOn" ) {
+  
+    int <- 0
+    
+    repeat {
+      
+      if( ! padlock(dir,"isLocked") ) { 
+        
+        int <- int + 1
+        
+        padlock(dir,"Lock",id=id)
+        
+        Sys.sleep(sample(seq(1,2,length.out = 10),1))
+
+        if( ! padlock(dir,"uniqueLocker",id=id) ) { padlock(dir,"Unlock",id=id) ; next }
+        
+        if( padlock(dir,"uniqueLocker",id=id) ) { break }
+        
+      }
+      
+      if( int > 9999 ) { stop("More than 9999 tries") }
+      
+  }
+    
+  }
+  
+  ## ---------------------------
+    
+  if( fun == "Lock" ) {
+    
+    write("Locked",file=paste0(dir,"/",file.t),append=FALSE)
+    
+  }
+  
+  ## ---------------------------
+  
+  if( fun == "Unlock" ) {
+    
+    file.remove( paste0(dir,"/",file.t) )
+    
+    if( id == -1 ) {
+      
+      file.remove( list.files(dir,"Padlocker#",full.names = TRUE) )
+      
+    }
+  }
+  
+  ## ---------------------------
+  
+  if( fun == "isLocked" ) {
+    
+    Locked <- TRUE
+    
+    fs <- list.files(dir,"Padlocker#",full.names = TRUE)
+    
+    if( length(fs) != 0 ) {
+      Locked <- TRUE
+    } 
+    if( length(fs) == 0 ) {
+      Locked <- FALSE
+    } 
+    
+    return( Locked  )
+    
+  }
+  
+  ## ---------------------------
+  
+  if( fun == "uniqueLocker" ) {
+    
+    u.locker <- FALSE
+    
+    fs <- list.files(dir,"Padlocker#",full.names = TRUE)
+    
+    if( length(fs) == 0) { u.locker <- FALSE  }
+    if( length(fs) > 1) { u.locker <- FALSE  }
+    if( length(fs) == 1 ) { 
+      
+      if( grepl(file.t,fs) ) { u.locker <- TRUE  }  
+      
+    }
+    
+    return( u.locker  )
+    
+  }
+  
+  ## ---------------------------
+  
+  if( fun == "countLockersAge" ) {
+    
+    fs <- list.files(dir,"Padlocker#",full.names = TRUE)
+    age <- as.numeric( difftime(Sys.time(), file.info(fs )$atime, units ="mins") )
+    return( data.frame(fs,age)  )
+    
+  }
+  
+  ## ---------------------------
+  
+  if( fun == "Age" ) {
+    
+    fs <- list.files(dir,"Padlocker#",full.names = TRUE)
+    age.i <- numeric(0)
+    
+    if( length(fs) > 0 ) {
+      
+      for( i in 1:length(fs)) {
+        
+        age <- as.numeric( difftime(Sys.time(), file.info(fs[i] )$atime, units ="mins") )
+        age.i <- c(age.i,age)
+        
+      }
+    }
+    if( length(fs) == 0 ) {
+      age.i <- 0
+    }
+    
+    return(min(age.i))
+    
+  }
+  
+  ## ---------------------------
+  
+  options(warn=0)
+  
+}
+
+## ---------------------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------------------------------------------------------

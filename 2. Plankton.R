@@ -3,13 +3,8 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
-
-??? Which part is inflating memory ???
-
-  
-rm(list=(ls()[ls()!="v"]))
-gc(reset=TRUE)
 source("0. Project Config.R")
+source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -57,7 +52,7 @@ cellcenters   <- dgSEQNUM_to_GEO(dggs,dgcoastline.pts)
 new.coastline.pts <- data.frame(x=cellcenters$lon_deg,y=cellcenters$lat_deg)
 new.coastline.pts <- unique(new.coastline.pts)
 
-cl.2 <- makeCluster(40)
+cl.2 <- makeCluster(number.cores)
 registerDoParallel(cl.2)
 source.sink.xy <- foreach(i=1:nrow(new.coastline.pts), .verbose=FALSE, .combine=rbind , .packages=c("sp")) %dopar% { 
   
@@ -334,6 +329,8 @@ dbDisconnect(sql)
 
 rm(landmass) ; rm(coastline) ; rm(particles.reference.bm) ; rm(particles.reference)
 gc(reset=TRUE)
+gc()
+memory.profile()
 list.memory()
 
 ## ------------------------------------------------------------------------------------------------------------------
@@ -483,6 +480,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 registerDoParallel(cl.2)
                 
                 sect.loop <- foreach(section=1:parallel.computational.sections, .verbose=FALSE, .export=list.of.polygons , .packages=c("gstat","gdata","raster","data.table","bigmemory")) %dopar% { 
+                  
+               # for(section in 1:parallel.computational.sections) {
                   
                       sections.lat.f.s <- as.numeric(sections.lat[section,1])
                       sections.lat.t.s <- as.numeric(sections.lat[section,2])
@@ -718,6 +717,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                     }
                                             
                               }
+
+                              gc(reset=T)
                               
                               ## ---------------------------------------------------
                               ## Inject particles to final object [ particles.reference.bm.all ] 
@@ -725,10 +726,11 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                               # dev.off()
                               
                               setkey(particles.reference.bm.sec,id)
+                              
                               bm.i.all <- particles.reference.bm.sec[ state != 0 ,id]
                               
                               # particles.reference.bm.i <- mwhich(particles.reference.bm.all,rep(1,length(bm.i.all)),list(bm.i.all),list(rep('eq',length(bm.i.all))),op = "OR")
-                              
+
                               particles.reference.bm.i <- which(particles.reference.bm.all[ , 1] %in% bm.i.all)
                               
                               particles.reference.bm.all[particles.reference.bm.i , 3 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.year]
@@ -741,11 +743,13 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                               particles.reference.bm.all[particles.reference.bm.i , 11 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,t.finish]
                               particles.reference.bm.all[particles.reference.bm.i , 12 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,cell.rafted]
                             
+                              gc(reset=T)
+
                               # -----------------------------------------------
 
                       }
 
-                      return(NULL)
+                       return(NULL)
                       
                 }
                 

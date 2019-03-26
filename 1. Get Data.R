@@ -3,6 +3,7 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
+source("0. Project Config.R")
 source("Dependences.R")
 
 ## -----------------------------------------
@@ -76,12 +77,16 @@ for (y in from.year:to.year){
         try( values.to.place.u <- ncvar_get( nc, "water_u", start=c(i.min,j.min,depth[d],t), count=c((i.max-i.min+1),(j.max-j.min+1),1,1)))
         
       }
+
+      values.to.place.u[values.to.place.u == -30000 ] <- NA
       
       while(is.null(values.to.place.v)) {
         
         try( values.to.place.v <- ncvar_get( nc, "water_v", start=c(i.min,j.min,depth[d],t), count=c((i.max-i.min+1),(j.max-j.min+1),1,1)))
         
       }
+      
+      values.to.place.v[values.to.place.v == -30000 ] <- NA
       
       u[,,d] <- values.to.place.u
       v[,,d] <- values.to.place.v
