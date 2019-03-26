@@ -714,6 +714,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
     
                                   t.step.movie <- ((as.numeric(which( which(as.numeric(simulation.parameters.step[,3]) == movie.year) == simulation.step))-1) * n.hours.per.day) + h
                                   
+                                  setkey(particles.reference.moving.dt,id)
                                   particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.to.sql.id.moving,pos.lon])
                                   particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.to.sql.id.moving,pos.lat])
                                   
@@ -796,10 +797,11 @@ plot(1:length(seq.t),seq.t)
 
 for(test.cell in ReferenceTable$start.cell) {
   
+  initial.coords[test.cell,]
   ReferenceTable[ReferenceTable$start.cell == test.cell,]
   initial.coords[ReferenceTable[ReferenceTable$start.cell == test.cell,"cell.rafted"],]
-  max.dist <- max(spDistsN1(as.matrix(initial.coords[ReferenceTable[ReferenceTable$start.cell == test.cell,"cell.rafted"],]), as.numeric(initial.coords[test.cell,]) , longlat = TRUE))
-  if(max.dist > 250) { stop("Hold!!")}
+  max.per.day <- max(spDistsN1(as.matrix(initial.coords[ReferenceTable[ReferenceTable$start.cell == test.cell,"cell.rafted"],]), as.numeric(initial.coords[test.cell,]) , longlat = TRUE) / ReferenceTable[ReferenceTable$start.cell == test.cell,"travel.time"])
+  if(max.per.day > 100) { stop("Hold!!")}
   
 }
 
