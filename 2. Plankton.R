@@ -107,6 +107,7 @@ points(source.sink.xy[source.sink.xy$source == 0,2:3],col=c("yellow"))
 ## ------------------
 
 initial.coords <- source.sink.xy[source.sink.xy$source == 1 , 2:3 ]
+source.cells.id <- source.sink.xy[source.sink.xy$source == 1,1]
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 
@@ -336,6 +337,11 @@ list.memory()
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
 
+## save.image(file='../Environment.RData')
+## gc(reset=TRUE); load('../Environment.RData')
+
+## -------------------------------------------
+
 ## Start Simulation
 ## 1:nrow(simulation.parameters.step)
 
@@ -402,11 +408,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                   nc_close(simulation.raw.data)
 
                   if( ! as.numeric(format(Time, "%Y"))[1] %in% from.year:to.year ) { stop("Code 01: Something is wrong with raw data extraction") }
-                  
-                  norm.field <- expand.grid( i=dim.i , j=dim.j )
-                  raw.data.coords <- cbind( apply( norm.field , 1 , function (x) Longitude[x[1]] ) , apply( norm.field , 1 , function (x) Latitude[x[2]] ) )
-                  colnames(raw.data.coords) <- c("Lon","Lat")
-                  
+
                 }
                 
                 ## --------------------------------------------------------
@@ -428,328 +430,320 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 
                 ## --------------------------------------------------------
                 
-                ## U & V Components
-                
-                nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
-                velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,1,rd.start.day) , count=c(length(dim.i),length(dim.j),1) )
-                start.day.raw.data.u <- melt(velocity.field)[,"value"]
-                velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,1,rd.start.day) , count=c(length(dim.i),length(dim.j),1) )
-                start.day.raw.data.v <-  melt(velocity.field)[,"value"]
-                nc_close(nc.file)
-
-                nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
-                velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,1,rd.next.day) , count=c(length(dim.i),length(dim.j),1) )
-                next.day.raw.data.u <-  melt(velocity.field)[,"value"]
-                velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,1,rd.next.day) , count=c(length(dim.i),length(dim.j),1) )
-                next.day.raw.data.v <-  melt(velocity.field)[,"value"]
-                nc_close(nc.file)
-                
-                # Crop environmental data by extent (study region)
-                
-                raw.data.u <- data.table(raw.data.coords,u.start=start.day.raw.data.u,u.next=next.day.raw.data.u)
-                raw.data.v <- data.table(raw.data.coords,v.start=start.day.raw.data.v,v.next=next.day.raw.data.v)
-                
-                raw.data.u <- raw.data.u[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(u.start) , ]
-                raw.data.v <- raw.data.v[ Lon >= min.lon & Lat >= min.lat & Lon <= max.lon & Lat <= max.lat & !is.na(v.start) , ]
-                
-                # plot(raw.data.u[,.(Lon,Lat)])
-
-                ## -------------------------------------
-                
-                ## Out of memory objects
-                
-                raw.data.u <- as.matrix(raw.data.u) ; colnames(raw.data.u) <- NULL
-                raw.data.v <- as.matrix(raw.data.v) ; colnames(raw.data.v) <- NULL
-                
                 if( ! "InternalProc" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/InternalProc"))) }
                 
-                clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/InternalProc"))
-              
-                raw.data.u.bm <- as.big.matrix( raw.data.u , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "raw.data.u.bin", descriptorfile = "raw.data.u.desc")
-                raw.data.u.bm.desc <- dget( paste0(project.folder,"/InternalProc/raw.data.u.desc"))
-                raw.data.v.bm <- as.big.matrix(raw.data.v , backingpath=paste0(project.folder,"/InternalProc") , backingfile = "raw.data.v.bin", descriptorfile = "raw.data.v.desc")
-                raw.data.v.bm.desc <- dget( paste0(project.folder,"/InternalProc/raw.data.v.desc"))
-
                 ## ------------------------------------- 
                 
                 ## Divide computations by sections (parallel.computational.sections)
                 
                 gc(reset=TRUE)
-                
+
                 cl.2 <- makeCluster(number.cores)
                 registerDoParallel(cl.2)
                 
-                sect.loop <- foreach(section=1:parallel.computational.sections, .verbose=FALSE, .export=list.of.polygons , .packages=c("gstat","gdata","raster","data.table","bigmemory")) %dopar% { 
+                sect.loop <- foreach(section=1:parallel.computational.sections, .verbose=FALSE, .export=list.of.polygons , .packages=c("ncdf4","gstat","gdata","raster","data.table","bigmemory","FNN")) %dopar% { 
+
+                      require(bigmemory)
                   
-               # for(section in 1:parallel.computational.sections) {
+                      ## -------------------------------------------------------------------------
                   
+                      sp.poly <- get(paste0("landmass.sect.",section))
+                      if( class(sp.poly) != "SpatialPolygons" ) { sp.poly <- get(paste0("landmass.sect.",section))@polyobj }
+                      
+                      ## -------------------------------------------------------------------------
+                      
                       sections.lat.f.s <- as.numeric(sections.lat[section,1])
                       sections.lat.t.s <- as.numeric(sections.lat[section,2])
                   
+                      ## -------------------------------------------------------------------------
+
+                      ## U & V Components
+                      
+                      velocity.field.sec <- which(Latitude >= min(c(sections.lat.t.s,sections.lat.f.s)) - parallel.computational.buffer & Latitude <= max(c(sections.lat.t.s,sections.lat.f.s)) + parallel.computational.buffer )
+                      velocity.field.sec <- velocity.field.sec[-length(velocity.field.sec)]
+                      
+                      norm.field <- expand.grid( i=dim.i , j=velocity.field.sec )
+                      raw.data.coords <- cbind( apply( norm.field , 1 , function (x) Longitude[x[1]] ) , apply( norm.field , 1 , function (x) Latitude[x[2]] ) )
+                      colnames(raw.data.coords) <- c("Lon","Lat")
+                      
+                      nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
+                      velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,velocity.field.sec[1],rd.start.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
+                      start.day.raw.data.u <- melt(velocity.field)[,"value"]
+                      velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,velocity.field.sec[1],rd.start.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
+                      start.day.raw.data.v <-  melt(velocity.field)[,"value"]
+                      nc_close(nc.file)
+                      
+                      nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
+                      velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,velocity.field.sec[1],rd.next.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
+                      next.day.raw.data.u <-  melt(velocity.field)[,"value"]
+                      velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,velocity.field.sec[1],rd.next.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
+                      next.day.raw.data.v <-  melt(velocity.field)[,"value"]
+                      nc_close(nc.file)
+                      
+                      raw.data.u <- cbind(raw.data.coords,start.day.raw.data.u,next.day.raw.data.u)
+                      raw.data.v <- cbind(raw.data.coords,start.day.raw.data.v,next.day.raw.data.v)
+                      
+                      colnames(raw.data.u) <- c("Lon","Lat","u.start","u.next")
+                      colnames(raw.data.v) <- c("Lon","Lat","u.start","u.next")
+                      
+                      raw.data.u <- raw.data.u[complete.cases(raw.data.u),]
+                      raw.data.v <- raw.data.v[complete.cases(raw.data.v),]
+                      
+                      # plot(raw.data.u[,c("Lon","Lat")])
+
                       ## --------------------------------------------------------
+
+                      speed.u.sec <- t( sapply( 1:nrow(raw.data.u) , function (x) seq( from = raw.data.u[x,3] , to = raw.data.u[x,4] , length.out = n.hours.per.day + 1 ) ))
+                      speed.v.sec <- t( sapply( 1:nrow(raw.data.v) , function (x) seq( from = raw.data.v[x,3] , to = raw.data.v[x,4] , length.out = n.hours.per.day + 1 ) ))
                       
-                      particles.video.location.x.bm.i <- attach.big.matrix(particles.video.location.x.bm.desc)
-                      particles.video.location.y.bm.i <- attach.big.matrix(particles.video.location.y.bm.desc)
-                      
+                      speed.u.sec.coords <- raw.data.u[,1:2]
+                      speed.v.sec.coords <- raw.data.u[,1:2]
+
+                      ## --------------------------------------------------------
                       ## --------------------------------------------------------
                       
                       particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
-                      particles.reference.bm.i <- mwhich(particles.reference.bm.all,c(7,7),list(sections.lat.f.s,sections.lat.t.s), list('ge', 'lt') , 'AND')
-
-                      if( length(particles.reference.bm.i) > 0 ) { 
-                        
+                      
+                      # -----------------------------------------------
+                      
+                      particles.reference.moving.i <- mwhich(particles.reference.bm.all,c(7,7,9),list(sections.lat.f.s,sections.lat.t.s,1), list('ge', 'lt','eq') , 'AND')
+                      particles.reference.moving.dt <- data.table(particles.reference.bm.all[particles.reference.moving.i, ])
+                      colnames(particles.reference.moving.dt) <- particles.reference.names
+                      
                       ## --------------------------------------------------------
-                        
-                              if( length(particles.reference.bm.i) > 1 ) { 
-                                particles.reference.bm.sec <- as.data.table(particles.reference.bm.all[particles.reference.bm.i,])
-                              } 
-                        
-                              if( length(particles.reference.bm.i) == 1 ) { 
-                               particles.reference.bm.sec <- as.data.table(particles.reference.bm.all[c(particles.reference.bm.i,particles.reference.bm.i),])[-1,]
-                              }
-                                
-                              colnames(particles.reference.bm.sec) <- particles.reference.names
-                                
-                              setkey(particles.reference.bm.sec,id)
-                        
-                              if( nrow(particles.reference.bm.sec) > 0  ) { existing.particles <- TRUE  }
-                              if( nrow(particles.reference.bm.sec) == 0 ) { existing.particles <- FALSE }
-                              
-                              ## --------------------------------------------------------
-                              
-                              raw.data.u.bm.sec <- attach.big.matrix(raw.data.u.bm.desc)
-                              raw.data.v.bm.sec <- attach.big.matrix(raw.data.v.bm.desc)
+                      ## Move particles (per day)
+                  
+                      for( h in 1:n.hours.per.day ) {
+    
+                            t.step <- ((as.numeric(simulation.step)-1) * n.hours.per.day) + h
                             
-                              raw.data.u.i <- mwhich(raw.data.u.bm.sec,c(2,2),list(sections.lat.f.s-parallel.computational.buffer,sections.lat.t.s+parallel.computational.buffer), list('ge', 'le') , 'AND')
-                              raw.data.v.i <- mwhich(raw.data.v.bm.sec,c(2,2),list(sections.lat.f.s-parallel.computational.buffer,sections.lat.t.s+parallel.computational.buffer), list('ge', 'le') , 'AND')
-                              
-                              speed.u.sec <- t( sapply( raw.data.u.i , function (x) seq( from = raw.data.u.bm.sec[x,3] , to = raw.data.u.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
-                              speed.v.sec <- t( sapply( raw.data.v.i , function (x) seq( from = raw.data.v.bm.sec[x,3] , to = raw.data.v.bm.sec[x,4] , length.out = n.hours.per.day + 1 ) ))
-                              
-                              speed.u.sec.coords <- raw.data.u.bm.sec[raw.data.u.i,1:2]
-                              speed.v.sec.coords <- raw.data.v.bm.sec[raw.data.v.i,1:2]
+                            # -----------------------------------------------
+                            # Release new particles, if that is the case
                             
-                              ## --------------------------------------------------------
-                              ## Move particles (per day)
+                            if( norm.time[t.step,release.particles] ) {   
+                              
+                                  particles.reference.new.i <- mwhich(particles.reference.bm.all,c(7,7,9),list(sections.lat.f.s,sections.lat.t.s,0), list('ge', 'lt','eq') , 'AND')
+                                  particles.reference.new.i <- data.table(particles.reference.bm.all[particles.reference.new.i,c(1,2)])
+                                  particles.reference.new.i <- particles.reference.new.i[ , .SD[1] , by=V2][,V1]
+
+                                  # particles.reference.names
                                   
-                              for( h in 1:n.hours.per.day ) {
-            
-                                    if( ! existing.particles ) { next }
+                                  particles.reference.new <- data.table(particles.reference.bm.all[particles.reference.new.i, ])
+                                  colnames(particles.reference.new) <- particles.reference.names
+                                  
+                                  particles.reference.new[ , 9 ] <- 1
+                                  particles.reference.new[ , 10 ] <- t.step
+                                  particles.reference.new[ , 3 ] <- as.numeric(simulation.year)
+                                  particles.reference.new[ , 4 ] <- as.numeric(simulation.month)
+                                  particles.reference.new[ , 5 ] <- as.numeric(simulation.day)
+    
+                                  setkey(particles.reference.moving.dt,id)
+                                  
+                                  particles.reference.moving.dt <-  rbindlist(list(particles.reference.moving.dt, particles.reference.new))
+                                  
+                            }
+                          
+                            ## --------------------------------------------------------
+                            
+                            moving.particles.condition <- nrow(particles.reference.moving.dt) > 0
+                            
+                            # --------
+                            
+                            if( ! moving.particles.condition ) { next }
+                            
+                            # --------
+                            
+                            if( moving.particles.condition ) {
+
+                                      setkey(particles.reference.moving.dt,id)
+                                      moving.particles.id <- as.vector(unlist(particles.reference.moving.dt[, "id"]))
+                                   
+                                      points.to.interp <- particles.reference.moving.dt[, .(pos.lon,pos.lat)]
+                                     
+                                      # plot(speed.u.sec.coords) ; points(points.to.interp,col="Red")
+                                     
+                                      source.points.to.interp.u <- data.frame(x=speed.u.sec.coords[,1],y=speed.u.sec.coords[,2],var=speed.u.sec[,h])
+                                      source.points.to.interp.v <- data.frame(x=speed.v.sec.coords[,1],y=speed.v.sec.coords[,2],var=speed.v.sec[,h])
+                                      
+                                      # Interpolate speed
+
+                                      idwPower <- 2
+                                      idwN <- 3
+                                      
+                                      idw.nearest.i <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.index
+                                      idw.nearest.d <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.dist
+                                      idw.nearest.d <- idw.nearest.d * 1e9
+
+                                      speed.u <- numeric(nrow(points.to.interp))
+                                      speed.v <- numeric(nrow(points.to.interp))
+                                      
+                                      for( pt.i in 1:nrow(points.to.interp)) {
+                                        
+                                        speed.u[pt.i] <- (sum( source.points.to.interp.u[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
+                                        speed.v[pt.i] <- (sum( source.points.to.interp.v[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
+                                        
+                                      }
+                                      
+                                      if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { stop("Error [!]") }
+                                      
+                                      mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
+                                      mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
+                              
+                                      # Assign temporary positions
+    
+                                      points.to.interp <- particles.reference.moving.dt[, .(pos.lon,pos.lat,id)]
+                                      
+                                      dLon <- mov.eastward / ( 6378137 * cos( pi * (  points.to.interp[,2]  / 180) ) )
+                                      dLat <- mov.northward / 6378137
+                                      dLon <- points.to.interp[,1] + dLon * 180/pi 
+                                      dLat <- points.to.interp[,2] + dLat * 180/pi
+    
+                                      # ---------------------------
+
+                                      particles.reference.moving.old.pos <- points.to.interp
+                                      
+                                      # ---------------------------
+                                      
+                                      setkey(particles.reference.moving.dt,id)
+                                      particles.reference.moving.dt[,6] <- dLon
+                                      particles.reference.moving.dt[,7] <- dLat
+
+                                      # -----------------------------------------------
+                                      # Out of space (study region), if TRUE, place particles on hold
+    
+                                      out.of.space <- dLon > max.lon | dLon < min.lon | dLat > max.lat | dLat < min.lat
+                                      out.of.space.ids <- moving.particles.id[out.of.space]
+                                      
+                                      setkey(particles.reference.moving.dt,id)
+                                      particles.reference.moving.dt[ id %in% out.of.space.ids , state := 3  ]
+                                      
+                                      # -----------------------------------------------
+                                      # kill by first raft . Will eliminate particles that got to another cell - first raft event
+    
+                                      if( kill.by.raft ) {
+                                        
+                                        setkey(particles.reference.moving.dt,id)
+                                        points.to.test <- particles.reference.moving.dt[, .(pos.lon,pos.lat)]
+                                        coordinates(points.to.test) = ~pos.lon+pos.lat
+                                        crs(points.to.test) <- dt.projection
+                                      
+                                        particles.on.land <- as.vector(which(!is.na(over(points.to.test,sp.poly))))
+                                        particles.on.land.condition <- length(particles.on.land) > 0
+    
+                                        if( particles.on.land.condition ) {    
                                 
-                                    t.step <- ((as.numeric(simulation.step)-1) * n.hours.per.day) + h
-                                    
-                                    # -----------------------------------------------
-                                    # Release new particles, if that is the case
-                                    
-                                    if( norm.time[t.step,release.particles] ) {   
-                                      
-                                          new.particles.id <- particles.reference.bm.sec[ state == 0 , .SD[1] , by=start.cell][,id]
-                                          new.particles.cells <- particles.reference.bm.sec[ state == 0 , .SD[1] , by=start.cell][,start.cell]
-                                          particles.reference.bm.sec[ id %in% new.particles.id , state := 1 ]
-                                          particles.reference.bm.sec[ id %in% new.particles.id , t.start := t.step ]
-                                          particles.reference.bm.sec[ id %in% new.particles.id , start.year := as.numeric(simulation.year) ]
-                                          particles.reference.bm.sec[ id %in% new.particles.id , start.month := as.numeric(simulation.month) ]
-                                          particles.reference.bm.sec[ id %in% new.particles.id , start.day := as.numeric(simulation.day) ]
+                                                  who.at.land.id <- moving.particles.id[particles.on.land]
+                                                  
+                                                  cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.land.id, "start.cell"]))
+                                                  who.at.land.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.land.id, "t.start"]))
+                                                  
+                                                  points.on.land <- particles.reference.moving.dt[id %in% who.at.land.id , 6:7 ]
+                                                  
+                                                  cells.rafted <- get.knnx( initial.coords, points.on.land, k=1 , algorithm="kd_tree" )$nn.index
+                                                  displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]})
+                                                  
+                                                  # For Rafters
+                                                  
+                                                  true.rafters.id <- who.at.land.id[ displacement != 0 ]
+                                                  true.rafters.cell <- cells.rafted[ displacement != 0 ]
+                                                  
+                                                  setkey(particles.reference.moving.dt,id)
+                                                  particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
+                                                  particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
+                                                  particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
 
-                                    }
-            
-                                    # -----------------------------------------------
-                                    # Which to move and speed
-                                    
-                                    moving.particles.xy <- particles.reference.bm.sec[ state == 1 , ]
-                                    setkey(moving.particles.xy,id)
-                                    moving.particles.condition <- nrow(moving.particles.xy) > 0
-            
-                                    if( moving.particles.condition ) {
-            
-                                              moving.particles.ids <- moving.particles.xy[,id]
-                                              moving.particles.start.cell <- moving.particles.xy[,start.cell]
-                                              moving.particles.t.start <- moving.particles.xy[,t.start]
-                                              
-                                              points.to.interp <- moving.particles.xy[, .(pos.lon,pos.lat) ]
-                                              coordinates(points.to.interp) = ~pos.lon+pos.lat
-                                                      
-                                              source.points.to.interp.u <- data.frame(x=speed.u.sec.coords[,1],y=speed.u.sec.coords[,2],var=speed.u.sec[,h])
-                                              coordinates(source.points.to.interp.u) = ~x+y
-                                              
-                                              source.points.to.interp.v <- data.frame(x=speed.v.sec.coords[,1],y=speed.v.sec.coords[,2],var=speed.v.sec[,h])
-                                              coordinates(source.points.to.interp.v) = ~x+y
-                                  
-                                              # Interpolate speed
-            
-                                              speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax=3)$var1.pred
-                                              speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax=3)$var1.pred
-                                              mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
-                                              mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
-                                      
-                                              # Assign temporary positions
-            
-                                              points.to.interp <- as.data.frame(points.to.interp)
-                                              
-                                              dLon <- mov.eastward / ( 6378137 * cos( pi * (  points.to.interp[,2]  / 180) ) )
-                                              dLat <- mov.northward / 6378137
-                                              dLon <- points.to.interp[,1] + dLon * 180/pi 
-                                              dLat <- points.to.interp[,2] + dLat * 180/pi
-            
-                                              setkey(moving.particles.xy,id)
-                                              
-                                              moving.particles.xy[ , pos.lon := dLon ]
-                                              moving.particles.xy[ , pos.lat := dLat ]
-                                              
-                                              moving.particles.xy[ , old.pos.lon := points.to.interp[,1] ]
-                                              moving.particles.xy[ , old.pos.lat := points.to.interp[,2] ]
-                                              
-                                              # -----------------------------------------------
-                                              # Out of space (study region), if TRUE, place particles on hold
-            
-                                              out.of.space <- dLon > max.lon | dLon < min.lon | dLat > max.lat | dLat < min.lat
-                                              out.of.space.ids <- moving.particles.ids[out.of.space]
-                                              
-                                              setkey(moving.particles.xy,id)
-                                              moving.particles.xy[ id %in% out.of.space.ids , state := 3 ] 
-                                      
-                                              # -----------------------------------------------
-                                              # kill by first raft . Will eliminate particles that got to another cell - first raft event
-            
-                                              if( kill.by.raft ) {
-                                                
-                                                points.to.test <- moving.particles.xy[ ,.(pos.lon,pos.lat) ]
-                                                coordinates(points.to.test) <- c("pos.lon","pos.lat")
-                                                crs(points.to.test) <- dt.projection
-            
-                                                sp.poly <- get(paste0("landmass.sect.",section))
-                                                
-                                                if( class(sp.poly) != "SpatialPolygons" ) { sp.poly <- get(paste0("landmass.sect.",section))@polyobj }
+                                                  # For non-Rafters New Particles
+                                                  
+                                                  non.rafters.id <- who.at.land.id[ displacement == 0 ]
+                                                  non.rafters.cell <- cells.started[ displacement == 0 ]
+                                                  non.rafters.t <- who.at.land.t.start[ displacement == 0 ] == t.step
+    
+                                                  if( TRUE %in% non.rafters.t ) {    
+    
+                                                    particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t] ,1] ]
+                                                    particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t]  ,2] ]
 
-                                                particles.on.land <- as.vector(which(!is.na(over(points.to.test,sp.poly))))
-                                                particles.on.land.condition <- length(particles.on.land) > 0
-            
-                                                if( particles.on.land.condition ) {    
-                                        
-                                                          who.at.land.id <- moving.particles.xy[ particles.on.land  , id ]
-                                                          who.at.land.t.start <- moving.particles.xy[ particles.on.land , t.start ]
-                                                          cells.started <- moving.particles.xy[ particles.on.land ,start.cell] 
-            
-                                                          dist.to.nearest.cell <- spDists(as.matrix(moving.particles.xy[ particles.on.land ,.(pos.lon,pos.lat) ]) , as.matrix(initial.coords) , longlat = TRUE)      
-                                                          cells.rafted <- apply(dist.to.nearest.cell,1,which.min)
-                                          
-                                                          displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]})
-                                                          
-                                                          # For Rafters
-                                                          
-                                                          true.rafters.id <- who.at.land.id[ displacement != 0 ]
-                                                          true.rafters.cell <- cells.rafted[ displacement != 0 ]
-                                                          
-                                                          setkey(moving.particles.xy,id)
-                                                          moving.particles.xy[ id %in% true.rafters.id , c("cell.rafted","state","t.finish") := list(as.numeric(true.rafters.cell),2,as.numeric(t.step)) ] 
-                                          
-                                                          # For non-Rafters New Particles
-                                                          
-                                                          non.rafters.id <- who.at.land.id[ displacement == 0 ]
-                                                          non.rafters.cell <- cells.started[ displacement == 0 ]
-                                                          non.rafters.t <- who.at.land.t.start[ displacement == 0 ] == t.step
-            
-                                                          if( TRUE %in% non.rafters.t ) {    
-            
-                                                            setkey(moving.particles.xy,id)
-                                                            moving.particles.xy[id %in% non.rafters.id[non.rafters.t], c("pos.lon","pos.lat") := .(old.pos.lon,old.pos.lat) ]
-            
-                                                          }
-                                                                          
-                                                          # For non-Rafters Old Particles
-            
-                                                          non.rafters.t <- who.at.land.t.start[displacement == 0] < t.step
-                                                          
-                                                          if( TRUE %in% non.rafters.t ) {    
-            
-                                                            setkey(moving.particles.xy,id)
-                                                            moving.particles.xy[ id %in% non.rafters.id[non.rafters.t] , c("cell.rafted","state","t.finish") := list( non.rafters.cell[non.rafters.t] , 2 , t.step ) ] 
-                                                            
-                                                          }
-                                                }
-                                              }
-                                    }
-            
-                                    # -----------------------------------------------
-                                    # End of day, Kill by Longevity
-                                    
-                                    if ( longevity ) {   
-                                      
-                                      max.duration.id <- moving.particles.xy[ ( t.step - t.start ) > ( n.hours.per.day * particle.max.duration ) , id ]
-                                      setkey(moving.particles.xy, id )
-                                      moving.particles.xy[ id %in% max.duration.id , c("state") := 4 ]
-                                      
-                                    }
-                                    
-                                    ## ---------------------------------------------------
-                                    # Inject particles to temporary object [ particles.reference.bm.sec ] 
-                                    
-                                    setkey(particles.reference.bm.sec, id )
-                                    setkey(moving.particles.xy,id)
-                                    
-                                    particles.reference.bm.sec[ id %in% moving.particles.xy[,id] , pos.lon := moving.particles.xy[,pos.lon] ]
-                                    particles.reference.bm.sec[ id %in% moving.particles.xy[,id] , pos.lat := moving.particles.xy[,pos.lat] ]
-                                    particles.reference.bm.sec[ id %in% moving.particles.xy[,id] , state := moving.particles.xy[,state] ]
-                                    particles.reference.bm.sec[ id %in% moving.particles.xy[,id] , t.start := moving.particles.xy[,t.start] ]
-                                    particles.reference.bm.sec[ id %in% moving.particles.xy[,id] , t.finish := moving.particles.xy[,t.finish] ]
-                                    particles.reference.bm.sec[ id %in% moving.particles.xy[,id] , cell.rafted := moving.particles.xy[,cell.rafted] ]
-                                    
-                                    ## ---------------------------------------------------------------
-                                    ## Save positions to Video matrix (if condition matched) 
-        
-                                    if( movie.year == as.numeric(simulation.year) ) {
-        
-                                        ## --------------------------------------------------------
-                                        
-                                        setkey(particles.reference.bm.sec,id)
-                                        particles.to.sql.id.moving <- particles.reference.bm.sec[state == 1,id]
-                                        particles.to.sql.id.moving <- particles.to.sql.id.moving[particles.to.sql.id.moving %in% particles.to.sql.id]
-                                        particles.to.sql.id.moving.condition <- length(particles.to.sql.id.moving) > 0
-                                        
-                                        if( particles.to.sql.id.moving.condition ) { 
+                                                  }
+                                                                  
+                                                  # For non-Rafters Old Particles
+    
+                                                  non.rafters.t <- who.at.land.t.start[displacement == 0] < t.step
+                                                  
+                                                  if( TRUE %in% non.rafters.t ) {    
+                
+                                                    particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 2 ]
+                                                    particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(non.rafters.cell[non.rafters.t] ) ]
+                                                    particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(t.step) ]
 
-                                          t.step.movie <- ((as.numeric(which( which(as.numeric(simulation.parameters.step[,3]) == movie.year) == simulation.step))-1) * n.hours.per.day) + h
-                                          
-                                          particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,pos.lon])
-                                          particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.bm.sec[ id %in% particles.to.sql.id.moving,pos.lat])
-                                          
+                                                  }
                                         }
-                                    }
-                                            
-                              }
-
-                              gc(reset=T)
-                              
-                              ## ---------------------------------------------------
-                              ## Inject particles to final object [ particles.reference.bm.all ] 
-        
-                              # dev.off()
-                              
-                              setkey(particles.reference.bm.sec,id)
-                              
-                              bm.i.all <- particles.reference.bm.sec[ state != 0 ,id]
-                              
-                              # particles.reference.bm.i <- mwhich(particles.reference.bm.all,rep(1,length(bm.i.all)),list(bm.i.all),list(rep('eq',length(bm.i.all))),op = "OR")
-
-                              particles.reference.bm.i <- which(particles.reference.bm.all[ , 1] %in% bm.i.all)
-                              
-                              particles.reference.bm.all[particles.reference.bm.i , 3 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.year]
-                              particles.reference.bm.all[particles.reference.bm.i , 4 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.month]
-                              particles.reference.bm.all[particles.reference.bm.i , 5 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,start.day]
-                              particles.reference.bm.all[particles.reference.bm.i , 6 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,pos.lon]
-                              particles.reference.bm.all[particles.reference.bm.i , 7 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,pos.lat]
-                              particles.reference.bm.all[particles.reference.bm.i , 9 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,state]
-                              particles.reference.bm.all[particles.reference.bm.i , 10 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,t.start]
-                              particles.reference.bm.all[particles.reference.bm.i , 11 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,t.finish]
-                              particles.reference.bm.all[particles.reference.bm.i , 12 ] <- particles.reference.bm.sec[ id %in% bm.i.all ,cell.rafted]
+                                        
+                                      }
+                                      
+                            }
+    
+                            # -----------------------------------------------
+                            # End of day, Kill by Longevity
                             
-                              gc(reset=T)
+                            if ( longevity ) {   
+                              
+                              max.duration.id <- particles.reference.moving.dt[ ( t.step - t.start ) > ( n.hours.per.day * particle.max.duration ) , id ]
+                              setkey(particles.reference.moving.dt, id )
+                              particles.reference.moving.dt[ id %in% max.duration.id , state := 4 ]
 
-                              # -----------------------------------------------
+                            }
+                            
+                            ## ---------------------------------------------------------------
+                            ## Save positions to Video matrix (if condition matched) 
+    
+                            if( movie.year == as.numeric(simulation.year) ) {
+    
+                                ## --------------------------------------------------------
+    
+                                particles.video.location.x.bm.i <- attach.big.matrix(particles.video.location.x.bm.desc)
+                                particles.video.location.y.bm.i <- attach.big.matrix(particles.video.location.y.bm.desc)
+                                
+                                ## --------------------------------------------------------
+                                
+                                setkey(particles.reference.moving.dt,id)
+                                particles.to.sql.id.moving <- particles.reference.moving.dt[state == 1,id]
+                                particles.to.sql.id.moving <- particles.to.sql.id.moving[particles.to.sql.id.moving %in% particles.to.sql.id]
+                                particles.to.sql.id.moving.condition <- length(particles.to.sql.id.moving) > 0
 
+                                if( particles.to.sql.id.moving.condition ) { 
+    
+                                  t.step.movie <- ((as.numeric(which( which(as.numeric(simulation.parameters.step[,3]) == movie.year) == simulation.step))-1) * n.hours.per.day) + h
+                                  
+                                  setkey(particles.reference.moving.dt,id)
+                                  particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.to.sql.id.moving,pos.lon])
+                                  particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.to.sql.id.moving,pos.lat])
+                                  
+                                }
+                            }
+                            
                       }
+    
+                      ## ---------------------------------------------------
+                      ## Inject particles to final object [ particles.reference.bm.all ] 
 
-                       return(NULL)
+                      setkey(particles.reference.moving.dt,id)
+                      particles.reference.bm.i <- particles.reference.moving.dt[ state != 0 , id ]
+                       
+                       particles.reference.bm.all[particles.reference.bm.i , 3 ] <- particles.reference.moving.dt[  ,start.year]
+                       particles.reference.bm.all[particles.reference.bm.i , 4 ] <- particles.reference.moving.dt[  ,start.month]
+                       particles.reference.bm.all[particles.reference.bm.i , 5 ] <- particles.reference.moving.dt[  ,start.day]
+                       particles.reference.bm.all[particles.reference.bm.i , 6 ] <- particles.reference.moving.dt[  ,pos.lon]
+                       particles.reference.bm.all[particles.reference.bm.i , 7 ] <- particles.reference.moving.dt[  ,pos.lat]
+                       particles.reference.bm.all[particles.reference.bm.i , 9 ] <- particles.reference.moving.dt[  ,state]
+                       particles.reference.bm.all[particles.reference.bm.i , 10 ] <- particles.reference.moving.dt[  ,t.start]
+                       particles.reference.bm.all[particles.reference.bm.i , 11 ] <- particles.reference.moving.dt[  ,t.finish]
+                       particles.reference.bm.all[particles.reference.bm.i , 12 ] <- particles.reference.moving.dt[  ,cell.rafted]
+
+                      gc(reset=T)
+
+                      # -----------------------------------------------
+
+                      return(NULL)
                       
                 }
                 
@@ -773,10 +767,18 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 # 4 dead by time 
 
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
-particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(2), list('eq'))
+if( length(mwhich(particles.reference.bm,c(9),list(0), list('eq'))) > 0 ) { print("An error may have occurred [!]")}
 
-ReferenceTable <- data.frame( particles.reference.bm[particles.reference.bm.i,] , 
-                              travel.time= ( 1 + particles.reference.bm[particles.reference.bm.i,11] - particles.reference.bm[particles.reference.bm.i,10] ) / n.hours.per.day )
+zeros <- mwhich(particles.reference.bm,c(9),list(0), list('eq'))
+unique(particles.reference.bm[zeros,2])
+plot(particles.reference.bm[zeros,6:7])
+
+particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
+particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(0), list('neq'))
+particles.reference.bm <- particles.reference.bm[particles.reference.bm.i,]
+colnames(particles.reference.bm) <- particles.reference.names
+
+ReferenceTable <- data.frame( particles.reference.bm , travel.time= ( 1 + particles.reference.bm[,11] - particles.reference.bm[,10] ) / n.hours.per.day )
 
 ## -----------------------
 
@@ -793,6 +795,20 @@ for( t.seq in 2:length(seq.t)) {
 }
 plot(1:length(seq.t),seq.t)
 
-##  ---------------------------------------------------------------------------------------------------------------------------------
-##  ---------------------------------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------------------------------------------------------------------
+## Test integrity by distance
+
+for(test.cell in ReferenceTable$start.cell) {
+  
+  initial.coords[test.cell,]
+  ReferenceTable[ReferenceTable$start.cell == test.cell,]
+  initial.coords[ReferenceTable[ReferenceTable$start.cell == test.cell,"cell.rafted"],]
+  max.per.day <- max(spDistsN1(as.matrix(initial.coords[ReferenceTable[ReferenceTable$start.cell == test.cell,"cell.rafted"],]), as.numeric(initial.coords[test.cell,]) , longlat = TRUE) / ReferenceTable[ReferenceTable$start.cell == test.cell,"travel.time"])
+  if(max.per.day > 100) { stop("Hold!!")}
+  
+}
+
+## ---------------------------------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------------------------------------------------------------------
 ## End of Code

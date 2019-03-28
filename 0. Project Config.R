@@ -10,7 +10,7 @@ gc(reset=TRUE)
 ## Files and folders
 
 project.name <- "EAsia"
-project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/"
+project.folder <- "/media/Nautilus1/Transport Simulation in Eastern Asia/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
@@ -24,8 +24,8 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 6
-parallel.computational.sections <- 10
+number.cores <- 40
+parallel.computational.sections <- 40
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
@@ -43,7 +43,7 @@ source.sink.dist <- 1 # km
 
 months.all <- 1:12 # Spawning 5:10 (30 days off)
 from.day <- 1 ; to.day <- 31
-from.year <- 2012 ; to.year <- 2012
+from.year <- 2003 ; to.year <- 2012
 depth.range <- c(0)
 
 kill.by.raft <- TRUE                              # Will eliminate particles that got to another cell - first raft event # May need a new particle every day
