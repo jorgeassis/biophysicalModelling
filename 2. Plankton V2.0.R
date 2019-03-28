@@ -459,7 +459,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 
                       ## U & V Components
                       
-                      velocity.field.sec <- which(Latitude >= min(c(sections.lat.t.s,sections.lat.f.s)) - 0.5 & Latitude <= max(c(sections.lat.t.s,sections.lat.f.s)) + 0.5)
+                      velocity.field.sec <- which(Latitude >= min(c(sections.lat.t.s,sections.lat.f.s)) - parallel.computational.buffer & Latitude <= max(c(sections.lat.t.s,sections.lat.f.s)) + parallel.computational.buffer )
                       velocity.field.sec <- velocity.field.sec[-length(velocity.field.sec)]
                       
                       norm.field <- expand.grid( i=dim.i , j=velocity.field.sec )
@@ -771,11 +771,10 @@ if( length(mwhich(particles.reference.bm,c(9),list(0), list('eq'))) > 0 ) { prin
 
 zeros <- mwhich(particles.reference.bm,c(9),list(0), list('eq'))
 unique(particles.reference.bm[zeros,2])
-
 plot(particles.reference.bm[zeros,6:7])
 
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
-particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(2), list('eq'))
+particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(0), list('neq'))
 particles.reference.bm <- particles.reference.bm[particles.reference.bm.i,]
 colnames(particles.reference.bm) <- particles.reference.names
 

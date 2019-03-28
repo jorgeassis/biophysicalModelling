@@ -15,11 +15,6 @@ source("0. Project Config.R")
 ## 
 ## --------------------------------------------------------------------------------------------------------------
 
-## Files and folders
-
-project.name <- "SouthAfrica"
-project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Southern Africa Shores/"
-
 ## ------------------------------------
 ## Resolve connectivity
 

@@ -14,6 +14,8 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
+simulation.name <- "East Asia"
+
 particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
 particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
 
@@ -97,26 +99,24 @@ polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[4] , sim.extent[4] 
 
 # ---------------------------------
 
-fakePoint <- as.matrix(data.frame( Lon=46,Lat= -43.5))
-fakePoint <- mapview::coords2Polygons(fakePoint,ID=1)
-crs(fakePoint) <- dt.projection 
+# fakePoint <- as.matrix(data.frame( Lon=46,Lat= -43.5))
+# fakePoint <- mapview::coords2Polygons(fakePoint,ID=1)
+# crs(fakePoint) <- dt.projection 
+# 
+# land.polygon <- as(land.polygon,"SpatialPolygons")
+# crs(land.polygon) <- dt.projection 
+# 
+# land.polygon <- raster::aggregate(rbind(as(land.polygon,"SpatialPolygons"), fakePoint))
 
-land.polygon <- as(land.polygon,"SpatialPolygons")
-crs(land.polygon) <- dt.projection 
-
-land.polygon <- raster::aggregate(rbind(as(land.polygon,"SpatialPolygons"), fakePoint))
 plot(land.polygon, col="grey")
 
 # ---------------------------------
-
-legend.x <- 38
-legend.y <- -11
 
 show.polygon.region.interest <- TRUE
 print.day <- 0
 
 png(file=paste0(project.folder,"/Results/Video/Video map_%02d.png"), width=1280, height=720)
-par( mar=c(0,0,0,0) , bg="#ffffff")
+par( mar=c(0,0,3,0) , bg="#ffffff")
 
 for( t in 1:t.steps) {
   
@@ -135,7 +135,7 @@ for( t in 1:t.steps) {
   points.plot <- points.plot[complete.cases(points.plot),]
   
   print(  plot(land.polygon , col="grey" , border="grey") )
-  print(  text(legend.x,legend.y, paste0("t: ",print.date.sim), cex = 1, pos=4 , col="black") )
+  print(  title(paste0("Simulation of ", simulation.name ," t: ",print.date.sim), cex = 0.7, col="black") )
   print(  points(points.plot[,1], points.plot[,2], pch=16 , col=as.character(points.plot[,3]),cex=0.9) )
   
   if(show.polygon.region.interest) {
