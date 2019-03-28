@@ -769,6 +769,11 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 if( length(mwhich(particles.reference.bm,c(9),list(0), list('eq'))) > 0 ) { print("An error may have occurred [!]")}
 
+zeros <- mwhich(particles.reference.bm,c(9),list(0), list('eq'))
+unique(particles.reference.bm[zeros,2])
+
+plot(particles.reference.bm[zeros,6:7])
+
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(2), list('eq'))
 particles.reference.bm <- particles.reference.bm[particles.reference.bm.i,]
@@ -791,8 +796,8 @@ for( t.seq in 2:length(seq.t)) {
 }
 plot(1:length(seq.t),seq.t)
 
-##  ---------------------------------------------------------------------------------------------------------------------------------
-##  ---------------------------------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------------------------------------------------------------------
 ## Test integrity by distance
 
 for(test.cell in ReferenceTable$start.cell) {
@@ -805,4 +810,6 @@ for(test.cell in ReferenceTable$start.cell) {
   
 }
 
+## ---------------------------------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------------------------------------------------------------------
 ## End of Code
