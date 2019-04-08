@@ -434,6 +434,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 
                 ## ------------------------------------- 
                 
+                padlock(paste0(project.folder,"/InternalProc/"),"Unlock",-1)
+                
                 ## Divide computations by sections (parallel.computational.sections)
                 
                 gc(reset=TRUE)
@@ -441,7 +443,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                 cl.2 <- makeCluster(number.cores)
                 registerDoParallel(cl.2)
                 
-                sect.loop <- foreach(section=1:parallel.computational.sections, .verbose=FALSE, .export=list.of.polygons , .packages=c("ncdf4","gstat","gdata","raster","data.table","bigmemory","FNN")) %dopar% { 
+                sect.loop <- foreach(section=1:parallel.computational.sections, .combine=rbind, .verbose=FALSE, .export=list.of.polygons , .packages=c("ncdf4","gstat","gdata","raster","data.table","bigmemory","FNN")) %dopar% { 
 
                       require(bigmemory)
                   
@@ -724,32 +726,35 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       }
     
                       ## ---------------------------------------------------
-                      ## Inject particles to final object [ particles.reference.bm.all ] 
 
-                      setkey(particles.reference.moving.dt,id)
-                      particles.reference.bm.i <- particles.reference.moving.dt[ state != 0 , id ]
+                       setkey(particles.reference.moving.dt,id)
+                       gc(reset=T)
                        
-                       particles.reference.bm.all[particles.reference.bm.i , 3 ] <- particles.reference.moving.dt[  ,start.year]
-                       particles.reference.bm.all[particles.reference.bm.i , 4 ] <- particles.reference.moving.dt[  ,start.month]
-                       particles.reference.bm.all[particles.reference.bm.i , 5 ] <- particles.reference.moving.dt[  ,start.day]
-                       particles.reference.bm.all[particles.reference.bm.i , 6 ] <- particles.reference.moving.dt[  ,pos.lon]
-                       particles.reference.bm.all[particles.reference.bm.i , 7 ] <- particles.reference.moving.dt[  ,pos.lat]
-                       particles.reference.bm.all[particles.reference.bm.i , 9 ] <- particles.reference.moving.dt[  ,state]
-                       particles.reference.bm.all[particles.reference.bm.i , 10 ] <- particles.reference.moving.dt[  ,t.start]
-                       particles.reference.bm.all[particles.reference.bm.i , 11 ] <- particles.reference.moving.dt[  ,t.finish]
-                       particles.reference.bm.all[particles.reference.bm.i , 12 ] <- particles.reference.moving.dt[  ,cell.rafted]
-
-                      gc(reset=T)
-
-                      # -----------------------------------------------
-
-                      return(NULL)
+                       return(particles.reference.moving.dt)
+                       
+                       # -----------------------------------------------
+                       
                       
                 }
                 
                 stopCluster(cl.2) ; rm(cl.2)
                 
                 ## -------------------------------------
+                ## Inject particles to final object [ particles.reference.bm.all ] 
+                
+                particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
+                
+                sect.loop <- sect.loop[ sect.loop$state != 0 , ]
+                
+                particles.reference.bm.all[ sect.loop$id , 3 ] <- as.numeric(unlist(sect.loop[  , "start.year"] ))
+                particles.reference.bm.all[ sect.loop$id , 4 ] <- as.numeric(unlist(sect.loop[  , "start.month"] ))
+                particles.reference.bm.all[ sect.loop$id , 5 ] <- as.numeric(unlist(sect.loop[  , "start.day"] ))
+                particles.reference.bm.all[ sect.loop$id , 6 ] <- as.numeric(unlist(sect.loop[  , "pos.lon"] ))
+                particles.reference.bm.all[ sect.loop$id , 7 ] <- as.numeric(unlist(sect.loop[  , "pos.lat"] ))
+                particles.reference.bm.all[ sect.loop$id , 9 ] <- as.numeric(unlist(sect.loop[  , "state"] ))
+                particles.reference.bm.all[ sect.loop$id , 10 ] <- as.numeric(unlist(sect.loop[  , "t.start"] ))
+                particles.reference.bm.all[ sect.loop$id , 11 ] <- as.numeric(unlist(sect.loop[  , "t.finish"] ))
+                particles.reference.bm.all[ sect.loop$id , 12 ] <- as.numeric(unlist(sect.loop[  , "cell.rafted"] ))
                 
                 gc(reset=TRUE)
                 
@@ -779,6 +784,7 @@ particles.reference.bm <- particles.reference.bm[particles.reference.bm.i,]
 colnames(particles.reference.bm) <- particles.reference.names
 
 ReferenceTable <- data.frame( particles.reference.bm , travel.time= ( 1 + particles.reference.bm[,11] - particles.reference.bm[,10] ) / n.hours.per.day )
+head(ReferenceTable)
 
 ## -----------------------
 
