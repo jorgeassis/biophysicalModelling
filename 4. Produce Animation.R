@@ -153,7 +153,7 @@ dev.off()
 
 paste0(project.folder,"/Results/Video/Video map_%02d.png")
 
-system( 'ffmpeg -s 1280x720 -i "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Southern Africa Shores//Results/Video/Video map_%02d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p output.mp4 -y' )
+system( 'ffmpeg -s 1280x720 -i "/Volumes/Nautilus1/Transport Simulation in Eastern Asia/Results/Video/Video map_%02d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p VideoOutput.mp4 -y' )
 file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
 
 # ------------------------------------------------------------------------------------------------------
