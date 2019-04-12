@@ -475,22 +475,12 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       start.day.raw.data.v <-  melt(velocity.field)[,"value"]
                       nc_close(nc.file)
                       
-                      start.day.raw.data.u[start.day.raw.data.u > 100] <- NA
-                      start.day.raw.data.v[start.day.raw.data.v > 100] <- NA
-                      start.day.raw.data.u[start.day.raw.data.u < -100] <- NA
-                      start.day.raw.data.v[start.day.raw.data.v < -100] <- NA
-                      
                       nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
                       velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,velocity.field.sec[1],rd.next.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
                       next.day.raw.data.u <-  melt(velocity.field)[,"value"]
                       velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,velocity.field.sec[1],rd.next.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
                       next.day.raw.data.v <-  melt(velocity.field)[,"value"]
                       nc_close(nc.file)
-                      
-                      next.day.raw.data.u[next.day.raw.data.u > 100] <- NA
-                      next.day.raw.data.v[next.day.raw.data.v > 100] <- NA
-                      next.day.raw.data.u[next.day.raw.data.u < -100] <- NA
-                      next.day.raw.data.v[next.day.raw.data.v < -100] <- NA
                       
                       raw.data.u <- cbind(raw.data.coords,start.day.raw.data.u,next.day.raw.data.u)
                       raw.data.v <- cbind(raw.data.coords,start.day.raw.data.v,next.day.raw.data.v)
@@ -503,13 +493,13 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       
                       # plot(raw.data.u[,c("Lon","Lat")])
 
-                      # --------------------------------------------------
+                      ## --------------------------------------------------------
 
                       speed.u.sec <- t( sapply( 1:nrow(raw.data.u) , function (x) seq( from = raw.data.u[x,3] , to = raw.data.u[x,4] , length.out = n.hours.per.day + 1 ) ))
                       speed.v.sec <- t( sapply( 1:nrow(raw.data.v) , function (x) seq( from = raw.data.v[x,3] , to = raw.data.v[x,4] , length.out = n.hours.per.day + 1 ) ))
                       
                       speed.u.sec.coords <- raw.data.u[,1:2]
-                      speed.v.sec.coords <- raw.data.v[,1:2]
+                      speed.v.sec.coords <- raw.data.u[,1:2]
 
                       ## --------------------------------------------------------
                       ## --------------------------------------------------------
@@ -519,7 +509,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       # -----------------------------------------------
                       
                       particles.reference.moving.i <- mwhich(particles.reference.bm.all,c(7,7,9),list(sections.lat.f.s,sections.lat.t.s,1), list('ge', 'lt','eq') , 'AND')
-                      particles.reference.moving.dt <- data.table(matrix(particles.reference.bm.all[particles.reference.moving.i, ],ncol=length(particles.reference.names)))
+                      particles.reference.moving.dt <- data.table(particles.reference.bm.all[particles.reference.moving.i, ])
                       colnames(particles.reference.moving.dt) <- particles.reference.names
                       
                       ## --------------------------------------------------------
@@ -582,23 +572,21 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                       idwPower <- 2
                                       idwN <- 3
                                       
-                                      idw.nearest.u.i <- get.knnx( source.points.to.interp.u[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.index
-                                      idw.nearest.u.d <- get.knnx( source.points.to.interp.u[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.dist
-                                      idw.nearest.u.d <- idw.nearest.u.d * 1e9
+                                      idw.nearest.i <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.index
+                                      idw.nearest.d <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.dist
+                                      idw.nearest.d <- idw.nearest.d * 1e9
 
-                                      idw.nearest.v.i <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.index
-                                      idw.nearest.v.d <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.dist
-                                      idw.nearest.v.d <- idw.nearest.v.d * 1e9
-                                      
                                       speed.u <- numeric(nrow(points.to.interp))
                                       speed.v <- numeric(nrow(points.to.interp))
                                       
                                       for( pt.i in 1:nrow(points.to.interp)) {
                                         
-                                        speed.u[pt.i] <- (sum( source.points.to.interp.u[idw.nearest.u.i[pt.i,],3] / idw.nearest.u.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.u.d[pt.i,]^idwPower))
-                                        speed.v[pt.i] <- (sum( source.points.to.interp.v[idw.nearest.v.i[pt.i,],3] / idw.nearest.v.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.v.d[pt.i,]^idwPower))
+                                        speed.u[pt.i] <- (sum( source.points.to.interp.u[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
+                                        speed.v[pt.i] <- (sum( source.points.to.interp.v[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
                                         
                                       }
+                                      
+                                      if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { stop("Error [!]") }
                                       
                                       mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
                                       mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
