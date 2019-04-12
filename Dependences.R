@@ -112,33 +112,32 @@ monitor.processes <- cmpfun( function (process.name) {
 
 produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,new.extent) {
   
-  if(crop.network) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
+  if( crop.network ) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
                                               cells[,2] <= (new.extent[2] + buffer) & 
                                               cells[,3] >= (new.extent[3] - buffer) & 
                                               cells[,3] <= (new.extent[4] + buffer) )   
   
   final.cells <- cells[final.cells,1]
+  final.cells <- as.vector(unlist(final.cells))
+  
   print(plot(cells[final.cells,2:3]))
+  print(points(source.sink.xy[Pair %in% position.matrix,2:3],col="red"))
   
   }
   
-  if( ! crop.network ) {  final.cells <- cells[,1]  }
+  if( ! crop.network ) {  final.cells <- as.vector(unlist(cells[,1]))  }
   
   if( network.type == "Prob" ) {
     
     comb <- comb[Time.max >= n.days,Probability := 0]
-    
-    # comb <- comb[Time.max <= n.days,]
-    
     comb <- comb[,.(Pair.from,Pair.to,Probability)]
     comb <- comb[Pair.from %in% final.cells & Pair.to %in% final.cells ,]
-    comb <- comb[Pair.from != Pair.to,]
     comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
     
     net.function <<- prod
     graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
-    E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
-    # E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
+    # E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
+    E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
     #graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
     
   }

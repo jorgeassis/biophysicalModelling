@@ -10,7 +10,7 @@ gc(reset=TRUE)
 ## Files and folders
 
 project.name <- "EAsia"
-project.folder <- "/media/Nautilus1/Transport Simulation in Eastern Asia/"
+project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"

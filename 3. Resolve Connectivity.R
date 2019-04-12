@@ -135,6 +135,7 @@ Connectivity.matrix.max.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.m
 write.big.matrix(Connectivity.matrix.max.time.bm, "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/Connectivity.matrix.max.time.bm")
 
 ## --------------------------------------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------------------
 
 # Stepping stone Connectivity matrix
 
@@ -144,56 +145,44 @@ colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probab
 
 source.sink.xy <- read.big.matrix("/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/source.sink.bm")
 source.sink.xy <- data.table(source.sink.xy[,])
+colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
+source.sink.xy <- source.sink.xy[Source == 1,]
 
 Connectivity.matrix.ss <- matrix(0,ncol=nrow(source.sink.xy),nrow=nrow(source.sink.xy))
 dim(Connectivity.matrix.ss)
 
+network <- produce.network("Prob",Connectivity,60,FALSE,0,source.sink.xy,0)
+network.x <- network[[2]]
+connectivity.x <- network[[1]]
+
 ## ------------------------
 
-for( from in source.sink.xy$cells.id ) {
+for( from in source.sink.xy[,Pair] ) {
   
-  cl.3 <- makeCluster(16) ; registerDoParallel(cl.3)
+  ptm <- proc.time()
   
-  connectivity.f <- foreach(to=source.sink.xy$cells.id[1:100], .verbose=FALSE, .packages=c("data.table","sp","gdistance","igraph")) %dopar% { 
-    
-    network <- produce.network("Prob",Connectivity,60,FALSE,NULL,source.sink.xy,NULL)
-    
-    network.x <- network[[2]]
-    connectivity.x <- network[[1]]
-    
-    possible.paths.y <- get.shortest.paths(network.x,as.character( from ) , as.character( to ),mode="out")$vpath
-    stones.t <- as.numeric(names(possible.paths.y[[1]]))
-    stones.t.interm <- cbind(stones.t[-length(stones.t)],stones.t[-1])
-    path.values <- apply( stones.t.interm , 1 , function(z) { connectivity.x[ connectivity.x[,1] == z[1] & connectivity.x[,2] == z[2] , 3 ][1] }   )
-    
-    if( length(path.values) > 0 ) { return(apply( t(path.values) , 1 , prod )) }
-    if( length(path.values) == 0) { return(0) }
-    
+  cl.3 <- makeCluster(10) ; registerDoParallel(cl.3)
+  
+  connectivity.f <- foreach(to=source.sink.xy[,Pair], .verbose=FALSE, .packages=c("data.table","sp","gdistance","igraph")) %dopar% { 
+
+        possible.paths.y <- get.shortest.paths(network.x,as.character( from ) , as.character( to ),mode="out")$vpath
+        stones.t <- as.numeric(names(possible.paths.y[[1]]))
+        stones.t.interm <- cbind(stones.t[-length(stones.t)],stones.t[-1])
+        path.values <- apply( stones.t.interm , 1 , function(z) { connectivity.x[ connectivity.x[,1] == z[1] & connectivity.x[,2] == z[2] , 3 ][1] }   )
+        
+        if( length(path.values) > 0 ) { return(apply( t(path.values) , 1 , prod )) }
+        if( length(path.values) == 0) { return(0) }
+        
   }
   
   stopCluster(cl.3) ; rm(cl.3) ; gc()
   
+
+  proc.time() - ptm
   
-  Connectivity.matrix.ss[from,] <- 
+  Connectivity.matrix.ss[from,] <- do.call(rbind,connectivity.f)
     
 }
 
-temp.res.distance <- as.numeric( costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ from , 2:3 ]) , as.matrix(source.sink.xy[ position.matrix , 2:3 ]) )  ) / 1000
-
-temp.res <- data.frame( pair.from=from,
-                        pair.to=position.matrix , 
-                        differentiation= unlist(differentiation[ which( position.matrix == from), ]), 
-                        distance= temp.res.distance, 
-                        probability.ss = res.connectivity.to
-)
-
-options(warn=0)
-
-return( temp.res ) }
-
-
-
-
-
-
+## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
