@@ -6,17 +6,15 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-setwd("/media/Nautilus1/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/Git")
-
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Atlantic"
-project.folder <- "/media/Nautilus1/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/"
+project.name <- "EAsia"
+project.folder <- "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
-additional.islands.shp <- "Data/Shapefiles/Additional islands.shp"
+additional.islands.shp <- NULL
 bathymetry.tif <- NULL
 unwanted.release.sites.shp <- "Data/Shapefiles/Unwanted.shp" # NULL
 
@@ -34,16 +32,16 @@ parallel.computational.buffer <- 2 # degrees
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -20
-max.lon <- 37
-min.lat <- 22.5
-max.lat <- 74.5
+min.lon <- 103
+max.lon <- 150
+min.lat <- 14
+max.lat <- 46
 source.sink.dist <- 1 # km
 
 # -----------------------------------
 # Traits
 
-months.all <- 4:10 # Spawning 5:10 (30 days off)
+months.all <- 1:12 # Spawning 5:10 (30 days off)
 from.day <- 1 ; to.day <- 31
 from.year <- 2003 ; to.year <- 2012
 depth.range <- c(0)
@@ -73,7 +71,8 @@ movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
 movie.sites.xy <- "Data/Shapefiles/Movie.shp" 
 # matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 , -5 , 50 , - 2 , 45 , -5 , 44 , 5 , 40 , -10 , 30 ) , ncol=2 , byrow=TRUE) 
-ß
+
+
 # --------------------------------------------------------------
 # --------------------------------------------------------------
 
