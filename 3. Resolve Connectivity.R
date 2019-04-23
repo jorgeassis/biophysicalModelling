@@ -106,14 +106,14 @@ Connectivity[is.na(Connectivity)] <- 0
 Connectivity
 
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
-write.big.matrix(Connectivity.bm, "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/Connectivity.bm")
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/Connectivity.bm"))
 
 ## --------------------------------
 
 source.sink.id <- 1:nrow(source.sink.xy)
 
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
-write.big.matrix(source.sink.bm, "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/source.sink.bm")
+write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/source.sink.bm"))
 
 ## --------------------------------
 
@@ -126,13 +126,13 @@ View(Connectivity.matrix.probability)
 View(Connectivity.matrix.time)
 
 Connectivity.matrix.probability.bm <- as.big.matrix(as.matrix(Connectivity.matrix.probability))
-write.big.matrix(Connectivity.matrix.probability.bm, "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/Connectivity.matrix.probability.bm")
+write.big.matrix(Connectivity.matrix.probability.bm, paste0(project.folder,"/Results/Connectivity.matrix.probability.bm"))
 
 Connectivity.matrix.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.time))
-write.big.matrix(Connectivity.matrix.time.bm, "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/Connectivity.matrix.time.bm")
+write.big.matrix(Connectivity.matrix.time.bm, paste0(project.folder,"/Results/Connectivity.matrix.time.bm"))
 
 Connectivity.matrix.max.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.max.time))
-write.big.matrix(Connectivity.matrix.max.time.bm, "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/Connectivity.matrix.max.time.bm")
+write.big.matrix(Connectivity.matrix.max.time.bm, paste0(project.folder,"/Results/Connectivity.matrix.max.time.bm"))
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ Connectivity <- read.big.matrix("/Volumes/Laminaria/Dropbox/Manuscripts/Transpor
 Connectivity <- data.table(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
 
-source.sink.xy <- read.big.matrix("/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/source.sink.bm")
+source.sink.xy <- read.big.matrix(paste0(project.folder,"/Results/source.sink.bm"))
 source.sink.xy <- data.table(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
 source.sink.xy <- source.sink.xy[Source == 1,]
