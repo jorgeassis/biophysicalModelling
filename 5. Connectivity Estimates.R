@@ -221,7 +221,7 @@ potential.connectivity <- foreach(from=position.matrix, .verbose=FALSE, .package
     
     if( length(path.values) > 0 ) { path.values <- apply( t(path.values) , 1 , prod ) }
     if( length(path.values) == 0) { path.values <- 0 }
-    if( from == to ) { path.values <- connectivity.x[ connectivity.x[,1] == from & connectivity.x[,2] == to , 3 ] }
+    if( from == to ) { path.values <- 1 }
     
     res.connectivity.to <- c(res.connectivity.to,path.values)
     res.distance <- c(res.distance, costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == from,2:3]) , as.matrix(source.sink.xy[Pair == to,2:3]) ))
