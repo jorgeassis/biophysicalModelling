@@ -131,7 +131,7 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
     
     comb <- comb[Time.max >= n.days,Probability := 0]
     comb <- comb[,.(Pair.from,Pair.to,Probability)]
-    comb <- comb[Pair.from %in% final.cells & Pair.to %in% final.cells ,]
+    comb <- comb[Pair.from %in% as.vector(unlist(final.cells)) & Pair.to %in% as.vector(unlist(final.cells)) ,]
     comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
     
     net.function <<- prod
