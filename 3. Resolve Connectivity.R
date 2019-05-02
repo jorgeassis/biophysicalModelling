@@ -33,7 +33,7 @@ dbDisconnect(sql)
 
 ## ------------------
 
-particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.external.desc"))
+particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
 
 ## ------------------
 
@@ -89,6 +89,8 @@ sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"Simul
 dbWriteTable(sql, "Connectivity", all.connectivity.pairs.to.sql , overwrite=TRUE, append=FALSE)
 dbDisconnect(sql)
 
+rm(all.connectivity.pairs.to.sql) ; gc()
+
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
 
@@ -103,86 +105,83 @@ Connectivity
 Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
 Connectivity[is.na(Connectivity)] <- 0
-Connectivity
 
-Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/Connectivity.bm"))
+Connectivity ; gc()
 
 ## --------------------------------
 
-source.sink.id <- 1:nrow(source.sink.xy)
+source.sink.id <- source.sink.xy$cells.id[which(source.sink.xy$source == 1)] 
 
+source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% source.sink.id,]
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
 write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/source.sink.bm"))
 
-## --------------------------------
+Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
+Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/Connectivity.bm"))
 
-Connectivity.matrix.probability <- acast(Connectivity[,.(Pair.from , Pair.to ,  Mean.Probability)], Pair.from~Pair.to, value.var="Mean.Probability")
-Connectivity.matrix.time <- acast(Connectivity[,.(Pair.from , Pair.to ,  Mean.Time)], Pair.from~Pair.to, value.var="Mean.Time")
-Connectivity.matrix.max.time <- acast(Connectivity[,.(Pair.from , Pair.to ,  Max.Time)], Pair.from~Pair.to, value.var="Max.Time")
-dim(Connectivity.matrix.probability)
+## ------------------------------------------------------------------------------------------------------
+## ------------------------------------------------------------------------------------------------------
+## Square matrices : Maybe limited in terms of memory
 
-View(Connectivity.matrix.probability)
-View(Connectivity.matrix.time)
+matrix.size <- length(unique(c(Connectivity$Pair.from,Connectivity$Pair.to)))
+Connectivity.matrix.probability <- matrix(NA,ncol=matrix.size,nrow=matrix.size)
+
+for(i in 1:matrix.size){
+  
+  cell.from <- source.sink.xy$cells.id[i]
+  cells.to <- Connectivity[Connectivity$Pair.from %in% cell.from,Pair.to]
+  if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
+  
+  Connectivity.matrix.probability[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Mean.Probability]
+
+}
 
 Connectivity.matrix.probability.bm <- as.big.matrix(as.matrix(Connectivity.matrix.probability))
 write.big.matrix(Connectivity.matrix.probability.bm, paste0(project.folder,"/Results/Connectivity.matrix.probability.bm"))
 
+rm(Connectivity.matrix.probability) ; rm(Connectivity.matrix.probability.bm) ; gc()
+
+## --------------------------------
+
+Connectivity.matrix.time <- matrix(NA,ncol=matrix.size,nrow=matrix.size)
+
+for(i in 1:matrix.size){
+  
+  cell.from <- source.sink.xy$cells.id[i]
+  cells.to <- Connectivity[Connectivity$Pair.from %in% cell.from,Pair.to]
+  
+  if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
+  
+  Connectivity.matrix.time[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Mean.Time]
+
+}
+
 Connectivity.matrix.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.time))
 write.big.matrix(Connectivity.matrix.time.bm, paste0(project.folder,"/Results/Connectivity.matrix.time.bm"))
+
+rm(Connectivity.matrix.time) ; rm(Connectivity.matrix.time.bm) ; gc()
+
+## --------------------------------
+
+Connectivity.matrix.max.time <- matrix(NA,ncol=matrix.size,nrow=matrix.size)
+
+for(i in 1:matrix.size){
+  
+  cell.from <- source.sink.xy$cells.id[i]
+  cells.to <- Connectivity[Connectivity$Pair.from %in% cell.from,Pair.to]
+  
+  if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
+  
+  Connectivity.matrix.max.time[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Max.Time]
+  
+}
 
 Connectivity.matrix.max.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.max.time))
 write.big.matrix(Connectivity.matrix.max.time.bm, paste0(project.folder,"/Results/Connectivity.matrix.max.time.bm"))
 
-## --------------------------------------------------------------------------------------------------------------
-## --------------------------------------------------------------------------------------------------------------
-
-# Stepping stone Connectivity matrix
-
-Connectivity <- read.big.matrix("/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Eastern Asia/Results/Connectivity.bm")
-Connectivity <- data.table(Connectivity[,])
-colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
-
-source.sink.xy <- read.big.matrix(paste0(project.folder,"/Results/source.sink.bm"))
-source.sink.xy <- data.table(source.sink.xy[,])
-colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
-source.sink.xy <- source.sink.xy[Source == 1,]
-
-Connectivity.matrix.ss <- matrix(0,ncol=nrow(source.sink.xy),nrow=nrow(source.sink.xy))
-dim(Connectivity.matrix.ss)
-
-network <- produce.network("Prob",Connectivity,60,FALSE,0,source.sink.xy,0)
-network.x <- network[[2]]
-connectivity.x <- network[[1]]
-
-## ------------------------
-
-for( from in source.sink.xy[,Pair] ) {
-  
-  ptm <- proc.time()
-  
-  cl.3 <- makeCluster(10) ; registerDoParallel(cl.3)
-  
-  connectivity.f <- foreach(to=source.sink.xy[,Pair], .verbose=FALSE, .packages=c("data.table","sp","gdistance","igraph")) %dopar% { 
-
-        possible.paths.y <- get.shortest.paths(network.x,as.character( from ) , as.character( to ),mode="out")$vpath
-        stones.t <- as.numeric(names(possible.paths.y[[1]]))
-        stones.t.interm <- cbind(stones.t[-length(stones.t)],stones.t[-1])
-        path.values <- apply( stones.t.interm , 1 , function(z) { connectivity.x[ connectivity.x[,1] == z[1] & connectivity.x[,2] == z[2] , 3 ][1] }   )
-        
-        if( length(path.values) > 0 ) { return(apply( t(path.values) , 1 , prod )) }
-        if( length(path.values) == 0) { return(0) }
-        
-  }
-  
-  stopCluster(cl.3) ; rm(cl.3) ; gc()
-  
-
-  proc.time() - ptm
-  
-  Connectivity.matrix.ss[from,] <- do.call(rbind,connectivity.f)
-    
-}
+rm(Connectivity.matrix.max.time) ; rm(Connectivity.matrix.max.time.bm) ; gc()
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
+## End of Code [!]
