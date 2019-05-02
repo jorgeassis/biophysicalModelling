@@ -3,6 +3,9 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
+rm(list=(ls()[ls()!="v"]))
+gc(reset=TRUE)
+
 source("0. Project Config.R")
 source("Dependences.R")
 
@@ -44,26 +47,37 @@ if( ! is.null(additional.islands.shp) ) {
 
 }
 
-# https://cran.r-project.org/web/packages/dggridR/vignettes/dggridR.html
+coastline.pts.t <- coastline.pts
+source.sink.xy <- data.frame()
 
-dggs <- dgconstruct(res=16, metric=TRUE, resround='down')
-dgcoastline.pts <- dgGEO_to_SEQNUM(dggs,coastline.pts$x,coastline.pts$y)$seqnum
-cellcenters   <- dgSEQNUM_to_GEO(dggs,dgcoastline.pts)
-new.coastline.pts <- data.frame(x=cellcenters$lon_deg,y=cellcenters$lat_deg)
-new.coastline.pts <- unique(new.coastline.pts)
+iteractions <- nrow(coastline.pts.t)
 
-cl.2 <- makeCluster(number.cores)
-registerDoParallel(cl.2)
-source.sink.xy <- foreach(i=1:nrow(new.coastline.pts), .verbose=FALSE, .combine=rbind , .packages=c("sp")) %dopar% { 
+while( nrow(coastline.pts.t) > 0 ){
   
-  pt.i = new.coastline.pts[i,]
-  all.distances <- spDistsN1(as.matrix(coastline.pts),as.matrix(pt.i),longlat=TRUE)
-  return(coastline.pts[which.min(all.distances),])
+  progress.percent <- 100 - round((nrow(coastline.pts.t) / iteractions) * 100)
+
+  cat('\014')
+  cat('\n')
+  
+  cat('\n',paste0(rep("-",100),collapse = ""))
+  cat('\n',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
+  cat('\n',paste0(rep("-",100),collapse = ""))
+  
+  pt.i = coastline.pts.t[1,,drop=FALSE]
+  
+  source.sink.xy <- rbind(source.sink.xy,as.data.frame(pt.i))
+  
+  coastline.pts.t.i <- coastline.pts.t
+  coordinates(coastline.pts.t.i) <- c("x","y")
+  crs(coastline.pts.t.i) <- dt.projection
+  circle <- circles(pt.i, lonlat=TRUE, d=source.sink.dist*1000, dissolve=FALSE)
+  circle <- geometry(circle)
+  crs(circle) <- dt.projection
+  
+  to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
+  coastline.pts.t <- coastline.pts.t[-to.extract,]
   
 }
-stopCluster(cl.2) ; rm(cl.2)
-
-head(source.sink.xy)
 
 source.sink.xy <- source.sink.xy[complete.cases(source.sink.xy),]
 source.sink.xy <- data.frame(cells.id=1:nrow(source.sink.xy),x=source.sink.xy[,"x"],y=source.sink.xy[,"y"],source=1,stringsAsFactors = FALSE) ; head(source.sink.xy)
@@ -141,7 +155,7 @@ if( !is.null(movie.sites.xy) ) {
 }
 
 if( !is.null(movie.sites.xy) ) { movie.sites.id <- unique(movie.sites.xy)
-                                 movie.sites.xy <- initial.coords[ unique(movie.sites.xy) , ]
+                                 movie.sites.xy <- initial.coords[ unique(movie.sites.xy) ,c("x","y") ]
  
 }
 
@@ -337,8 +351,8 @@ list.memory()
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
 
-## save.image(file='../Environment.RData')
-## gc(reset=TRUE); load('../Environment.RData')
+# save.image(file='../Environment.RData')
+# rm(list=(ls()[ls()!="v"])); gc(reset=TRUE); load('../Environment.RData')
 
 ## -------------------------------------------
 
@@ -452,11 +466,19 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       sp.poly <- get(paste0("landmass.sect.",section))
                       if( class(sp.poly) != "SpatialPolygons" ) { sp.poly <- get(paste0("landmass.sect.",section))@polyobj }
                       
+                      sp.poly.line <- as(sp.poly, "SpatialLines") 
+                      
                       ## -------------------------------------------------------------------------
                       
                       sections.lat.f.s <- as.numeric(sections.lat[section,1])
                       sections.lat.t.s <- as.numeric(sections.lat[section,2])
-                  
+                      
+                      ## -------------------------------------------------------------------------
+                      
+                      initial.coords.id.s <- which(initial.coords$y >= sections.lat.f.s - parallel.computational.buffer & initial.coords$y < sections.lat.t.s + parallel.computational.buffer)
+                      source.cells.id.s <- source.cells.id[initial.coords.id.s]
+                      initial.coords.s <- initial.coords[initial.coords.id.s,]
+                      
                       ## -------------------------------------------------------------------------
 
                       ## U & V Components
@@ -475,12 +497,22 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       start.day.raw.data.v <-  melt(velocity.field)[,"value"]
                       nc_close(nc.file)
                       
+                      start.day.raw.data.u[start.day.raw.data.u > 100] <- NA
+                      start.day.raw.data.v[start.day.raw.data.v > 100] <- NA
+                      start.day.raw.data.u[start.day.raw.data.u < -100] <- NA
+                      start.day.raw.data.v[start.day.raw.data.v < -100] <- NA
+                      
                       nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
                       velocity.field <- ncvar_get(  nc.file , "UComponent", start=c(1,velocity.field.sec[1],rd.next.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
                       next.day.raw.data.u <-  melt(velocity.field)[,"value"]
                       velocity.field <- ncvar_get(  nc.file , "VComponent", start=c(1,velocity.field.sec[1],rd.next.day) , count=c(length(dim.i),length(velocity.field.sec),1) )
                       next.day.raw.data.v <-  melt(velocity.field)[,"value"]
                       nc_close(nc.file)
+                      
+                      next.day.raw.data.u[next.day.raw.data.u > 100] <- NA
+                      next.day.raw.data.v[next.day.raw.data.v > 100] <- NA
+                      next.day.raw.data.u[next.day.raw.data.u < -100] <- NA
+                      next.day.raw.data.v[next.day.raw.data.v < -100] <- NA
                       
                       raw.data.u <- cbind(raw.data.coords,start.day.raw.data.u,next.day.raw.data.u)
                       raw.data.v <- cbind(raw.data.coords,start.day.raw.data.v,next.day.raw.data.v)
@@ -491,15 +523,16 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       raw.data.u <- raw.data.u[complete.cases(raw.data.u),]
                       raw.data.v <- raw.data.v[complete.cases(raw.data.v),]
                       
-                      # plot(raw.data.u[,c("Lon","Lat")])
+                      # plot(poly)
+                      # points(raw.data.u[,c("Lon","Lat")])
 
-                      ## --------------------------------------------------------
+                      # --------------------------------------------------
 
                       speed.u.sec <- t( sapply( 1:nrow(raw.data.u) , function (x) seq( from = raw.data.u[x,3] , to = raw.data.u[x,4] , length.out = n.hours.per.day + 1 ) ))
                       speed.v.sec <- t( sapply( 1:nrow(raw.data.v) , function (x) seq( from = raw.data.v[x,3] , to = raw.data.v[x,4] , length.out = n.hours.per.day + 1 ) ))
                       
                       speed.u.sec.coords <- raw.data.u[,1:2]
-                      speed.v.sec.coords <- raw.data.u[,1:2]
+                      speed.v.sec.coords <- raw.data.v[,1:2]
 
                       ## --------------------------------------------------------
                       ## --------------------------------------------------------
@@ -509,7 +542,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                       # -----------------------------------------------
                       
                       particles.reference.moving.i <- mwhich(particles.reference.bm.all,c(7,7,9),list(sections.lat.f.s,sections.lat.t.s,1), list('ge', 'lt','eq') , 'AND')
-                      particles.reference.moving.dt <- data.table(particles.reference.bm.all[particles.reference.moving.i, ])
+                      particles.reference.moving.dt <- data.table(matrix(particles.reference.bm.all[particles.reference.moving.i, ],ncol=length(particles.reference.names)))
                       colnames(particles.reference.moving.dt) <- particles.reference.names
                       
                       ## --------------------------------------------------------
@@ -575,19 +608,26 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                       idw.nearest.i <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.index
                                       idw.nearest.d <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.dist
                                       idw.nearest.d <- idw.nearest.d * 1e9
-
+                                      
                                       speed.u <- numeric(nrow(points.to.interp))
                                       speed.v <- numeric(nrow(points.to.interp))
                                       
                                       for( pt.i in 1:nrow(points.to.interp)) {
                                         
-                                        speed.u[pt.i] <- (sum( source.points.to.interp.u[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
-                                        speed.v[pt.i] <- (sum( source.points.to.interp.v[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
+                                        speed.u[pt.i] <- (sum( source.points.to.interp.u[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower , na.rm=T)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
+                                        speed.v[pt.i] <- (sum( source.points.to.interp.v[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower , na.rm=T)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower))
                                         
                                       }
                                       
                                       if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { stop("Error [!]") }
                                       
+                                      # coordinates(points.to.interp) = ~pos.lon+pos.lat
+                                      # coordinates(source.points.to.interp.u) = ~x+y
+                                      # coordinates(source.points.to.interp.v) = ~x+y
+                                       
+                                      # speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax = idwN, idp=idwPower)$var1.pred
+                                      # speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax = idwN, idp=idwPower)$var1.pred
+                                       
                                       mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
                                       mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
                               
@@ -639,9 +679,36 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
                                                   cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.land.id, "start.cell"]))
                                                   who.at.land.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.land.id, "t.start"]))
                                                   
-                                                  points.on.land <- particles.reference.moving.dt[id %in% who.at.land.id , 6:7 ]
+                                                  points.on.land.t <- particles.reference.moving.dt[id %in% who.at.land.id , 6:7 ]
+                                                  points.on.land.t.minus <- particles.reference.moving.old.pos[id %in% who.at.land.id , 1:2 ]
+ 
+                                                  points.on.land.corrected <- points.on.land.t.minus
+                                                    
+#                                                   points.on.land.corrected <- matrix(NA,ncol=2,nrow=nrow(points.on.land.t))
+#                                                   
+#                                                   for(point.i in 1:nrow(points.on.land.t)) {
+#                                                       
+#                                                       cross.line <- SpatialLines( list(Lines(Line(rbind(points.on.land.t[point.i,],points.on.land.t.minus[point.i,] )),ID=1 )))
+#                                                       crs(cross.line) <- crs(sp.poly)
+#                                                       cross.line.intersection <- gIntersection(cross.line,sp.poly.line,byid=TRUE)
+#                                                       
+#                                                       if( !is.null(cross.line.intersection)) { points.on.land.corrected[point.i,] <- extent(cross.line.intersection)[c(1,3)] }
+#                                                       if(  is.null(cross.line.intersection)) { points.on.land.corrected[point.i,1] <- unlist(points.on.land.t.minus[point.i,1] ) ; points.on.land.corrected[point.i,2] <- unlist(points.on.land.t.minus[point.i,2] ) }
+#                                                       
+#                                                       # plot(cross.line)
+#                                                       # lines(sp.poly, col="Gray")
+#                                                       # points(points.on.land.t[point.i,],col="black")
+#                                                       # points(points.on.land.t.minus[point.i,],col="red")
+#                                                       # points(cross.line.intersection,col="green")
+#                                                       
+#                                                   }
+
+                                                  # dist.to.nearest.cell <- spDists(points.on.land.corrected , as.matrix(initial.coords.s) , longlat = TRUE)      
+                                                  # cells.rafted <- source.cells.id.s[apply(dist.to.nearest.cell,1,which.min)]
                                                   
-                                                  cells.rafted <- get.knnx( initial.coords, points.on.land, k=1 , algorithm="kd_tree" )$nn.index
+                                                  cells.rafted <- get.knnx( initial.coords.s, points.on.land.corrected, k=1 , algorithm="kd_tree" )$nn.index
+                                                  cells.rafted <- source.cells.id.s[cells.rafted]
+                                                  
                                                   displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]})
                                                   
                                                   # For Rafters
@@ -785,6 +852,7 @@ colnames(particles.reference.bm) <- particles.reference.names
 
 ReferenceTable <- data.frame( particles.reference.bm , travel.time= ( 1 + particles.reference.bm[,11] - particles.reference.bm[,10] ) / n.hours.per.day )
 head(ReferenceTable)
+nrow(ReferenceTable)
 
 ## -----------------------
 
