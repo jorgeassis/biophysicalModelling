@@ -9,28 +9,29 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
 
-sql.project.name <- "EAsia"
-number.cores <- 16
+sql.project.name <- "Atlantic"
+number.cores <- 40
 
 ## ------------------------------------------------------------------------------------------------------------------
 
 Connectivity <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.bm"))
 Connectivity <- data.table(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
+Connectivity
 
 source.sink.xy <- read.big.matrix(paste0(project.folder,"/Results/source.sink.bm"))
 source.sink.xy <- data.table(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
-source.sink.xy <- source.sink.xy[Source == 1 & Pair %in% unique(c(Connectivity$Pair.from,Connectivity$Pair.to)),]
+
+# source.sink.xy <- source.sink.xy[Source == 1 & Pair %in% unique(c(Connectivity$Pair.from,Connectivity$Pair.to)),]
 
 ## ------------------------------------------------------------------------------------------------------------------------------
-## Prob. vs Distance Plot
-##
+## Marine Distances
 
 cost.surface <- raster("Data/Rasters/Mask.tif")
 # cost.surface <- aggregate(cost.surface, fact=2)
 
-clipper <- as(extent(min(source.sink.xy[,2] - 2),max(source.sink.xy[,2] + 2),min(source.sink.xy[,3] - 2),max(source.sink.xy[,3] + 2)), "SpatialPolygons")
+clipper <- as(extent(min(source.sink.xy[,2]) - 2,max(source.sink.xy[,2]) + 2,min(source.sink.xy[,3]) - 2,max(source.sink.xy[,3]) + 2), "SpatialPolygons")
 plot(cost.surface)
 lines(clipper)
 
@@ -64,17 +65,17 @@ marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packag
 }
 
 stopCluster(cl.2) ; rm(cl.2)
+
 head(marine.distances)
 
 # ----------------------------------
 
 distance.probability <- merge(Connectivity, marine.distances, by=c("Pair.from","Pair.to"))
 distance.probability <- as.big.matrix(as.matrix(distance.probability))
-
 write.big.matrix(distance.probability, paste0(project.folder,"/Results/Connectivity.Distance.bm"))
 
-# ----------------------------------------------------------------
-# ----------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------
 
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
 distance.probability <- data.table(distance.probability[,])
@@ -118,32 +119,38 @@ summary.results
 
 # Identify which have a high threshold
 
-cells.i <- distance.probability[ Distance >= 20 & Probability > 0.065, Pair.from  ]
-cells.j <- distance.probability[ Distance >= 20 & Probability > 0.065, Pair.to  ]
-
 land.surface <- raster("Data/Rasters/Mask.tif")
-plot(land.surface,box=FALSE,legend=FALSE,col=c("black"))
+
+cells.i <- distance.probability[ Time.max <= 5 & Distance >= 200 & Distance < 1000000000, Pair.from   ]
+cells.j <- distance.probability[ Time.max <= 5 & Distance >= 200 & Distance < 1000000000, Pair.to  ]
+
+clipper <- as(extent(min(source.sink.xy[unique(c(cells.i,cells.j)),2]) - 2 , max(source.sink.xy[unique(c(cells.i,cells.j)),2]) + 2,min(source.sink.xy[unique(c(cells.i,cells.j)),3]) - 2,max(source.sink.xy[unique(c(cells.i,cells.j)),3]) + 2), "SpatialPolygons")
+land.surface <- crop(land.surface,clipper)
+
+plot(land.surface,box=FALSE,legend=FALSE,col=c("black","Gray"))
 points(source.sink.xy[cells.i,2:3],col="red")
 points(source.sink.xy[cells.j,2:3],col="green")
 
-distance.probability[ Pair.from %in% cells.i & Pair.to %in% cells.j , ]
+distance.probability[ Pair.from %in% cells.i , ]
 reference.table[ cell %in% cells.i & cell.rafted %in% cells.j , ]
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Pairwise Connectivity estimates
 
-file.sampling.sites <- paste0(project.folder,"/Data/Genetics/ID#303_Coords.csv")
-file.differentiation <- paste0(project.folder,"/Data/Genetics/ID#303_FST.csv")
+file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/ID#0_Coords.txt")
+file.differentiation <- paste0(project.folder,"/Data/Differentiation/ID#0_FST.txt")
 
 transform.fst <- TRUE
 
-if(transform.fst) { project.name <- paste0(project.name,".FstT")}
+if( transform.fst ) { project.name <- paste0(project.name,".FstT") }
 
 sampling.sites <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFactors=F)[,2:3] 
 sampling.sites.n <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFactors=F)[,1] 
 differentiation <- read.table(file.differentiation,header = T,sep=";",stringsAsFactors=F)[,-1]
 differentiation[lower.tri(differentiation)] <- t(differentiation)[lower.tri(differentiation)]
+
+differentiation <- read.table(file.differentiation,header = T,sep=";",stringsAsFactors=F)[,-1]
 
 if( nrow(differentiation) != length(sampling.sites.n) | sum(is.na(differentiation)) != length(sampling.sites.n) ) { next }
 
@@ -151,6 +158,8 @@ if( nrow(differentiation) != length(sampling.sites.n) | sum(is.na(differentiatio
 
 subseter <- which(sampling.sites$Lon >= min(source.sink.xy[,2]) & sampling.sites$Lon <= max(source.sink.xy[,2]),
                   sampling.sites$Lat >= min(source.sink.xy[,3]) & sampling.sites$Lat <= max(source.sink.xy[,3]))
+
+subseter <- which(sampling.sites$Lat  < 50)
 
 sampling.sites <- sampling.sites[subseter,]
 sampling.sites.n <- sampling.sites.n[subseter]
@@ -194,12 +203,12 @@ points(source.sink.xy[Pair %in% position.matrix,2:3],col="red")
 
 ## ---------------
 
-n.days <- 60
+n.days <- 30
 
 ## ---------------------------------------------------
 
 new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
-network <- produce.network("Prob",distance.probability,n.days,TRUE,7.5,source.sink.xy,new.extent)
+network <- produce.network("Prob",distance.probability,n.days,TRUE,5,source.sink.xy,new.extent)
 
 ## ---------------------------------------------------
 
