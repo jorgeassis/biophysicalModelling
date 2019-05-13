@@ -113,7 +113,7 @@ monitor.processes <- cmpfun( function (process.name) {
 trim.by.distance <- function(xyDF,source.sink.dist) {
   
   coastline.pts.t <- xyDF
-  source.sink.xy <- data.frame(matrix(NA,ncol=2,nrow=nrow(coastline.pts.t)))
+  source.sink.xy.t <- data.frame(matrix(NA,ncol=2,nrow=nrow(coastline.pts.t)))
   
   iteractions <- nrow(coastline.pts.t)
   iteraction <- 0
@@ -132,7 +132,7 @@ trim.by.distance <- function(xyDF,source.sink.dist) {
     
     pt.i = coastline.pts.t[1,,drop=FALSE]
     
-    source.sink.xy[iteraction,] <- as.data.frame(pt.i)
+    source.sink.xy.t[iteraction,] <- as.data.frame(pt.i)
     
     coastline.pts.t.i <- coastline.pts.t
     colnames(coastline.pts.t.i) <- c("x","y")
@@ -147,9 +147,9 @@ trim.by.distance <- function(xyDF,source.sink.dist) {
     
   }
   
-  source.sink.xy <- source.sink.xy[complete.cases(source.sink.xy),]
+  source.sink.xy.t <- source.sink.xy.t[complete.cases(source.sink.xy.t),]
   
-  return(source.sink.xy)
+  return(source.sink.xy.t)
   
 }
 
