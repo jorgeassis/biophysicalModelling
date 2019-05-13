@@ -7,7 +7,6 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
 source("0. Project Config.R")
-source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -32,55 +31,65 @@ crs(clipper) <- dt.projection
 landmass <- gIntersection(landmass, clipper, byid=TRUE)
 coastline <- gIntersection(coastline, clipper, byid=TRUE)
 
-## -----------------------------------------------------
+## --------------------------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------
 
 ## Define source and sink locations
+
+coastline.pts <- data.frame()
 
 coastline.pts <- as(coastline, "SpatialPointsDataFrame")
 coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
 
-if( ! is.null(additional.islands.shp) ) {
-  
-  additional.isl <- shapefile(paste0(project.folder,additional.islands.shp))
-  additional.isl <- gIntersection(additional.isl, clipper, byid=TRUE)
-  coastline.pts <- rbind(coastline.pts,additional.isl@polygons[[2]]@Polygons[[1]]@coords)
+coastline.pts <- trim.by.distance(coastline.pts,source.sink.dist)
 
+if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,"x"],y=coastline.pts[,"y"],source=0,stringsAsFactors = FALSE) }
+if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,"x"],y=coastline.pts[,"y"],source=1,stringsAsFactors = FALSE) }
+
+save(coastline.pts,file="../SourceSinkXY.RData")
+
+## --------------
+
+additional.pts <- data.frame()
+
+if( ! is.null(additional.sourcesink.shp) ) {
+  
+  for(i in 1:length(additional.sourcesink.shp)){
+    
+    if(exists("additional.shp")) { rm(additional.shp)} 
+    
+    additional.shp <- shapefile(paste0(project.folder,additional.sourcesink.shp[i]))
+
+    if(class(additional.shp) == "SpatialPolygons") { additional.shp <- as(additional.shp, "SpatialLines") }
+    if(class(additional.shp) == "SpatialPolygonsDataFrame") { additional.shp <- as(additional.shp, "SpatialLinesDataFrame") }
+    
+    if(class(additional.shp) == "SpatialPointsDataFrame") { 
+      
+      crs(additional.shp) <- crs(landmass)
+      over.land <- over(additional.shp,landmass)
+      additional.shp <- additional.shp[which(is.na(over.land)),]
+      
+      }
+    
+    additional.shp <- as.data.frame(as(additional.shp, "SpatialPointsDataFrame"))
+    additional.shp <- data.frame(x=additional.shp[,ncol(additional.shp)-1],y=additional.shp[,ncol(additional.shp)])
+    additional.pts <- rbind(additional.pts,additional.shp)
+
+  }
+
+  additional.pts <- trim.by.distance(additional.pts,source.sink.dist)
+  save(additional.pts,file="../additionalSourceSinkXY.RData")
+  
+  additional.source.sink.xy <- data.frame(cells.id=(nrow(coastline.pts)+1):(nrow(additional.pts)+nrow(coastline.pts)),x=additional.pts[,"x"],y=additional.pts[,"y"],source=1,stringsAsFactors = FALSE) ; head(additional.source.sink.xy)
+  
+  source.sink.xy <- rbind(source.sink.xy,additional.source.sink.xy)
+  
 }
 
-coastline.pts.t <- coastline.pts
-source.sink.xy <- data.frame()
+## --------------
 
-iteractions <- nrow(coastline.pts.t)
-
-while( nrow(coastline.pts.t) > 0 ){
-  
-  progress.percent <- 100 - round((nrow(coastline.pts.t) / iteractions) * 100)
-
-  cat('\014')
-  cat('\n')
-  
-  cat('\n',paste0(rep("-",100),collapse = ""))
-  cat('\n',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
-  cat('\n',paste0(rep("-",100),collapse = ""))
-  
-  pt.i = coastline.pts.t[1,,drop=FALSE]
-  
-  source.sink.xy <- rbind(source.sink.xy,as.data.frame(pt.i))
-  
-  coastline.pts.t.i <- coastline.pts.t
-  coordinates(coastline.pts.t.i) <- c("x","y")
-  crs(coastline.pts.t.i) <- dt.projection
-  circle <- circles(pt.i, lonlat=TRUE, d=source.sink.dist*1000, dissolve=FALSE)
-  circle <- geometry(circle)
-  crs(circle) <- dt.projection
-  
-  to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
-  coastline.pts.t <- coastline.pts.t[-to.extract,]
-  
-}
-
-source.sink.xy <- source.sink.xy[complete.cases(source.sink.xy),]
-source.sink.xy <- data.frame(cells.id=1:nrow(source.sink.xy),x=source.sink.xy[,"x"],y=source.sink.xy[,"y"],source=1,stringsAsFactors = FALSE) ; head(source.sink.xy)
+source.sink.xy <- source.sink.xy[source.sink.xy$x >= extent(clipper)[1] & source.sink.xy$x <= extent(clipper)[2] & source.sink.xy$y >= extent(clipper)[3] & source.sink.xy$y <= extent(clipper)[4],]
+head(source.sink.xy)
 
 ## -----------------------------------------------------
 
@@ -684,32 +693,10 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
  
                                                   points.on.land.corrected <- points.on.land.t.minus
                                                     
-#                                                   points.on.land.corrected <- matrix(NA,ncol=2,nrow=nrow(points.on.land.t))
-#                                                   
-#                                                   for(point.i in 1:nrow(points.on.land.t)) {
-#                                                       
-#                                                       cross.line <- SpatialLines( list(Lines(Line(rbind(points.on.land.t[point.i,],points.on.land.t.minus[point.i,] )),ID=1 )))
-#                                                       crs(cross.line) <- crs(sp.poly)
-#                                                       cross.line.intersection <- gIntersection(cross.line,sp.poly.line,byid=TRUE)
-#                                                       
-#                                                       if( !is.null(cross.line.intersection)) { points.on.land.corrected[point.i,] <- extent(cross.line.intersection)[c(1,3)] }
-#                                                       if(  is.null(cross.line.intersection)) { points.on.land.corrected[point.i,1] <- unlist(points.on.land.t.minus[point.i,1] ) ; points.on.land.corrected[point.i,2] <- unlist(points.on.land.t.minus[point.i,2] ) }
-#                                                       
-#                                                       # plot(cross.line)
-#                                                       # lines(sp.poly, col="Gray")
-#                                                       # points(points.on.land.t[point.i,],col="black")
-#                                                       # points(points.on.land.t.minus[point.i,],col="red")
-#                                                       # points(cross.line.intersection,col="green")
-#                                                       
-#                                                   }
-
-                                                  # dist.to.nearest.cell <- spDists(points.on.land.corrected , as.matrix(initial.coords.s) , longlat = TRUE)      
-                                                  # cells.rafted <- source.cells.id.s[apply(dist.to.nearest.cell,1,which.min)]
-                                                  
                                                   cells.rafted <- get.knnx( initial.coords.s, points.on.land.corrected, k=1 , algorithm="kd_tree" )$nn.index
                                                   cells.rafted <- source.cells.id.s[cells.rafted]
                                                   
-                                                  displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]})
+                                                  displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
                                                   
                                                   # For Rafters
                                                   

@@ -6,19 +6,20 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-setwd("/media/Nautilus1/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/Git")
-
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Atlantic"
-project.folder <- "/media/Nautilus1/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/"
+project.name <- "MPA"
+project.folder <- "/media/Bathyscaphe/MPA Connectivity/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
-additional.islands.shp <- "Data/Shapefiles/Additional islands.shp"
+additional.sourcesink.shp <- c("Data/Shapefiles/Europe/New_Shapefile(3).shp")
+
+unwanted.release.coastline <- TRUE
+unwanted.release.sites.shp <- NULL # "Data/Shapefiles/Unwanted.shp" # NULL
+
 bathymetry.tif <- NULL
-unwanted.release.sites.shp <- "Data/Shapefiles/Unwanted.shp" # NULL
 
 ## ------------------------------------
 
@@ -26,8 +27,8 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 40
-parallel.computational.sections <- 40
+number.cores <- 10
+parallel.computational.sections <- 10
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
@@ -43,9 +44,9 @@ source.sink.dist <- 1 # km
 # -----------------------------------
 # Traits
 
-months.all <- 4:10 # Spawning 5:10 (30 days off)
+months.all <- 1:12 # Spawning 5:10 (30 days off)
 from.day <- 1 ; to.day <- 31
-from.year <- 2003 ; to.year <- 2003
+from.year <- 2008 ; to.year <- 2012
 depth.range <- c(0)
 
 kill.by.raft <- TRUE                              # Will eliminate particles that got to another cell - first raft event # May need a new particle every day
@@ -55,7 +56,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 60                       # Days allowed to travel
+particle.max.duration <- 120                        # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------
@@ -68,7 +69,7 @@ final.dimensions <- 2
 # -----------------------------------
 # Ilustration (movie)
 
-movie.year <- 2012
+movie.year <- -999
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
 movie.sites.xy <- "Data/Shapefiles/Movie.shp" 

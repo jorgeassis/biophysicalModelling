@@ -110,6 +110,51 @@ monitor.processes <- cmpfun( function (process.name) {
 
 ## ---------------------------------------------------------------------------------------------------------------------
 
+trim.by.distance <- function(xyDF,source.sink.dist) {
+  
+  coastline.pts.t <- xyDF
+  source.sink.xy <- data.frame(matrix(NA,ncol=2,nrow=nrow(coastline.pts.t)))
+  
+  iteractions <- nrow(coastline.pts.t)
+  iteraction <- 0
+  
+  while( nrow(coastline.pts.t) > 0 ){
+    
+    iteraction <- iteraction + 1
+    progress.percent <- 100 - round((nrow(coastline.pts.t) / iteractions) * 100)
+    
+    cat('\014')
+    cat('\n')
+    
+    cat('\n',paste0(rep("-",100),collapse = ""))
+    cat('\n',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"% (",iteraction,")")
+    cat('\n',paste0(rep("-",100),collapse = ""))
+    
+    pt.i = coastline.pts.t[1,,drop=FALSE]
+    
+    source.sink.xy[iteraction,] <- as.data.frame(pt.i)
+    
+    coastline.pts.t.i <- coastline.pts.t
+    colnames(coastline.pts.t.i) <- c("x","y")
+    coordinates(coastline.pts.t.i) <- c("x","y")
+    crs(coastline.pts.t.i) <- dt.projection
+    circle <- circles(pt.i, lonlat=TRUE, d=source.sink.dist*1000, dissolve=FALSE)
+    circle <- geometry(circle)
+    crs(circle) <- dt.projection
+    
+    to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
+    coastline.pts.t <- coastline.pts.t[-to.extract,]
+    
+  }
+  
+  source.sink.xy <- source.sink.xy[complete.cases(source.sink.xy),]
+  
+  return(source.sink.xy)
+  
+}
+
+## ---------------------------------------------------------------------------------------------------------------------
+
 produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,new.extent) {
   
   if(crop.network) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
