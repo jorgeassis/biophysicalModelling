@@ -36,17 +36,13 @@ coastline <- gIntersection(coastline, clipper, byid=TRUE)
 
 ## Define source and sink locations
 
-coastline.pts <- data.frame()
-
 coastline.pts <- as(coastline, "SpatialPointsDataFrame")
 coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
 
-coastline.pts <- trim.by.distance(coastline.pts,source.sink.dist)
+coastline.pts <- trim.by.distance(coastline.pts,source.sink.dist,TRUE)
 
 if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
 if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
-
-save(source.sink.xy,file="../SourceSinkXY.RData")
 
 ## --------------
 
@@ -82,7 +78,7 @@ if( ! is.null(additional.sourcesink.shp) ) {
   }
 
   additional.pts <- trim.by.distance(additional.pts,source.sink.dist)
-  save(additional.pts,file="../additionalSourceSinkXY.RData")
+  plot(landmass)
   
   additional.source.sink.xy <- data.frame(cells.id=(nrow(coastline.pts)+1):(nrow(additional.pts)+nrow(coastline.pts)),x=additional.pts[,1],y=additional.pts[,2],source=1,stringsAsFactors = FALSE) ; head(additional.source.sink.xy)
   source.sink.xy <- rbind(source.sink.xy,additional.source.sink.xy)
@@ -799,8 +795,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
   
   sect.loop <- sect.loop[ sect.loop$state != 0 , ]
-  sect.loop <- sect.loop[ sect.loop$cell.rafted != 0 , ]
-  
+
   particles.reference.bm.all[ sect.loop$id , 3 ] <- as.numeric(unlist(sect.loop[  , "start.year"] ))
   particles.reference.bm.all[ sect.loop$id , 4 ] <- as.numeric(unlist(sect.loop[  , "start.month"] ))
   particles.reference.bm.all[ sect.loop$id , 5 ] <- as.numeric(unlist(sect.loop[  , "start.day"] ))

@@ -110,11 +110,62 @@ monitor.processes <- cmpfun( function (process.name) {
 
 ## ---------------------------------------------------------------------------------------------------------------------
 
-trim.by.distance <- function(xyDF,source.sink.dist) {
+trim.by.distance <- function(xyDF,source.sink.dist,parallel) {
   
   coastline.pts.t <- xyDF
-  source.sink.xy.t <- data.frame(matrix(NA,ncol=2,nrow=nrow(coastline.pts.t)))
+
+  if(parallel){
+    
+    seqListing <- round(seq(min(coastline.pts.t$y),max(coastline.pts.t$y),length.out =number.cores))
+    parallelChunks <- data.frame(from = c(min(coastline.pts.t$y),seqListing[-c(1,length(seqListing))]), to = c(seqListing[-c(1,length(seqListing))] , max(coastline.pts.t$y) ) )
+    
+    cl.2 <- makeCluster(number.cores)
+    registerDoParallel(cl.2)
+    
+    source.sink.xy.t <- foreach(section=1:nrow(parallelChunks), .combine=rbind, .verbose=FALSE, .packages=c("dismo","gstat","gdata","raster","data.table","bigmemory","FNN")) %dopar% { 
+    
+      coastline.pts.t.sec <- coastline.pts.t[coastline.pts.t$y >= parallelChunks[section,1] & coastline.pts.t$y <= parallelChunks[section,2] ,]
+    
+      source.sink.xy.t <- data.frame(matrix(NA,ncol=2,nrow=nrow(coastline.pts.t.sec)))
+      
+      iteraction <- 0
+      
+      while( nrow(coastline.pts.t.sec) > 0 ){
+        
+        iteraction <- iteraction + 1
+        
+        pt.i = coastline.pts.t.sec[1,,drop=FALSE]
+        
+        source.sink.xy.t[iteraction,] <- as.data.frame(pt.i)
+        
+        coastline.pts.t.i <- coastline.pts.t.sec
+        colnames(coastline.pts.t.i) <- c("x","y")
+        coordinates(coastline.pts.t.i) <- c("x","y")
+        crs(coastline.pts.t.i) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+        circle <- circles(pt.i, lonlat=TRUE, d=source.sink.dist*1000, dissolve=FALSE)
+        circle <- geometry(circle)
+        crs(circle) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+        
+        to.extract <- which(!is.na(over(coastline.pts.t.i,circle)))
+        coastline.pts.t.sec <- coastline.pts.t.sec[-to.extract,]
+        
+      }
+      
+      source.sink.xy.t <- source.sink.xy.t[complete.cases(source.sink.xy.t),]
+      return(source.sink.xy.t)
+
+    }
+      
+    stopCluster(cl.2) ; rm(cl.2)
+    
+    source.sink.xy.t <- source.sink.xy.t[-which(duplicated(source.sink.xy.t)),]
+    
+  }
   
+  if( ! parallel){
+    
+  source.sink.xy.t <- data.frame(matrix(NA,ncol=2,nrow=nrow(coastline.pts.t)))
+    
   iteractions <- nrow(coastline.pts.t)
   iteraction <- 0
   
@@ -148,6 +199,8 @@ trim.by.distance <- function(xyDF,source.sink.dist) {
   }
   
   source.sink.xy.t <- source.sink.xy.t[complete.cases(source.sink.xy.t),]
+  
+  }
   
   return(source.sink.xy.t)
   

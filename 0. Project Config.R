@@ -14,7 +14,7 @@ project.folder <- "/media/Bathyscaphe/MPA Connectivity/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
-additional.sourcesink.shp <- c("Data/Shapefiles/Europe/New_Shapefile(3).shp")
+additional.sourcesink.shp <- c("Data/Shapefiles/Europe/MPAreas.shp")
 
 unwanted.release.coastline <- TRUE
 unwanted.release.sites.shp <- NULL # "Data/Shapefiles/Unwanted.shp" # NULL
@@ -27,8 +27,8 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 10
-parallel.computational.sections <- 10
+number.cores <- 20
+parallel.computational.sections <- 20
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
@@ -39,7 +39,7 @@ min.lon <- -20
 max.lon <- 37
 min.lat <- 22.5
 max.lat <- 74.5 # 
-source.sink.dist <- 1 # km
+source.sink.dist <- 5 # km
 
 # -----------------------------------
 # Traits
