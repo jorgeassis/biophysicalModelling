@@ -60,6 +60,10 @@ if( ! is.null(additional.sourcesink.shp) ) {
     
     additional.shp <- shapefile(paste0(project.folder,additional.sourcesink.shp[i]))
 
+    library(sf)
+    landmass <- st_union(st_as_sf(landmass),st_as_sf(additional.shp))
+    landmass <- as_Spatial(landmass$geom) 
+    
     if(class(additional.shp) == "SpatialPolygons") { additional.shp <- as(additional.shp, "SpatialLines") }
     if(class(additional.shp) == "SpatialPolygonsDataFrame") { additional.shp <- as(additional.shp, "SpatialLinesDataFrame") }
     
