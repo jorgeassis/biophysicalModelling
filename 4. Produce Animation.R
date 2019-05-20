@@ -14,7 +14,7 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
-simulation.name <- "Atlantic"
+simulation.name <- "SouthAfrica"
 
 particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
 particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
@@ -99,14 +99,17 @@ polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[4] , sim.extent[4] 
 
 # ---------------------------------
 
-# fakePoint <- as.matrix(data.frame( Lon=46,Lat= -43.5))
+# fakePoint <- as.matrix(data.frame( Lon=c(46,46.1,46,46.1),Lat= c(-43.5,-43.5,-43.6,-43.6)))
 # fakePoint <- mapview::coords2Polygons(fakePoint,ID=1)
 # crs(fakePoint) <- dt.projection 
 # 
 # land.polygon <- as(land.polygon,"SpatialPolygons")
 # crs(land.polygon) <- dt.projection 
 # 
-# land.polygon <- raster::aggregate(rbind(as(land.polygon,"SpatialPolygons"), fakePoint))
+
+# library(sf)
+# land.polygon <- st_union(st_as_sf(land.polygon),st_as_sf(fakePoint))
+# land.polygon <- as_Spatial(land.polygon$geom) 
 
 plot(land.polygon, col="grey")
 

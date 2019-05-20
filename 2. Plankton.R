@@ -56,10 +56,6 @@ if( ! is.null(additional.sourcesink.shp) ) {
     
     additional.shp <- shapefile(paste0(project.folder,additional.sourcesink.shp[i]))
 
-    library(sf)
-    landmass <- st_union(st_as_sf(landmass),st_as_sf(additional.shp))
-    landmass <- as_Spatial(landmass$geom) 
-    
     if(class(additional.shp) == "SpatialPolygons") { additional.shp <- as(additional.shp, "SpatialLines") }
     if(class(additional.shp) == "SpatialPolygonsDataFrame") { additional.shp <- as(additional.shp, "SpatialLinesDataFrame") }
     
@@ -77,12 +73,11 @@ if( ! is.null(additional.sourcesink.shp) ) {
 
   }
 
-  additional.pts <- trim.by.distance(additional.pts,source.sink.dist)
-  plot(landmass)
-  
+  additional.pts <- trim.by.distance(additional.pts,source.sink.dist,TRUE)
+
   additional.source.sink.xy <- data.frame(cells.id=(nrow(coastline.pts)+1):(nrow(additional.pts)+nrow(coastline.pts)),x=additional.pts[,1],y=additional.pts[,2],source=1,stringsAsFactors = FALSE) ; head(additional.source.sink.xy)
   source.sink.xy <- rbind(source.sink.xy,additional.source.sink.xy)
-  
+
 }
 
 ## --------------
@@ -109,9 +104,7 @@ if( ! is.null(unwanted.release.sites.shp) ) {
   if( length(points.over.polygon) > 0 ) {
     
     source.sink.xy <- rbind( data.frame(cells.id=1:length(source.points),x=source.sink.xy[source.points,2],y=source.sink.xy[source.points,3],source=1) ,
-                             data.frame(cells.id=(length(source.points)+1):(length(source.points)+length(points.over.polygon)),x=source.sink.xy[points.over.polygon,2],y=source.sink.xy[points.over.polygon,3],source=0)
-                            )
-    
+                             data.frame(cells.id=(length(source.points)+1):(length(source.points)+length(points.over.polygon)),x=source.sink.xy[points.over.polygon,2],y=source.sink.xy[points.over.polygon,3],source=0) )
   }
  
 }
@@ -139,6 +132,7 @@ raw.data.files <- list.files(paste0(project.folder,"/Data"),full.names = TRUE,pa
 simulation.parameters.step <- data.frame()
 
 for( file in 1:length(raw.data.files)) {
+  
   nc <- nc_open( raw.data.files[file] , verbose=FALSE )
   nc.date <- as.Date(ncvar_get( nc, "Time"), origin = "1970-01-01")
   nc_close( nc )
@@ -149,7 +143,7 @@ for( file in 1:length(raw.data.files)) {
 
 simulation.parameters.step <- simulation.parameters.step[simulation.parameters.step$year %in% as.character(from.year:to.year) & simulation.parameters.step$day %in% sapply(from.day:to.day,function(x){ ifelse(nchar(x) > 1,x,paste0("0",x))}) & simulation.parameters.step$month %in% sapply(months.all,function(x){ ifelse(nchar(x) > 1,x,paste0("0",x))}) ,  ]
 
-if(sum( !from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"])) + sum( ! months.all %in% as.numeric(simulation.parameters.step[,"month"])) > 0 ) { stop("Data is not available for time window")}
+if(sum( ! from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"])) + sum( ! months.all %in% as.numeric(simulation.parameters.step[,"month"])) > 0 ) { stop("Data is not available for time window")}
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Prepare video (animation) points
@@ -162,9 +156,9 @@ if( !is.null(movie.sites.xy) ) {
   movie.sites.id <- unique(movie.sites.xy)
   movie.sites.xy <- source.sink.xy[ unique(movie.sites.xy) ,c("x","y") ]
   
+  points(movie.sites.xy,col=c("green"),pch=16)
+  
 }
-
-points(movie.sites.xy,col=c("green"),pch=16)
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -205,7 +199,7 @@ n.particles.per.cell <- (nrow(simulation.parameters.step)) * n.new.particles.per
 # 4 dead by time
 
 particles.reference <- data.table( id = 1:(n.particles.per.cell * nrow(initial.coords) ) )
-particles.reference[ , start.cell := as.numeric( sapply( 1:nrow(initial.coords) ,function(x) { rep(x,n.particles.per.cell) })) ]
+particles.reference[ , start.cell := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , 1 ] ,function(x) { rep(x,n.particles.per.cell) })) ]
 particles.reference[ , start.year := 0 ]
 particles.reference[ , start.month := 0 ]
 particles.reference[ , start.day := 0 ]
@@ -223,11 +217,12 @@ setkey(particles.reference, id )
 
 for( c in source.sink.xy[source.sink.xy$source == 1 , 1 ] ) {
   
-  particles.reference[ start.cell == c, pos.lon := initial.coords$x[c] ]
-  particles.reference[ start.cell == c, pos.lat := initial.coords$y[c] ]
+  particles.reference[ start.cell == c, pos.lon := source.sink.xy[source.sink.xy$cells.id == c , 2 ] ]
+  particles.reference[ start.cell == c, pos.lat := source.sink.xy[source.sink.xy$cells.id == c , 3 ] ]
   
 }
 
+head(particles.reference)
 nrow(particles.reference)
 
 ## --------------------------------------------------------
@@ -251,7 +246,7 @@ particles.reference.bm[,7] <- unlist(particles.reference[,7])
 
 ## Data table to alocate path of particles (video)
 
-if( ! is.null(movie.year) ) {
+if( movie.year > 0 ) {
   
   particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
   
@@ -290,6 +285,19 @@ gClip <- function(shp, bb){
 
 list.of.polygons <- character()
 
+## -------------------
+
+if( ! is.null(landmass.shp.2) ) { 
+  
+  landmass <- shapefile(paste0(project.folder,landmass.shp.2)) 
+  clipper <- as(extent(min.lon,max.lon,min.lat,max.lat), "SpatialPolygons")
+  crs(clipper) <- dt.projection
+  landmass <- gIntersection(landmass, clipper, byid=TRUE)
+  
+}
+
+## -------------------
+
 for(i in 1:parallel.computational.sections){
   
   cat('\014')
@@ -314,15 +322,21 @@ for(i in 1:parallel.computational.sections){
     geometry.i <- gClip(fakeLandmass, sp::bbox(clipper))
     
     }
-  
+
   assign( paste0("landmass.sect.",i) , geometry.i )
   list.of.polygons <- c(list.of.polygons,paste0("landmass.sect.",i))
+  gc(reset=TRUE)
 
 }
 
 ## ------------------------------------------------------------------------------------------------------------------
 
 ## SQL configuration
+
+if(! exists("movie.sites.id")) { movie.sites.id <- NULL}
+if(! exists("particles.to.sql.id")) { particles.to.sql.id <- NULL}
+
+## -----------------
 
 global.simulation.parameters <- data.frame(   project.name = project.name,
                                               sim.years = from.year:to.year,
@@ -827,14 +841,18 @@ if( length(mwhich(particles.reference.bm,c(9),list(0), list('eq'))) > 0 ) { prin
 zeros <- mwhich(particles.reference.bm,c(9),list(0), list('eq'))
 unique(particles.reference.bm[zeros,2])
 plot(particles.reference.bm[zeros,6:7])
+nrow(particles.reference.bm)
 
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm.i <- mwhich(particles.reference.bm,c(9),list(0), list('neq'))
 particles.reference.bm <- particles.reference.bm[particles.reference.bm.i,]
 colnames(particles.reference.bm) <- particles.reference.names
+nrow(particles.reference.bm)
 
+particles.reference.bm <- particles.reference.bm[particles.reference.bm[,"cell.rafted"] != 0,]
 ReferenceTable <- data.frame( particles.reference.bm , travel.time= ( 1 + particles.reference.bm[,11] - particles.reference.bm[,10] ) / n.hours.per.day )
 head(ReferenceTable)
+
 nrow(ReferenceTable)
 
 ## -----------------------

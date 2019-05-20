@@ -12,7 +12,7 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------
 
-packages.to.use <- c("dggridR","gdata","dplyr",
+packages.to.use <- c("dggridR","gdata","dplyr","sf",
                      "gstat",
                      "compiler",
                      "data.table",
@@ -158,7 +158,8 @@ trim.by.distance <- function(xyDF,source.sink.dist,parallel) {
       
     stopCluster(cl.2) ; rm(cl.2)
     
-    source.sink.xy.t <- source.sink.xy.t[-which(duplicated(source.sink.xy.t)),]
+    to.remove <- which(duplicated(source.sink.xy.t))
+    if(length(to.remove) > 0) { source.sink.xy.t <- source.sink.xy.t[-to.remove,]}
     
   }
   
@@ -224,9 +225,9 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   
   if( network.type == "Prob" ) {
     
-    comb <- comb[Time.max >= n.days,Probability := 0]
+    # comb <- comb[Time.max >= n.days,Probability := 0]
     
-    # comb <- comb[Time.max <= n.days,]
+     comb <- comb[Time.max <= n.days,]
     
     comb <- comb[,.(Pair.from,Pair.to,Probability)]
     comb <- comb[Pair.from %in% as.vector(unlist(final.cells)) & Pair.to %in% as.vector(unlist(final.cells)) ,]

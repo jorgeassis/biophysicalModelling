@@ -14,7 +14,10 @@ project.folder <- "/media/Bathyscaphe/MPA Connectivity/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
-additional.sourcesink.shp <- c("Data/Shapefiles/Europe/MPAreas.shp")
+
+additional.sourcesink.shp <- "Data/Shapefiles/EuropeV2/MAPPOINTS5k.shp"
+
+landmass.shp.2 <- "Data/Shapefiles/EuropeV2/LANDMASSMPA_DISSOLVED.shp"
 
 unwanted.release.coastline <- TRUE
 unwanted.release.sites.shp <- NULL # "Data/Shapefiles/Unwanted.shp" # NULL
@@ -27,24 +30,24 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 20
-parallel.computational.sections <- 20
+number.cores <- 40
+parallel.computational.sections <- 40
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -20
-max.lon <- 37
-min.lat <- 22.5
+min.lon <- -35
+max.lon <- 42
+min.lat <- 26.5
 max.lat <- 74.5 # 
 source.sink.dist <- 5 # km
 
 # -----------------------------------
 # Traits
 
-months.all <- 1:12 # Spawning 5:10 (30 days off)
+months.all <- 4:10 # Spawning 5:10 (30 days off)
 from.day <- 1 ; to.day <- 31
 from.year <- 2008 ; to.year <- 2012
 depth.range <- c(0)
@@ -72,7 +75,7 @@ final.dimensions <- 2
 movie.year <- -999
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
-movie.sites.xy <- "Data/Shapefiles/Movie.shp" 
+movie.sites.xy <- NULL # "Data/Shapefiles/Movie.shp" 
 # matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 , -5 , 50 , - 2 , 45 , -5 , 44 , 5 , 40 , -10 , 30 ) , ncol=2 , byrow=TRUE) 
 
 # --------------------------------------------------------------

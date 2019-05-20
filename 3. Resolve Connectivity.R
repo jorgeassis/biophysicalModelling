@@ -37,7 +37,7 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/partic
 
 ## ------------------
 
-cl.2 <- makeCluster(number.cores)
+cl.2 <- makeCluster(number.cores , type="FORK")
 registerDoParallel(cl.2)
 
 all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
