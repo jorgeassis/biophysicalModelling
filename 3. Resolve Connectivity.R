@@ -118,7 +118,7 @@ write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/source.sink.bm"
 
 Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/Connectivity.bm"))
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/Connectivity.bm")) 
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------
