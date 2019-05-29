@@ -209,6 +209,7 @@ trim.by.distance <- function(xyDF,source.sink.dist,parallel) {
 
 ## ---------------------------------------------------------------------------------------------------------------------
 
+
 produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,new.extent) {
   
   if(crop.network) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
@@ -223,47 +224,25 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   
   if( ! crop.network ) {  final.cells <- cells[,1]  }
   
+  comb <- comb[Time.max <= n.days,]
+  comb <- comb[,.(Pair.from,Pair.to,Probability)]
+  comb <- comb[Pair.from %in% as.vector(unlist(final.cells)) & Pair.to %in% as.vector(unlist(final.cells)) ,]
+  comb <- comb[Pair.from != Pair.to,]
+  comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
+  
   if( network.type == "Prob" ) {
-    
-    # comb <- comb[Time.max >= n.days,Probability := 0]
-    
-     comb <- comb[Time.max <= n.days,]
-    
-    comb <- comb[,.(Pair.from,Pair.to,Probability)]
-    comb <- comb[Pair.from %in% as.vector(unlist(final.cells)) & Pair.to %in% as.vector(unlist(final.cells)) ,]
-    comb <- comb[Pair.from != Pair.to,]
-    comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
     
     net.function <<- prod
     graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
-    E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
-    # E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
-    #graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
+    
+    # E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
+    E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
+    
+    graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
     
   }
   
   if( network.type == "Time" ) {
-    
-    comb <- Connectivity[Time.max <= extract.simulation.days,.(Pair.from,Pair.to,Time.mean)]
-    comb <- comb[Pair.from %in% final.cells,]
-    comb <- comb[Pair.to %in% final.cells,]
-    comb <- comb[Pair.from != Pair.to,]
-    comb <- as.data.frame( comb[ sort(comb[,Time.mean] , decreasing = TRUE, index.return =TRUE)$ix , ] )
-    
-    # norm <- t(combn(position.matrix, 2))
-    # 
-    # for( i in 1:nrow(norm)) {
-    #   
-    #   t.1 <- which( comb[,1] == norm[i,1] & comb[,2] == norm[i,2] )
-    #   
-    #   if( length(t.1) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,1] , Pair.to = norm[i,2] ,  Mean.Time = 9e9999)) }
-    #   
-    #   t.2 <- which( comb[,1] == norm[i,2] & comb[,2] == norm[i,1] )
-    #   
-    #   if( length(t.2) == 0 ) { comb <- rbind(comb,data.frame(Pair.from = norm[i,2] , Pair.to = norm[i,1] ,  Mean.Time = 9e9999)) }
-    #   
-    #   
-    # }
     
     net.function <<- sum
     graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
