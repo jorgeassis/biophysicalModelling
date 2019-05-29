@@ -9,9 +9,6 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
 
-sql.project.name <- "SouthAfrica"
-number.cores <- 40
-
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
 distance.probability <- data.table(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
@@ -156,6 +153,20 @@ for(n.days in 1:max.days.sim) {
         
       }
       
+        ## ---------------------
+
+  zeros <- which(res.distance == 0 & position.matrix != from )
+
+  if( length(zeros) > 0 ) {
+
+    for(z in 1:length(zeros)){
+
+      res.distance[zeros[z]] <- spDistsN1( as.matrix(source.sink.xy[ Pair == from , 2:3 ]), as.matrix(source.sink.xy[ Pair == position.matrix[z] , 2:3 ]), longlat=TRUE)
+
+    }
+
+  }
+  
       ## ---------------------
       
       differentiation.to <- unlist(differentiation[ which( position.matrix == from), ])
