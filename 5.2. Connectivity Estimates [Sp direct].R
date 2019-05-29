@@ -135,6 +135,20 @@ potential.connectivity <- foreach(from=position.matrix, .verbose=FALSE, .package
     
   }
     
+    ## ---------------------
+
+  zeros <- which(res.distance == 0 & position.matrix != from )
+
+  if( length(zeros) > 0 ) {
+
+    for(z in 1:length(zeros)){
+
+      res.distance[zeros[z]] <- spDistsN1( as.matrix(source.sink.xy[ Pair == from , 2:3 ]), as.matrix(source.sink.xy[ Pair == position.matrix[z] , 2:3 ]), longlat=TRUE)
+
+    }
+
+  }
+  
   ## ---------------------
   
   differentiation.to <- unlist(differentiation[ which( position.matrix == from), ])
