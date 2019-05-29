@@ -50,9 +50,10 @@ costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 1167,2:3]) , 
 
 # ----------------------------------
 
+
 n.cells <- unique(Connectivity[,Pair.from])
 
-cl.2 <- makeCluster(number.cores , type="FORK") ; registerDoParallel(cl.2)
+cl.2 <- makeCluster(number.cores) ; registerDoParallel(cl.2)
 
 marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packages=c("gdistance","raster","data.table","reshape2")) %dopar% {
   
@@ -60,6 +61,20 @@ marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packag
   x.to <- x.to[x.to != 0]
   partial.distances <- costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ x , 2:3 ]) , as.matrix(source.sink.xy[ x.to , 2:3 ]) )
   partial.distances <- data.frame(Pair.from=rep(x,length(partial.distances)),Pair.to=x.to,Distance=c(partial.distances)/1000)
+  
+  zeros <- which(partial.distances$Distance == 0 & partial.distances$Pair.from != partial.distances$Pair.to)
+  
+  if( length(zeros) > 0 ) {
+    
+    for(z in 1:length(zeros)){
+      
+      partial.distances[zeros[z],3] <- spDistsN1( as.matrix(source.sink.xy[ partial.distances[zeros[z],1] , 2:3 ]), as.matrix(source.sink.xy[ partial.distances[zeros[z],2] , 2:3 ]), longlat=TRUE)
+      
+    }
+    
+  }
+  
+  
   return( partial.distances )
   
 }
