@@ -209,7 +209,6 @@ trim.by.distance <- function(xyDF,source.sink.dist,parallel) {
 
 ## ---------------------------------------------------------------------------------------------------------------------
 
-
 produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,new.extent) {
   
   if(crop.network) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
