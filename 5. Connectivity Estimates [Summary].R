@@ -9,7 +9,6 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
 
-sql.project.name <- "SouthAfrica"
 number.cores <- 40
 
 ## ------------------------------------------------------------------------------------------------------------------
@@ -45,11 +44,10 @@ raster_tr <- transition(cost.surface, mean, directions=8)
 raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 
 plot(cost.surface,col=c("#737373","#A0CCF2"),box=FALSE,legend=FALSE)
-lines( shortestPath(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 116,2:3]) , as.matrix(source.sink.xy[Pair == 1,2:3]) , output="SpatialLines") )
+lines( shortestPath(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 1167,2:3]) , as.matrix(source.sink.xy[Pair == 1,2:3]) , output="SpatialLines") )
 costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 1167,2:3]) , as.matrix(source.sink.xy[Pair == 1,2:3]) )
 
 # ----------------------------------
-
 
 n.cells <- unique(Connectivity[,Pair.from])
 
@@ -98,17 +96,17 @@ colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Prob
 
 # ----------------------------------
 
-extract.simulation.days <-60
+extract.simulation.days <- 30
 
 distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
 max(distance.probability.t$Time.max)
 
-# Summary 10:8 [ Prob vs Distance 5 days ]
+# Summary 10:8
 
 ggplot(distance.probability.t , aes(x=Distance,y=Probability)) + 
   geom_point(alpha = 0.3) + 
   theme_bw(base_size = 14) + 
-  labs(x = "Distance (km)" , y = "Probability of connectivity") +
+  labs(x = "Distance (km)" , y = "Mean probability of connectivity") +
   theme(panel.background = element_rect(colour = "black") )
 
 # ----------------------------------
@@ -148,3 +146,6 @@ points(source.sink.xy[cells.j,2:3],col="green")
 
 distance.probability[ Pair.from %in% cells.i , ]
 reference.table[ cell %in% cells.i & cell.rafted %in% cells.j , ]
+
+## ------------------------------------------------------------------------------------------------------------------------------
+## ------------------------------------------------------------------------------------------------------------------------------
