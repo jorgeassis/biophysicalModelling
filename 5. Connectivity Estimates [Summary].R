@@ -96,37 +96,44 @@ colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Prob
 
 # ----------------------------------
 
-extract.simulation.days <- 30
-
+extract.simulation.days <- 60
 distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
-max(distance.probability.t$Time.max)
 
-# Summary 10:8
+x <- distance.probability.t$Distance
+y <- distance.probability.t$Probability
 
-ggplot(distance.probability.t , aes(x=Distance,y=Probability)) + 
-  geom_point(alpha = 0.3) + 
-  theme_bw(base_size = 14) + 
-  labs(x = "Distance (km)" , y = "Mean probability of connectivity") +
-  theme(panel.background = element_rect(colour = "black") )
+pdf( file=paste0(project.folder,"Results/Probability vs Distance 60 days.pdf") , width = 10, height = 8 )
+
+par(mar = c(4.5, 5.5, 4.5, 4.5))
+plot(x,y,ylim=c(min(y),max(y)),col="#A6A6A6", pch=16,ylab="Mean probability of connectivity",xlab="Distance (km)",axes=FALSE)
+axis(2,las=2,col="White",col.ticks="Black")
+axis(1,las=0,col="White",col.ticks="Black")
+box()
+
+dev.off()
 
 # ----------------------------------
 
 # Summary 1
 
-summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance),3) , round(max(distance.probability.t$Probability),3) , round(max(distance.probability.t$Mean.Time),3) ) ,
-                               Mean    = c( round(mean(distance.probability.t$Distance),3) , round(mean(distance.probability.t$Probability),3) , round(mean(distance.probability.t$Mean.Time),3) ) ,
-                               SD      = c( round(sd(distance.probability.t$Distance),3) , round(sd(distance.probability.t$Probability),3) , round(sd(distance.probability.t$Mean.Time),3) ) ,
-                               Median  = c( round(median(distance.probability.t$Distance),3) , round(median(distance.probability.t$Probability),3) , round(median(distance.probability.t$Mean.Time),3) ) )
+extract.simulation.days <- 60
+distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
+distance.probability.t[distance.probability.t >= 9e99999] <- NA
+
+summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance,na.rm=T),3) , round(max(distance.probability.t$Probability,na.rm=T),3) , round(max(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
+                               Mean    = c( round(mean(distance.probability.t$Distance,na.rm=T),3) , round(mean(distance.probability.t$Probability,na.rm=T),3) , round(mean(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
+                               SD      = c( round(sd(distance.probability.t$Distance,na.rm=T),3) , round(sd(distance.probability.t$Probability,na.rm=T),3) , round(sd(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
+                               Median  = c( round(median(distance.probability.t$Distance,na.rm=T),3) , round(median(distance.probability.t$Probability,na.rm=T),3) , round(median(distance.probability.t$Mean.Time,na.rm=T),3) ) )
 row.names(summary.results) <- c("Distance","Probability","Time")
 summary.results
 
 qt  <- quantile(distance.probability.t$Probability, probs = 0.95)
 distance.probability.t <- distance.probability.t[ Probability >= qt , ]
 
-summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance),3) , round(max(distance.probability.t$Probability),3) , round(max(distance.probability.t$Mean.Time),3) ) ,
-                               Mean    = c( round(mean(distance.probability.t$Distance),3) , round(mean(distance.probability.t$Probability),3) , round(mean(distance.probability.t$Mean.Time),3) ) ,
-                               SD      = c( round(sd(distance.probability.t$Distance),3) , round(sd(distance.probability.t$Probability),3) , round(sd(distance.probability.t$Mean.Time),3) ) ,
-                               Median  = c( round(median(distance.probability.t$Distance),3) , round(median(distance.probability.t$Probability),3) , round(median(distance.probability.t$Mean.Time),3) ) )
+summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance,na.rm=T),3) , round(max(distance.probability.t$Probability),3) , round(max(distance.probability.t$Mean.Time),3) ) ,
+                               Mean    = c( round(mean(distance.probability.t$Distance,na.rm=T),3) , round(mean(distance.probability.t$Probability),3) , round(mean(distance.probability.t$Mean.Time),3) ) ,
+                               SD      = c( round(sd(distance.probability.t$Distance,na.rm=T),3) , round(sd(distance.probability.t$Probability),3) , round(sd(distance.probability.t$Mean.Time),3) ) ,
+                               Median  = c( round(median(distance.probability.t$Distance,na.rm=T),3) , round(median(distance.probability.t$Probability),3) , round(median(distance.probability.t$Mean.Time),3) ) )
 row.names(summary.results) <- c("Distance","Probability","Time")
 summary.results
 
