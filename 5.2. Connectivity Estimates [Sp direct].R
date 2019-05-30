@@ -9,7 +9,6 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
 
-sql.project.name <- "SouthAfrica"
 number.cores <- 40
 
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
@@ -34,8 +33,8 @@ raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Pairwise Connectivity estimates
 
-file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/Coords.csv")
-file.differentiation <- paste0(project.folder,"/Data/Differentiation/FST.csv")
+file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/ID#0_Coords.txt")
+file.differentiation <- paste0(project.folder,"/Data/Differentiation/ID#0_FST.txt")
 
 transform.fst <- TRUE
 
@@ -135,7 +134,7 @@ potential.connectivity <- foreach(from=position.matrix, .verbose=FALSE, .package
     
   }
     
-    ## ---------------------
+  ## ---------------------
 
   zeros <- which(res.distance == 0 & position.matrix != from )
 
