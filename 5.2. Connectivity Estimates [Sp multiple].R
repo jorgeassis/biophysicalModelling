@@ -9,32 +9,55 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
 
+number.cores <- 40
+
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
 distance.probability <- data.table(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
-distance.probability
 
 source.sink.xy <- read.big.matrix(paste0(project.folder,"/Results/source.sink.bm"))
 source.sink.xy <- data.table(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
-source.sink.xy
 
 clipper <- as(extent(min(source.sink.xy[,2]) - 2,max(source.sink.xy[,2]) + 2,min(source.sink.xy[,3]) - 2,max(source.sink.xy[,3]) + 2), "SpatialPolygons")
+
+# Distance 
 
 cost.surface <- raster("Data/Rasters/Mask.tif")
 cost.surface <- crop(cost.surface,clipper)
 cost.surface[is.na(cost.surface)] <- 0
+
 plot(cost.surface,box=FALSE,legend=FALSE,col=c("black","white"))
 
 raster_tr <- transition(cost.surface, mean, directions=8)
 raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 
+# Temperature 
+
+cost.surface.temp <- raster("../Data/Temperature.tif")
+cost.surface.temp <- crop(cost.surface.temp,clipper)
+cost.surface.temp <- 1 - (cost.surface.temp / max(getValues(cost.surface.temp),na.rm=T))
+cost.surface.temp[is.na(cost.surface.temp)] <- 0
+
+plot(cost.surface.temp,box=FALSE,legend=FALSE)
+
+raster_tr_temp <- transition(cost.surface.temp, mean, directions=8)
+raster_tr_temp_corrected <- geoCorrection(raster_tr_temp, type="c", multpl=FALSE)
+
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Pairwise Connectivity estimates
 
-file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/Coords.csv")
-file.differentiation <- paste0(project.folder,"/Data/Differentiation/FST.csv")
+rocky.bottoms <- raster("../Data/Rocky.tif")
+
+subsetter <- which(extract(rocky.bottoms,source.sink.xy[,.(Lon,Lat)]) == 1)
+source.sink.xy <- source.sink.xy[subsetter,]
+distance.probability <- distance.probability[ Pair.from %in% source.sink.xy[,Pair] &  Pair.to %in% source.sink.xy[,Pair],]
+
+## -----------------------------
+
+file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/ID#0_Coords.txt")
+file.differentiation <- paste0(project.folder,"/Data/Differentiation/ID#0_FST.txt")
 
 transform.fst <- TRUE
 
@@ -52,14 +75,14 @@ if( nrow(differentiation) != length(sampling.sites.n) | sum(is.na(differentiatio
 
 ## ---------------
 
-subseter <- which(sampling.sites$Lon >= min(source.sink.xy[,2]) & sampling.sites$Lon <= max(source.sink.xy[,2]),
-                  sampling.sites$Lat >= min(source.sink.xy[,3]) & sampling.sites$Lat <= max(source.sink.xy[,3]))
-
-subseter <- which(sampling.sites$Lat  < 50)
-
-sampling.sites <- sampling.sites[subseter,]
-sampling.sites.n <- sampling.sites.n[subseter]
-differentiation <- differentiation[subseter,subseter]
+# subseter <- which(sampling.sites$Lon >= min(source.sink.xy[,2]) & sampling.sites$Lon <= max(source.sink.xy[,2]),
+#                   sampling.sites$Lat >= min(source.sink.xy[,3]) & sampling.sites$Lat <= max(source.sink.xy[,3]))
+# 
+# subseter <- which(sampling.sites$Lat > 50 & sampling.sites$Lon < 1.5)
+# 
+# sampling.sites <- sampling.sites[-subseter,]
+# sampling.sites.n <- sampling.sites.n[-subseter]
+# differentiation <- differentiation[-subseter,-subseter]
 
 ## ---------------
 
@@ -98,7 +121,7 @@ points(sampling.sites)
 setkey(source.sink.xy,Pair)
 points(source.sink.xy[Pair %in% position.matrix,2:3],col="red")
 
-## ---------------
+## ---------------------------------------------
 
 max.days.sim <- 60
 connectivity.per.days <- data.frame()
@@ -106,25 +129,25 @@ connectivity.per.days.matrices <- list()
 
 for(n.days in 1:max.days.sim) {
   
+  ## ---------------------------------------------------
+  
+  time.i <- Sys.time()
+  if(n.days == 1) { time.f <- time.i}
+  progress.percent <- round((n.days / max.days.sim) * 100)
+  time.take.step.min <- round(as.numeric(difftime(time.i, time.f, units = "mins")))
+  
+  cat('\014')
+  cat('\n')
+  cat('\n Running step #',n.days,'| Time taken',time.take.step.min,'mins.')
+  cat('\n')
+  cat('\n',paste0(rep("-",100),collapse = ""))
+  cat('\n',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
+  cat('\n',paste0(rep("-",100),collapse = ""))
+      
     ## ---------------------------------------------------
     
-    time.i <- Sys.time()
-    if(n.days == 1) { time.f <- time.i}
-    progress.percent <- round((n.days / max.days.sim) * 100)
-    time.take.step.min <- round(as.numeric(difftime(time.i, time.f, units = "mins")))
-    
-    cat('\014')
-    cat('\n')
-    cat('\n Running step #',n.days,'| Time taken',time.take.step.min,'mins.')
-    cat('\n')
-    cat('\n',paste0(rep("-",100),collapse = ""))
-    cat('\n',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
-    cat('\n',paste0(rep("-",100),collapse = ""))
-    
-    ## ---------------------------------------------------
-
     new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
-    network <- produce.network("Prob",distance.probability,n.days,TRUE,5,source.sink.xy,new.extent)
+    network <- produce.network("Prob",distance.probability,n.days,FALSE,5,source.sink.xy,new.extent)
     
     ## ---------------------------------------------------
     
@@ -136,37 +159,48 @@ for(n.days in 1:max.days.sim) {
       connectivity.x <- network[[1]]
       res.connectivity.to <- numeric(0)
       res.distance <- numeric(0)
+      res.temp <- numeric(0)
       
       for( to in position.matrix ) {
+
+        if( to %in% V(network.x)$name & from %in% V(network.x)$name ) {
+          
+          possible.paths.y <- get.shortest.paths(network.x,as.character( from ) , as.character( to ),mode="out")$vpath
+          stones.t <- as.numeric(names(possible.paths.y[[1]]))
+          stones.t.interm <- cbind(stones.t[-length(stones.t)],stones.t[-1])
+          path.values <- apply( stones.t.interm , 1 , function(z) { connectivity.x[ connectivity.x[,1] == z[1] & connectivity.x[,2] == z[2] , 3 ][1] }   )
+          
+          if( length(path.values) > 0 ) { path.values <- apply( t(path.values) , 1 , prod ) }
+          if( length(path.values) == 0) { path.values <- 0 }
+          if( from == to ) { path.values <- 1 }
+          
+          res.connectivity.to <- c(res.connectivity.to,path.values)
+          
+        } else {
+          
+          res.connectivity.to <- c(res.connectivity.to,0)
+          
+        }
         
-        possible.paths.y <- get.shortest.paths(network.x,as.character( from ) , as.character( to ),mode="out")$vpath
-        stones.t <- as.numeric(names(possible.paths.y[[1]]))
-        stones.t.interm <- cbind(stones.t[-length(stones.t)],stones.t[-1])
-        path.values <- apply( stones.t.interm , 1 , function(z) { connectivity.x[ connectivity.x[,1] == z[1] & connectivity.x[,2] == z[2] , 3 ][1] }   )
-        
-        if( length(path.values) > 0 ) { path.values <- apply( t(path.values) , 1 , prod ) }
-        if( length(path.values) == 0) { path.values <- 0 }
-        if( from == to ) { path.values <- 1 }
-        
-        res.connectivity.to <- c(res.connectivity.to,path.values)
         res.distance <- c(res.distance, costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == from,2:3]) , as.matrix(source.sink.xy[Pair == to,2:3]) ))
+        res.temp <- c(res.temp, costDistance(raster_tr_temp_corrected, as.matrix(source.sink.xy[Pair == from,2:3]) , as.matrix(source.sink.xy[Pair == to,2:3]) ))
         
       }
+        
+      ## ---------------------
+    
+      zeros <- which(res.distance == 0 & position.matrix != from )
+    
+      if( length(zeros) > 0 ) {
+    
+        for(z in 1:length(zeros)){
+    
+          res.distance[zeros[z]] <- spDistsN1( as.matrix(source.sink.xy[ Pair == from , 2:3 ]), as.matrix(source.sink.xy[ Pair == position.matrix[z] , 2:3 ]), longlat=TRUE)
+    
+        }
+    
+      }
       
-        ## ---------------------
-
-  zeros <- which(res.distance == 0 & position.matrix != from )
-
-  if( length(zeros) > 0 ) {
-
-    for(z in 1:length(zeros)){
-
-      res.distance[zeros[z]] <- spDistsN1( as.matrix(source.sink.xy[ Pair == from , 2:3 ]), as.matrix(source.sink.xy[ Pair == position.matrix[z] , 2:3 ]), longlat=TRUE)
-
-    }
-
-  }
-  
       ## ---------------------
       
       differentiation.to <- unlist(differentiation[ which( position.matrix == from), ])
@@ -176,10 +210,11 @@ for(n.days in 1:max.days.sim) {
                               pair.to = position.matrix , 
                               differentiation = differentiation.to, 
                               distance = res.distance, 
+                              temperature = res.temp, 
                               probability.ss = res.connectivity.to )
-      
+                              
       return(temp.res)
-      
+              
       ## ---------------------
       
     }
@@ -187,19 +222,22 @@ for(n.days in 1:max.days.sim) {
     stopCluster(cl.3) ; rm(cl.3) ; gc()
     
     ## ---------------------------------------------------
-    
+      
     connectivity <- do.call(rbind,potential.connectivity)
     connectivity <- connectivity[connectivity[,1] != connectivity[,2] ,]
-    connectivity[connectivity[,5] == 0,5] <- 1e-299
+    
+    connectivity[connectivity[,"probability.ss"] == 0,5] <- NA
+    connectivity <- connectivity[complete.cases(connectivity),]
+    
+    #connectivity[connectivity[,5] == 0,5] <- 1e-299
     
     ## ---------------
     
-    connectivity[,5] <- log(connectivity[,5])
-    connectivity[ connectivity < -9e10 ] <- NA
-    connectivity[ connectivity > 9e10 ] <- NA
+    connectivity[,"probability.ss"] <- log(connectivity[,"probability.ss"])
+    #connectivity[ connectivity < -9e10 ] <- NA
+    #connectivity[ connectivity > 9e10 ] <- NA
     
-    norm <- t(combn(position.matrix, 2))
-    norm <- norm[norm[,1] != norm[,2] ,]
+    norm <- connectivity[,1:2]
     
     connectivity.final <- data.frame()
     
@@ -213,19 +251,26 @@ for(n.days in 1:max.days.sim) {
                                              to=norm[i,2],
                                              Differantiation = as.numeric(as.character(connectivity$differentiation[t.1])),
                                              Distance = connectivity$distance[t.1],
+                                             Temperature = connectivity$temperature[t.1],
                                              Connectivity.max = min(c(connectivity$probability.ss[t.1],connectivity$probability.ss[t.2])) ,
                                              Connectivity.mean = mean(c(connectivity$probability.ss[t.1],connectivity$probability.ss[t.2])) ,
                                              Connectivity.min = max(c(connectivity$probability.ss[t.1],connectivity$probability.ss[t.2]))
-                                             , stringsAsFactors = FALSE ) )
+                                  , stringsAsFactors = FALSE ) )
     }
     
-    if(transform.fst) { connectivity.final[,3] <- connectivity.final$Differantiation/(1-connectivity.final$Differantiation) }
+    connectivity.final <- connectivity.final[connectivity.final[,1] != connectivity.final[,2] ,]
+    
+    if(transform.fst) { connectivity.final[,"Differantiation"] <- connectivity.final$Differantiation/(1-connectivity.final$Differantiation) }
+    
     connectivity.final <- connectivity.final[which(complete.cases(connectivity.final)),]
     
     connectivity.per.days.matrices <- c(connectivity.per.days.matrices,list(connectivity.final))
     
     cor.ibd <- cor(connectivity.final$Distance,connectivity.final$Differantiation , use = "complete.obs",method="pearson")
     fit.ibd <- lm(Differantiation ~ Distance, data=connectivity.final , na.action = na.omit)
+    
+    cor.temp <- cor(connectivity.final$Temperature,connectivity.final$Differantiation , use = "complete.obs",method="pearson")
+    fit.temp <- lm(Differantiation ~ Temperature, data=connectivity.final , na.action = na.omit)
     
     cor.min <- cor(connectivity.final$Connectivity.min,connectivity.final$Differantiation , use = "complete.obs",method="pearson")
     fit.min <- lm(Differantiation ~ Connectivity.min, data=connectivity.final)
@@ -240,6 +285,10 @@ for(n.days in 1:max.days.sim) {
     p.ibd=summary(fit.ibd)$coefficients
     p.ibd= ifelse( nrow(p.ibd) == 2 , p.ibd[2,4] , NA)
     
+    r2.temp = summary(fit.temp)$adj.r.squared
+    p.temp=summary(fit.temp)$coefficients
+    p.temp= ifelse( nrow(p.temp) == 2 , p.temp[2,4] , NA)
+    
     r2.min = summary(fit.min)$adj.r.squared
     p.min=summary(fit.min)$coefficients
     p.min= ifelse( nrow(p.min) == 2 , p.min[2,4] , NA)
@@ -251,12 +300,18 @@ for(n.days in 1:max.days.sim) {
     r2.max = summary(fit.max)$adj.r.squared
     p.max=summary(fit.max)$coefficients
     p.max= ifelse( nrow(p.max) == 2 , p.max[2,4] , NA)
-
+    
     connectivity.per.days <- rbind(connectivity.per.days,     data.frame(day = n.days,
                                                                          aic.ibd= AIC(fit.ibd),
                                                                          r2.ibd = r2.ibd,
                                                                          cor.ibd = cor.ibd,
                                                                          p.ibd=p.ibd,
+                                                                         
+                                                                         aic.temp= AIC(fit.temp),
+                                                                         r2.temp = r2.temp,
+                                                                         cor.temp = cor.temp,
+                                                                         p.temp=p.temp,
+                                                                         
                                                                          aic.min= AIC(fit.min),
                                                                          r2.min = r2.min,
                                                                          cor.min = cor.min,
@@ -270,27 +325,29 @@ for(n.days in 1:max.days.sim) {
                                                                          cor.max = cor.max,
                                                                          p.max=p.max )  )
     
-    
+      
 }
 
-## ---------------
+## ---------------------------------------------
+
+save( connectivity.per.days.matrices,connectivity.per.days ,file= paste0(project.folder,"Results/",project.name,".Results.RData") )
+
+## ---------------------------------------------
+## ---------------------------------------------
 
 complete.cases(connectivity.per.days)
 
 connectivity.per.days <- connectivity.per.days[,]
 limits.plot <- c(min(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]),max(connectivity.per.days[,c("aic.ibd","aic.min","aic.mean","aic.max")]))
-
 threshold <- which(connectivity.per.days[,c("aic.min","aic.mean","aic.max")] == min(connectivity.per.days[,c("aic.min","aic.mean","aic.max")]) , arr.ind = TRUE)
 
 connectivity.per.days[threshold[1,1],]
 
-write.table( connectivity.per.days[threshold[1,1],] , file =paste0(project.folder,"Results/",project.name,".result.txt") , col.names = TRUE , sep=";" , dec="." ,  quote = FALSE)
-
 ## ------------------------------------
 
-par(mfrow=c(1,1),mar = c(1, 1, 1, 1))
-
 pdf( file=paste0(project.folder,"Results/",project.name,".test.days.pdf") , width = 9, height = 6 )
+
+par(mfrow=c(1,1),mar = c(1, 1, 1, 1))
 
 par(mar = c(5, 5.5, 3, 3))
 plot(connectivity.per.days$day,connectivity.per.days$aic.min,ylim=limits.plot,lty=1,col="#5E5E5E",type="l",ylab="",xlab="Dispersal period (day)",axes=FALSE)
@@ -299,26 +356,23 @@ axis(1,las=0,col="White",col.ticks="Black")
 box()
 title(ylab="Model performance (AIC)",mgp=c(4,1,0)) 
 
-# lines(connectivity.per.days$day,connectivity.per.days$aic.min,ylim=limits.plot,lty=2,col="#5E5E5E")
 lines(connectivity.per.days$day,connectivity.per.days$aic.mean,ylim=limits.plot,lty=3,col="#5E5E5E")
 lines(connectivity.per.days$day,connectivity.per.days$aic.max,ylim=limits.plot,lty=4,col="#5E5E5E")
 abline(h = min(connectivity.per.days[,2]), lty=3, col="#902828")
-points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c(6,10,14)[threshold[1,2]]],pch=21,bg="#902828",col="black")
-legend(49, limits.plot[1] + (limits.plot[2] - limits.plot[1])/5, legend=c("Distance", "Ocean Min.", "Ocean Mean.", "Ocean Max."),border = "gray",col=c("#902828","#5E5E5E", "#5E5E5E","#5E5E5E","#5E5E5E"), lty=c(3,1,2,3,4), cex=0.8)
+points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c("aic.min","aic.men","aic.max")[threshold[1,2]]],pch=21,bg="#902828",col="black")
+legend(49, limits.plot[1] + (limits.plot[2] - limits.plot[1]), legend=c("Distance", "Ocean Min.", "Ocean Mean.", "Ocean Max."),border = "gray",col=c("#902828","#5E5E5E", "#5E5E5E","#5E5E5E","#5E5E5E"), lty=c(3,1,2,3,4), cex=0.8)
 
 dev.off()
 
 ## ------------------------------------
+## ------------------------------------
 
-threshold <- data.frame(25,2)
 connectivity.final <- connectivity.per.days.matrices[[connectivity.per.days[threshold[1,1],1]]]
 
 fit.ibd <- lm(Differantiation ~ Distance, data=connectivity.final , na.action = na.omit)
 fit.min <- lm(Differantiation ~ Connectivity.min, data=connectivity.final)
 fit.mean <- lm(Differantiation ~ Connectivity.mean, data=connectivity.final)
 fit.max <- lm(Differantiation ~ Connectivity.max, data=connectivity.final)
-
-## ------------------------------------
 
 pdf( file=paste0(project.folder,"Results/",project.name,".lm.fit.pdf") , width = 9, height = 9 )
 
@@ -354,23 +408,32 @@ lines(seq(from=min(connectivity.final$Connectivity.max,na.rm=T),to=max(connectiv
 
 dev.off()
       
-# }
-
 ## ------------------------------------------------------------------------------------------------------------------------------
 
 # Plot IBD vs Best Ocean Model
 # 8:8
 
-fit.mix <- lm(Differantiation ~ Connectivity.mean+Distance, data=connectivity.final)
-summary(fit.ibd)
-summary(fit.mean)
+fit.mix1 <- lm(Differantiation ~ Connectivity.min+Distance, data=connectivity.final)
+fit.mix2 <- lm(Differantiation ~ Connectivity.min+Temperature, data=connectivity.final)
+fit.mix <- lm(Differantiation ~ Connectivity.min+Temperature+Distance, data=connectivity.final)
+summary(fit.mix1)
+summary(fit.mix2)
 summary(fit.mix)
-AIC(fit.mix) ; AIC(fit.ibd) ; AIC(fit.mean)
-anova(fit.ibd,fit.mean)
-anova(fit.mix,fit.ibd)
-anova(fit.mix,fit.mean)
-par(mfrow=c(1,1),mar = c(5, 5, 5, 5))
+AIC(fit.mix1) ; AIC(fit.mix2) ; AIC(fit.mix)
 
+summary(fit.ibd)
+summary(fit.temp)
+summary(fit.min)
+summary(fit.max)
+summary(fit.mix1)
+summary(fit.mix2)
+AIC(fit.mix) ; AIC(fit.ibd) ; AIC(fit.min)
+anova(fit.temp,fit.ibd)
+anova(fit.max,fit.min)
+anova(fit.temp,fit.max)
+anova(fit.temp,fit.mean)
+
+par(mfrow=c(1,1),mar = c(5, 5, 5, 5))
 plot(connectivity.final$Differantiation,predict(fit.mix),lty=1,col="#5E5E5E",ylab="",xlab="Observed genetic differentiation",axes=FALSE)
 axis(2,las=2,col="White",col.ticks="Black")
 axis(1,las=0,col="White",col.ticks="Black")
@@ -378,4 +441,6 @@ box()
 title(ylab="Predicted genetic differentiation",mgp=c(4,1,0)) 
 fit.mix.line <- lm(Pred ~ Differantiation, data=data.frame(Differantiation=connectivity.final$Differantiation,Pred=predict(fit.mix)), na.action = na.omit)
 lines(seq(min(connectivity.final$Differantiation),max(connectivity.final$Differantiation),length.out = 100),predict(fit.mix.line, data.frame(Differantiation=seq(min(connectivity.final$Differantiation),max(connectivity.final$Differantiation),length.out = 100))) ,lty=2,col="#902828")
+
+## ------------------------------------------------------------------------------------------------------------------------------
 
