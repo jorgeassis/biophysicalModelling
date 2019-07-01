@@ -223,7 +223,7 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   
   if( ! crop.network ) {  final.cells <- cells[,1]  }
   
-  comb <- comb[Time.max <= n.days,]
+  comb[ Time.max > n.days , Probability:=0 ]
   comb <- comb[,.(Pair.from,Pair.to,Probability)]
   comb <- comb[Pair.from %in% as.vector(unlist(final.cells)) & Pair.to %in% as.vector(unlist(final.cells)) ,]
   comb <- comb[Pair.from != Pair.to,]
@@ -235,10 +235,11 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
     graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
     
     # E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
-    E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
+    E(graph.obj)$weight = ifelse(-log(comb[,3]) == Inf,0,-log(comb[,3])) # Hock, Karlo Mumby, Peter J 2015
+    graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
+    graph.obj <- simplify(graph.obj)
     
-    graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
-    
+
   }
   
   if( network.type == "Time" ) {
