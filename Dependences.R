@@ -212,9 +212,9 @@ trim.by.distance <- function(xyDF,source.sink.dist,parallel) {
 produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,new.extent) {
   
   if(crop.network) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
-                                              cells[,2] <= (new.extent[2] + buffer) & 
-                                              cells[,3] >= (new.extent[3] - buffer) & 
-                                              cells[,3] <= (new.extent[4] + buffer) )   
+                                                cells[,2] <= (new.extent[2] + buffer) & 
+                                                cells[,3] >= (new.extent[3] - buffer) & 
+                                                cells[,3] <= (new.extent[4] + buffer) )   
   
   final.cells <- cells[final.cells,1]
   plot(cells[final.cells,2:3])
@@ -223,11 +223,11 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   
   if( ! crop.network ) {  final.cells <- cells[,1]  }
   
-  comb[ Time.max > n.days , Probability:=0 ]
-  comb <- comb[,.(Pair.from,Pair.to,Probability)]
-  comb <- comb[Pair.from %in% as.vector(unlist(final.cells)) & Pair.to %in% as.vector(unlist(final.cells)) ,]
-  comb <- comb[Pair.from != Pair.to,]
-  comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
+  comb[ which(comb[,"Time.max"] > n.days) , "Probability" ] <- 0
+  comb <- comb[,c("Pair.from","Pair.to","Probability")]
+  comb <- comb[comb$Pair.from %in% as.vector(unlist(final.cells)) & comb$Pair.to %in% as.vector(unlist(final.cells)) ,]
+  comb <- comb[comb$Pair.from != comb$Pair.to,]
+  comb <- as.data.frame( comb[ sort(comb[,"Probability"] , decreasing = TRUE, index.return =TRUE)$ix , ] )
   
   if( network.type == "Prob" ) {
     
@@ -239,7 +239,6 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
     graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
     graph.obj <- simplify(graph.obj)
     
-
   }
   
   if( network.type == "Time" ) {
@@ -247,7 +246,8 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
     net.function <<- sum
     graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
     E(graph.obj)$weight = comb[,3]
-    graph.obj <- simplify(graph.obj, remove.loops = TRUE , remove.multiple = TRUE)
+    graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
+    graph.obj <- simplify(graph.obj)
     
   }
   
