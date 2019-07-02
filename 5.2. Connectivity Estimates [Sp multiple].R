@@ -12,11 +12,11 @@ source("0. Project Config.R")
 number.cores <- 40
 
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
-distance.probability <- data.table(distance.probability[,])
+distance.probability <- as.data.frame(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
 
 source.sink.xy <- read.big.matrix(paste0(project.folder,"/Results/source.sink.bm"))
-source.sink.xy <- data.table(source.sink.xy[,])
+source.sink.xy <- as.data.frame(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
 
 clipper <- as(extent(min(source.sink.xy[,2]) - 2,max(source.sink.xy[,2]) + 2,min(source.sink.xy[,3]) - 2,max(source.sink.xy[,3]) + 2), "SpatialPolygons")
@@ -48,14 +48,6 @@ raster_tr_temp_corrected <- geoCorrection(raster_tr_temp, type="c", multpl=FALSE
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Pairwise Connectivity estimates
 
-rocky.bottoms <- raster("../Data/Rocky.tif")
-
-subsetter <- which(extract(rocky.bottoms,source.sink.xy[,.(Lon,Lat)]) == 1)
-source.sink.xy <- source.sink.xy[subsetter,]
-distance.probability <- distance.probability[ Pair.from %in% source.sink.xy[,Pair] &  Pair.to %in% source.sink.xy[,Pair],]
-
-## -----------------------------
-
 file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/ID#0_Coords.txt")
 file.differentiation <- paste0(project.folder,"/Data/Differentiation/ID#0_FST.txt")
 
@@ -83,6 +75,14 @@ if( nrow(differentiation) != length(sampling.sites.n) | sum(is.na(differentiatio
 # sampling.sites <- sampling.sites[-subseter,]
 # sampling.sites.n <- sampling.sites.n[-subseter]
 # differentiation <- differentiation[-subseter,-subseter]
+
+## ---------------
+
+# rocky.bottoms <- raster("../Data/Rocky.tif")
+
+# subsetter <- which(extract(rocky.bottoms,source.sink.xy[,.(Lon,Lat)]) == 1)
+# source.sink.xy <- source.sink.xy[subsetter,]
+# distance.probability <- distance.probability[ Pair.from %in% source.sink.xy[,Pair] &  Pair.to %in% source.sink.xy[,Pair],]
 
 ## ---------------
 
@@ -118,8 +118,7 @@ position.matrix <- as.vector(unlist(position.matrix))
 par(mfrow=c(1,1),mar = c(1,1,1,1))
 plot(cost.surface,col=c("#737373","#A0CCF2"),box=FALSE,legend=FALSE)
 points(sampling.sites)
-setkey(source.sink.xy,Pair)
-points(source.sink.xy[Pair %in% position.matrix,2:3],col="red")
+points(source.sink.xy[source.sink.xy$Pair %in% position.matrix,2:3],col="red")
 
 ## ---------------------------------------------
 
@@ -146,7 +145,7 @@ for(n.days in 1:max.days.sim) {
       
     ## ---------------------------------------------------
     
-    new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
+    new.extent <- c(min(source.sink.xy[source.sink.xy$Pair %in% position.matrix,2]),max(source.sink.xy[source.sink.xy$Pair %in% position.matrix,2]),min(source.sink.xy[source.sink.xy$Pair %in% position.matrix,3]),max(source.sink.xy[source.sink.xy$Pair %in% position.matrix,3]))
     network <- produce.network("Prob",distance.probability,n.days,FALSE,5,source.sink.xy,new.extent)
     
     ## ---------------------------------------------------
@@ -182,8 +181,8 @@ for(n.days in 1:max.days.sim) {
           
         }
         
-        res.distance <- c(res.distance, costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == from,2:3]) , as.matrix(source.sink.xy[Pair == to,2:3]) ))
-        res.temp <- c(res.temp, costDistance(raster_tr_temp_corrected, as.matrix(source.sink.xy[Pair == from,2:3]) , as.matrix(source.sink.xy[Pair == to,2:3]) ))
+        res.distance <- c(res.distance, costDistance(raster_tr_corrected, as.matrix(source.sink.xy[source.sink.xy$Pair == from,2:3]) , as.matrix(source.sink.xy[source.sink.xy$Pair == to,2:3]) ))
+        res.thermal <- c(res.distance, costDistance(Conductance.thermal, as.matrix(source.sink.xy[source.sink.xy$Pair == from,2:3]) , as.matrix(source.sink.xy[source.sink.xy$Pair == to,2:3]) ))
         
       }
         
@@ -195,7 +194,7 @@ for(n.days in 1:max.days.sim) {
     
         for(z in 1:length(zeros)){
     
-          res.distance[zeros[z]] <- spDistsN1( as.matrix(source.sink.xy[ Pair == from , 2:3 ]), as.matrix(source.sink.xy[ Pair == position.matrix[z] , 2:3 ]), longlat=TRUE)
+          res.distance[zeros[z]] <- spDistsN1( as.matrix(source.sink.xy[ source.sink.xy$Pair == from , 2:3 ]), as.matrix(source.sink.xy[ source.sink.xy$Pair == position.matrix[z] , 2:3 ]), longlat=TRUE)
     
         }
     
@@ -224,13 +223,13 @@ for(n.days in 1:max.days.sim) {
     ## ---------------------------------------------------
       
     connectivity <- do.call(rbind,potential.connectivity)
-    connectivity <- connectivity[connectivity[,1] != connectivity[,2] ,]
+    connectivity <- connectivity[connectivity$pair.from != connectivity$pair.to,]                 
     
     connectivity[connectivity[,"probability.ss"] == 0,5] <- NA
     connectivity <- connectivity[complete.cases(connectivity),]
     
-    #connectivity[connectivity[,5] == 0,5] <- 1e-299
-    
+    # connectivity[connectivity[,5] == 0,5] <- 1e-299
+        
     ## ---------------
     
     connectivity[,"probability.ss"] <- log(connectivity[,"probability.ss"])
