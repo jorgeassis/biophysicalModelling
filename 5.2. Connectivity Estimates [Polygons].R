@@ -7,19 +7,21 @@
 
 rm( list=(ls()[ls()!="v"]) )
 gc(reset=TRUE)
+library(rnaturalearth)
+
+project.folder <- "/media/Bathyscaphe/Transport Simulation in European MPAs/"
 
 setwd("~/Desktop/Transport simulations/Git")
+setwd("/media/Bathyscaphe/Transport Simulation in European MPAs/Git")
 
 source("0. Project Config.R")
-library(rgeos)
-library(reshape2)
-library(sf)
 
 sql.project.name <- "MPA"
-number.cores <- 8
+number.cores <- 40
 
-mpa.shp.filename <- "/home/corallium/Desktop/Transport simulations/Data/Spatial/Europe/MPAs_Final.shp"
-mpa.shp.filename.original <- "/home/corallium/Desktop/Transport simulations/Data/Spatial/Europe _ Original/European MPAs.shp"
+mpa.shp.notake.filename <- "../Data/Shapefiles/MPAs/EuropeNoTake.shp" 
+mpa.shp.filename <- "../Data/Shapefiles/MPAs/MPAs_Final_Ids_2.shp" 
+mpa.shp.filename.original <- "../Data/Shapefiles/MPAs/European MPAs.shp"
 
 sql.file <- "../Results/SQL/MPASimulationResults.sql"
 bigmatrix.file <- "../InternalProc/particles.reference.desc"
@@ -29,7 +31,6 @@ sorce.sink.cells.file <- "../Results/source.sink.bm"
 ## Read main sources
 
 sql <- dbConnect(RSQLite::SQLite(), sql.file)
-cell.to.process <- 1:nrow(dbReadTable(sql, "SourceSinkSites"))
 n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell[1]
 n.new.particles.per.day <- dbReadTable(sql, "Parameters")$n.new.particles.per.day[1]
 n.steps.per.day <- dbReadTable(sql, "Parameters")$n.hours.per.day[1]
@@ -40,19 +41,138 @@ source.sink.xy <- data.table(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
 source.sink.xy
 
+mpa.shp <- shapefile(mpa.shp.filename)
+mpa.shp <- gBuffer(mpa.shp, byid=TRUE, width=0)
+
+# mpa.shp.original <- shapefile(mpa.shp.filename.original)
+# mpa.shp.original <-gBuffer(mpa.shp.original, byid=TRUE, width=0)
+# mpa.shp.notake <- which(mpa.shp.original$no_take == "All")
+# mpa.shp.notake <- mpa.shp.original[mpa.shp.notake,]
+
+mpa.shp.notake <- shapefile(mpa.shp.notake.filename)
+mpa.shp.notake <- gBuffer(mpa.shp.notake, byid=TRUE, width=0)
+
+worldMap <- ne_countries(scale = 10, returnclass = "sp")
+
+## --------------------------------------------------------------------
+## --------------------------------------------------------------------
+# Temporary Subset
+
+subseter <- c(-20,10,0,50)
+
+## ------------
+
+source.sink.xy <- source.sink.xy[source.sink.xy$Lon >= subseter[1] & source.sink.xy$Lon <= subseter[2] & source.sink.xy$Lat >= subseter[3] & source.sink.xy$Lat <= subseter[4], ]
+plot(source.sink.xy[,2:3])
+
+source.sink.xy.sp <- source.sink.xy[,2:3]
+coordinates(source.sink.xy.sp) <- ~Lon+Lat
+crs(source.sink.xy.sp) <- crs(mpa.shp)
+
+mpa.shp <- crop(mpa.shp,extent(source.sink.xy.sp))
+mpa.shp.notake <- crop(mpa.shp.notake,extent(source.sink.xy.sp))
+
+plot(mpa.shp,col="Gray",border="Gray")
+plot(mpa.shp.notake , add=TRUE,col="Black",border="Black")
+
+## --------------------------------------------------------------------
+## --------------------------------------------------------------------
+## Produce main datasets for further queries
+
+worldMap <- crop(worldMap,extent(mpa.shp))
+
+## allMPA (no critera, all MPAs regardless their status)
+
+allMPA <- mpa.shp
+allMPA$ID <- 1:nrow(allMPA)
+
+## notakeMPA (just those with no take status)
+
+notakeMPA <- mpa.shp.notake
+notakeMPA$ID <- 1:nrow(notakeMPA)
+
+## notakeMPAConnectness (those with no take status, plus allMPA)
+
+notakeMPAConnectness <- raster::union(notakeMPA, allMPA[-which(mpa.shp$OBJECTID_1 %in% unique(over( mpa.shp.notake , mpa.shp  )[,1])),])
+notakeMPAConnectness$ID <- 1:nrow(notakeMPAConnectness)
+indexnotakeMPA <- which(notakeMPAConnectness$ID %in% unique(over( notakeMPA , notakeMPAConnectness  )[,"ID"]))
+
+## -----------------
+
+plot(notakeMPAConnectness,col="Gray",border="Gray")
+plot(notakeMPA , add=TRUE,col="Black",border="Black")
+plot(notakeMPAConnectness[indexnotakeMPA,] , add=TRUE,col="red",border="red")
+
 ## ------------------------------------------------------------------------------------------------------------------------------
-## Produce connectivity for all combinations of spawning months
+## Identify MPA id in source sink sites
 
-# load("Connectivity.PERIOD.Rdata") OR run foreach section bellow
+# load OR run 1 foreach section bellow
+# load("../Results/source.sink.xy.Rdata") OR run foreach section bellow
 
-spawn.p <- c(1,2,3,4,5,6)
-
-particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
-
-cl.2 <- makeCluster(number.cores , type="FORK")
+cl.2 <- makeCluster(20 , type="FORK") # 
 registerDoParallel(cl.2)
 
-Connectivity <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
+source.sink.xy.mpa <- foreach( source.sink.xy.i = 1:nrow(source.sink.xy) , .verbose=FALSE, .combine = rbind ,  .packages=c("rgeos","raster","geosphere","FNN","bigmemory")) %dopar% { # 
+  
+  distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], allMPA,byid=TRUE)
+  allMPAi <- allMPA[which.min(distances),]$ID
+
+  distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], notakeMPAConnectness,byid=TRUE)
+  notakeMPAConnectnessi <- notakeMPAConnectness[which.min(distances),]$ID
+  
+  if( notakeMPAConnectnessi %in% indexnotakeMPA ) {
+    
+    notakeMPAi <- as.numeric(geosphere::dist2Line(p = source.sink.xy.sp[source.sink.xy.i], line = notakeMPA)[,"ID"]) 
+    
+  } 
+  
+  if( ! notakeMPAConnectnessi %in% indexnotakeMPA ) {
+    
+    notakeMPAi <- 0 
+    
+  } 
+  
+  return( data.frame( allMPAID = allMPAi , notakeMPAConnectnessID = notakeMPAConnectnessi , notakeMPAID = notakeMPAi  ) )
+  
+}
+
+stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
+
+source.sink.xy <- cbind(source.sink.xy[,.(Pair,Lon,Lat)],source.sink.xy.mpa)
+save(source.sink.xy,file="../Results/source.sink.xy.Rdata")
+
+## ------------------------------------------------------------------------------------------------------------------------------
+
+allMPA <- allMPA[sort(unique(source.sink.xy$allMPAID)),]
+notakeMPA <- notakeMPA[ sort(unique(source.sink.xy$notakeMPAID))[sort(unique(source.sink.xy$notakeMPAID)) != 0] ,]
+notakeMPAConnectness <- notakeMPAConnectness[sort(unique(source.sink.xy$notakeMPAConnectnessID)),]
+
+## ------------------------------------------------------------------------------------------------------------------------------
+## ------------------------------------------------------------------------------------------------------------------------------
+## Produce connectivity for different spawning months and pld periods
+
+# List results
+
+list.dirs(path = paste0("../Results"), recursive = FALSE)
+
+project.name <- "Summer_Pld30"
+spawn.p <- c(6,7,8,9)
+pld.period <- 30
+
+## --------------------
+
+# load OR run 1 foreach section bellow
+# load(paste0("../Results/",project.name,"/connectivity.source.sink.xy.Rdata"))
+
+if( ! dir.exists(paste0("../Results/",project.name)) ) { dir.create(file.path(paste0("../Results/",project.name)), showWarnings = FALSE) } 
+
+particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
+cell.to.process <- unique(source.sink.xy$Pair)
+
+cl.2 <- makeCluster(20 , type="FORK")
+registerDoParallel(cl.2)
+
+connectivity.source.sink.xy <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
   
   particles.reference.bm.i <- attach.big.matrix(particles.reference.bm.desc)
   
@@ -65,6 +185,7 @@ Connectivity <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine 
   connectivity.temp.m <- as.data.table(connectivity.temp.m)
   
   connectivity.temp.m <- connectivity.temp.m[start.month %in% spawn.p , ]
+  connectivity.temp.m <- connectivity.temp.m[travel.time <= pld.period , ]
   
   connectivity.pairs.to.sql <- data.frame()
   
@@ -90,109 +211,69 @@ Connectivity <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine 
   }
   
   connectivity.pairs.to.sql[is.na(connectivity.pairs.to.sql)] <- 0
+  
   return( connectivity.pairs.to.sql )
   
 }
 
 stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 
-Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
-colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
-Connectivity[is.na(Connectivity)] <- 0
-Connectivity <- data.table(Connectivity[,])
-Connectivity ; gc()
-
-save(Connectivity,file="Connectivity.PERIOD.Rdata")
-
-## ------------------------------------------------------------------------------------------------------------------------------
-## ------------------------------------------------------------------------------------------------------------------------------
-## Read main shapefiles
-
-mpa.shp <- shapefile(mpa.shp.filename)
-mpa.shp <-gBuffer(mpa.shp, byid=TRUE, width=0)
-mpa.shp <- disaggregate(mpa.shp)
-
-mpa.shp.original <- shapefile(mpa.shp.filename.original)
-mpa.shp.original <-gBuffer(mpa.shp.original, byid=TRUE, width=0)
-
-mpa.shp.notake <- which(mpa.shp.original$no_take == "All" | mpa.shp.original$no_take == "Part" )
-mpa.shp.notake <- mpa.shp.original[mpa.shp.notake,]
+connectivity.source.sink.xy <- data.table(connectivity.source.sink.xy[,])
+connectivity.source.sink.xy <- connectivity.source.sink.xy[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
+colnames(connectivity.source.sink.xy) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
+connectivity.source.sink.xy[is.na(connectivity.source.sink.xy)] <- 0
+connectivity.source.sink.xy ; gc()
+save(connectivity.source.sink.xy,file=paste0("../Results/",project.name,"/connectivity.source.sink.xy.Rdata"))
 
 ## --------------------------------------------------------------------
 ## --------------------------------------------------------------------
-# Subset temporario - Delete section
+## Produce connectivity matrix between MPAs based on probabilities between cells
 
-source.sink.xy <- source.sink.xy[source.sink.xy$Lon >= -20 & source.sink.xy$Lon <= 3 & source.sink.xy$Lat >= 20 & source.sink.xy$Lat <= 44.5, ]
-plot(source.sink.xy[,2:3])
+# load OR run 3 foreach sections bellow
+# load(paste0("../Results/",project.name,"/connectivity.source.sink.allMPA.Rdata"))
+# load(paste0("../Results/",project.name,"/connectivity.source.sink.notakeMPA.Rdata")) 
+# load(paste0("../Results/",project.name,"/connectivity.source.sink.notakeMPAConnectness.Rdata")) 
 
-mpa.shp.notake <- crop(mpa.shp.notake,extent(-20,3,20,44.5))
-plot(mpa.shp.notake)
+type <- "allMPA" 
+mpaIDPairs <- expand.grid(from=get(type)$ID,to=get(type)$ID)
+polygonsCompute <- get(type)
 
-## --------------------------------------------------------------------
-## --------------------------------------------------------------------
-## Identify MPAs in source sink sites
-
-source.sink.xy <- cbind( source.sink.xy , data.frame(id.mpa=0,stringsAsFactors = FALSE) )
-
-source.sink.xy.sp <- source.sink.xy[,2:3]
-coordinates(source.sink.xy.sp) <- ~Lon+Lat
-crs(source.sink.xy.sp) <- crs(mpa.shp)
-
-# load("source.sink.xy.Rdata") OR run foreach section bellow
-
-cl.2 <- makeCluster(number.cores)
+cl.2 <- makeCluster(20 , type="FORK") # 
 registerDoParallel(cl.2)
 
-source.sink.xy.id <- foreach( source.sink.xy.i = 1:nrow(source.sink.xy) , .verbose=FALSE, .combine = rbind ,  .packages=c("rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
+connectivity.allMPA <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
   
-  distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], mpa.shp,byid=TRUE)
-  return(which.min(as.vector(distances)))
+  mpa.id.1 <- mpaIDPairs[pairs,1]
+  mpa.id.2 <- mpaIDPairs[pairs,2]
   
-}
-
-stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
-
-source.sink.xy$id.mpa <- as.vector(unlist(source.sink.xy.id))
-save(source.sink.xy,file="source.sink.xy.Rdata")
-
-## ------------------------------------------------------------------------------------------
-
-mpas.id <- unique(source.sink.xy$id.mpa)
-mpa.shp <- mpa.shp[mpas.id,]
-comb.pairs.mpas <- expand.grid(mpas.id,mpas.id)
-nrow(comb.pairs.mpas)
-
-plot(mpa.shp)
-
-## ------------------------------------------------------------------------------------------
-## ------------------------------------------------------------------------------------------
-
-pld.period <- 30
-
-## ------------------
-
-# load("connectivity.mpas.Rdata") OR run foreach section bellow
-
-cl.2 <- makeCluster(number.cores)
-registerDoParallel(cl.2)
-
-connectivity <- foreach(pair.i=1:nrow(comb.pairs.mpas), .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
+  mpa.cells.1 <- as.vector(unlist(source.sink.xy[ allMPAID == mpa.id.1 , 1 ]))
+  mpa.cells.2 <- as.vector(unlist(source.sink.xy[ allMPAID == mpa.id.2 , 1 ]))
   
-  mpa.id.1 <- comb.pairs.mpas[pair.i,1]
-  mpa.id.2 <- comb.pairs.mpas[pair.i,2]
+  temp.result <- connectivity.source.sink.xy[ Pair.from %in% mpa.cells.1 & Pair.to %in% mpa.cells.2 , ]
   
-  mpa.cells.1 <- as.vector(unlist(source.sink.xy[ id.mpa == mpa.id.1 , 1 ]))
-  mpa.cells.2 <- as.vector(unlist(source.sink.xy[ id.mpa == mpa.id.2 , 1 ]))
+  if(nrow(temp.result) == 0) {
+    
+        connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                           Pair.to = mpa.id.2,
+                                           Number.events = 0,
+                                           Time.mean = 0,
+                                           Time.max = 0,
+                                           Time.sd = 0,
+                                           Probability = 0 )
+        
+  }
   
-  temp.result <- Connectivity[ Pair.from %in% mpa.cells.1 & Pair.to %in% mpa.cells.2 & Time.max <= pld.period , ]
+  if(nrow(temp.result) > 0) {
+    
+        connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                           Pair.to = mpa.id.2,
+                                           Number.events = mean(temp.result$Mean.events),
+                                           Time.mean = mean(temp.result$Mean.Time),
+                                           Time.max = mean(temp.result$Max.Time),
+                                           Time.sd = mean(temp.result$SD.Time),
+                                           Probability = mean(temp.result$Mean.Probability) )
   
-  connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
-                                     Pair.to = mpa.id.2,
-                                     Number.events = mean(temp.result$Mean.events),
-                                     Time.mean = mean(temp.result$Mean.Time),
-                                     Time.max = mean(temp.result$Time.max),
-                                     Time.sd = mean(temp.result$SD.Time),
-                                     Probability = mean(temp.result$Probability) )
+  }
   
   return( connectivity.pairs )
   
@@ -200,72 +281,159 @@ connectivity <- foreach(pair.i=1:nrow(comb.pairs.mpas), .verbose=FALSE, .combine
 
 stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 
-connectivity[ is.na(connectivity) ] <- 0
-connectivity <- data.table(connectivity)
-connectivity
-save(connectivity,file="connectivity.mpas.Rdata")
+save(connectivity.allMPA,file=paste0("../Results/",project.name,"/connectivity.source.sink.allMPA.Rdata"))
 
-## ------------------------------------------
+## ------------------
 
-# load("mpa.shp.notake.id.Rdata") OR run bellow
+type <- "notakeMPA" 
+mpaIDPairs <- expand.grid(from=get(type)$ID,to=get(type)$ID)
+polygonsCompute <- get(type)
 
-mpa.shp.centroids <- gCentroid(mpa.shp,byid=TRUE)
-
-cl.2 <- makeCluster(number.cores)
+cl.2 <- makeCluster(20 , type="FORK") # 
 registerDoParallel(cl.2)
 
-mpa.shp.notake.id <- foreach(i=1:length(mpa.shp.notake), .verbose=FALSE, .packages=c("sf","raster","rgeos","sp","bigmemory")) %dopar% { # 
+connectivity.notakeMPA <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
   
-  point.i <- gCentroid(mpa.shp.notake[i,],byid=TRUE)
-  dist.i <- which.min(spDistsN1( as.matrix(as.data.frame(mpa.shp.centroids)) , as.matrix(as.data.frame(point.i)) , longlat =TRUE ))
-  return( dist.i )
+  mpa.id.1 <- mpaIDPairs[pairs,1]
+  mpa.id.2 <- mpaIDPairs[pairs,2]
+  
+  mpa.cells.1 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.1 , 1 ]))
+  mpa.cells.2 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.2 , 1 ]))
+  
+  temp.result <- connectivity.source.sink.xy[ Pair.from %in% mpa.cells.1 & Pair.to %in% mpa.cells.2 , ]
+  
+  if(nrow(temp.result) == 0) {
+    
+    connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                       Pair.to = mpa.id.2,
+                                       Number.events = 0,
+                                       Time.mean = 0,
+                                       Time.max = 0,
+                                       Time.sd = 0,
+                                       Probability = 0 )
+    
+  }
+  
+  if(nrow(temp.result) > 0) {
+    
+    connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                       Pair.to = mpa.id.2,
+                                       Number.events = mean(temp.result$Mean.events),
+                                       Time.mean = mean(temp.result$Mean.Time),
+                                       Time.max = mean(temp.result$Max.Time),
+                                       Time.sd = mean(temp.result$SD.Time),
+                                       Probability = mean(temp.result$Mean.Probability) )
+    
+  }
+  
+  return( connectivity.pairs )
   
 }
 
 stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 
-mpa.shp.notake.id <- unlist(mpa.shp.notake.id)
-mpa.shp.notake.id <- mpas.id[mpa.shp.notake.id]
-save(mpa.shp.notake.id,file="mpa.shp.notake.id.Rdata")
+save(connectivity.notakeMPA,file=paste0("../Results/",project.name,"/connectivity.source.sink.notakeMPA.Rdata"))
 
-## ------------------------------------------
+## ------------------
 
-plot(mpa.shp , col="gray",border="gray")
-subset.mpa.shp <- mpa.shp[as.numeric(which(mpas.id %in% unique(mpa.shp.notake.id))),]
-plot(subset.mpa.shp, col="black",add=TRUE)
+type <- "notakeMPAConnectness" 
+mpaIDPairs <- expand.grid(from=get(type)$ID,to=get(type)$ID)
+polygonsCompute <- get(type)
 
-## ------------------------------------------
+cl.2 <- makeCluster(20 , type="FORK") # 
+registerDoParallel(cl.2)
 
-## Choose first for all MPAs or second for FP MPAs
+connectivity.notakeMPAConnectness <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
+  
+  mpa.id.1 <- mpaIDPairs[pairs,1]
+  mpa.id.2 <- mpaIDPairs[pairs,2]
+  
+  mpa.cells.1 <- as.vector(unlist(source.sink.xy[ notakeMPAConnectnessID == mpa.id.1 , 1 ]))
+  mpa.cells.2 <- as.vector(unlist(source.sink.xy[ notakeMPAConnectnessID == mpa.id.2 , 1 ]))
+  
+  temp.result <- connectivity.source.sink.xy[ Pair.from %in% mpa.cells.1 & Pair.to %in% mpa.cells.2 , ]
+  
+  if(nrow(temp.result) == 0) {
+    
+    connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                       Pair.to = mpa.id.2,
+                                       Number.events = 0,
+                                       Time.mean = 0,
+                                       Time.max = 0,
+                                       Time.sd = 0,
+                                       Probability = 0 )
+    
+  }
+  
+  if(nrow(temp.result) > 0) {
+    
+    connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                       Pair.to = mpa.id.2,
+                                       Number.events = mean(temp.result$Mean.events),
+                                       Time.mean = mean(temp.result$Mean.Time),
+                                       Time.max = mean(temp.result$Max.Time),
+                                       Time.sd = mean(temp.result$SD.Time),
+                                       Probability = mean(temp.result$Mean.Probability) )
+    
+  }
+  
+  return( connectivity.pairs )
+  
+}
 
-connectivity.matrix <- connectivity[,c(1,2,7)]
-connectivity.matrix <- connectivity[ Pair.to %in% mpa.shp.notake.id & Pair.from %in% mpa.shp.notake.id , c(1,2,7) ]
+stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
+
+save(connectivity.notakeMPAConnectness,file=paste0("../Results/",project.name,"/connectivity.source.sink.notakeMPAConnectness.Rdata"))
+
+## ----------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------
+
+## Choose one: allMPA notakeMPA notakeMPAConnectness
+
+type <- "notakeMPA"
+
+## -------------------
+
+connectivity <- get(paste0("connectivity.",type))
+connectivity.matrix <- connectivity[ ,c(1,2,7)] 
 
 connectivity.matrix <- acast(connectivity.matrix, Pair.from ~ Pair.to )
 diag(connectivity.matrix) <- 0
 
-isolated.mpa <- colnames(connectivity.matrix)[which(apply(connectivity.matrix,1,sum,na.rm=T) == 0  & apply(connectivity.matrix,2,sum,na.rm=T) == 0)]
+isolated.mpa <- colnames(connectivity.matrix)[which(apply(connectivity.matrix,1,sum,na.rm=T) == 0 & apply(connectivity.matrix,2,sum,na.rm=T) == 0)]
+isolated.mpa
 
-plot(mpa.shp , col="gray",border="gray")
-subset.mpa.shp <- mpa.shp[as.numeric(which(mpas.id %in% isolated.mpa)),]
-plot(subset.mpa.shp, col=sample(colours(), length(isolated.mpa))[1:length(isolated.mpa)],add=TRUE)
+# Isolated MPAs
+length(isolated.mpa)
+get(type)$name[which( colnames(connectivity.matrix) %in% isolated.mpa)]
 
-connect.index.1 <- data.frame(from=apply(connectivity.matrix,1,function(x){ sum(x != 0) } ) , to=apply(connectivity.matrix,2,function(x){ sum(x != 0) } ))
+plot(worldMap , col="#E8E8E8",border="#C9C9C9")
+plot(allMPA , col="gray",border="gray",add=T)
+plot(get(type)[which(colnames(connectivity.matrix) %in% isolated.mpa),] , col="black",border="black",add=T)
 
-mean(unlist(connect.index.1))
-sd(unlist(connect.index.1))
-range(unlist(connect.index.1))
+# Aggregation level (Proportion of non-isolated MPAs in relation to the number of MPAs)
+(nrow(connectivity.matrix)-length(isolated.mpa)) / nrow(connectivity.matrix)
+
+# Average connections between MPAs
+connect.index <- data.frame(MPA=colnames(connectivity.matrix),exportTo=apply(connectivity.matrix,1,function(x){ sum(x != 0) } ) , importFrom=apply(connectivity.matrix,2,function(x){ sum(x != 0) } ))
+
+mean(unlist(connect.index[,-1]))
+sd(unlist(connect.index[,-1]))
+min(apply(connect.index[,-1],1,sum))
+max(apply(connect.index[,-1],1,max))
 
 ## --------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------
 
-## Choose first for all MPAs or second for FP MPAs
+## Choose one of three: allMPA notakeMPA notakeMPAConnectness
 
-comb <- connectivity[,c(1,2,7)]
-comb <- connectivity[ Pair.to %in% mpa.shp.notake.id & Pair.from %in% mpa.shp.notake.id , c(1,2,7) ]
+type <- "notakeMPA"
 
-comb <- comb[ Pair.from != Pair.to ,]
-comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
+## -------------------
+
+comb <- get(paste0("connectivity.",type))
+comb <- comb[ comb$Pair.from != comb$Pair.to ,]
+comb <- as.data.frame( comb[ sort(comb[,"Probability"] , decreasing = TRUE, index.return =TRUE)$ix , c("Pair.from","Pair.to","Probability")] )
 
 # -------------
 
@@ -276,91 +444,125 @@ graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
 graph.obj <- as.undirected(graph.obj, mode = "collapse", edge.attr.comb = "mean") # min / mean / max
 graph.obj <- simplify(graph.obj)
 
-clustering.method <- "clusters" # Uni: fastgreedy.community** walktrap.community leading.eigenvector.community Bi: walktrap.community edge.betweenness.community(slow)
-graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
-E(graph.obj)$weight = comb[,3]
-graph.obj=delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
+# clustering.method <- "clusters" # Uni: fastgreedy.community** walktrap.community leading.eigenvector.community Bi: walktrap.community edge.betweenness.community(slow)
+# graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
+# E(graph.obj)$weight = comb[,3]
+# graph.obj=delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
 
 # -------------
 
 membership.graph <- get(clustering.method)(graph.obj)$membership
 modularity(graph.obj, membership.graph)
+
+# Number of clusters
 length(unique(membership.graph))
 
-V(graph.obj)$color <- membership.graph
+# Aggregation factor based on clusters
+1 - ( length(unique(membership.graph))  /  (length(membership.graph)) )
 
-# 10 10 (maps 10 6)
+V(graph.obj)$color <- "#000000"
 
-plot(get(clustering.method)(graph.obj),graph.obj,vertex.label=NA)
+plot(get(clustering.method)(graph.obj),graph.obj,vertex.size=1) 
+plot(get(clustering.method)(graph.obj),graph.obj,vertex.label=NA,vertex.size=2) 
 
-subset.mpa.shp <- mpa.shp[ sapply( as.numeric(as_ids(V(graph.obj))) , function(x) { which(mpas.id %in% x ) }    ) ,]
+subset.mpa.shp <- get(type)[ sapply( as.numeric(as_ids(V(graph.obj))) , function(x) { which(get(type)$ID %in% x ) }    ) ,]
 subset.mpa.shp@data$COLOUR <- membership.graph
-
 cols.to.use <- rainbow(length(unique(membership.graph)))[membership.graph]
-plot(mpa.shp,col="gray",border="gray")
+
+plot(worldMap , col="#E8E8E8",border="#C9C9C9")
+plot(allMPA , col="gray",border="gray",add=T)
 plot(subset.mpa.shp, col=cols.to.use,border=cols.to.use,add=T)
 
+# Plot connections
+
+connected.pairs <- comb[comb$Probability > 0,]
+connected.pairs[,3] <- log(connected.pairs[,3] )
+connected.pairs[,3] <- (1/connected.pairs[,3]) *(-1) * 100
+connected.pairs[,3] <- connected.pairs[,3] - min(connected.pairs[,3])
+connected.pairs[,3] <- connected.pairs[,3] / max(connected.pairs[,3])
+
+centroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
+
+plot(worldMap , col="#E8E8E8",border="#C9C9C9")
+plot(get(type) , col="black",border="black",add=T)
+
+colfunc <- colorRampPalette(c("Gray", "#CC6633","#C40F0F"))
+
+for( i in nrow(connected.pairs):1 ){
+  
+  strenght <- (connected.pairs[i,3] * 100) + 1 
+  lines(  rbind(centroids[ which(get(type)$ID == connected.pairs[i,1]),],centroids[which(get(type)$ID == connected.pairs[i,2]),]) , type="l" , col=colfunc(101)[strenght])
+  
+}
+
 ## ------------------------------------------
 
-centrality <- eigen_centrality(graph.obj, directed = TRUE, scale = TRUE)$vector
-centrality <- as.numeric(unlist(calculate_centralities(graph.obj, include = "Closeness Centrality (Freeman)")))
+# Eigen centrality vertices with high eigenvector centralities are those which are connected to many other vertices which are, in turn, connected to many others (and so on).
+# Cloness centrality measures how many steps is required to access every other vertex from a given vertex
+# Betweenness centrality is (roughly) defined by the number of geodesics (shortest paths) going through a vertex or an edge.
 
-plot(mpa.shp, col="gray",border="gray")
-subset.mpa.shp <- mpa.shp[as.numeric( which( centrality >=  as.numeric(quantile(centrality,0.95))  ) ) , ]
+vertexIndex <- eigen_centrality(graph.obj, directed = TRUE, scale = TRUE)$vector
+vertexIndex <- closeness(graph.obj)
+vertexIndex <- betweenness(graph.obj)
+
+# Those with higher 
+get(type)$name[which( vertexIndex >=  as.numeric(quantile(vertexIndex,0.95)))]
+
+plot(worldMap , col="#E8E8E8",border="#C9C9C9")
+plot(allMPA, col="gray",border="gray",add=T)
+subset.mpa.shp <- get(type)[as.numeric( which( vertexIndex >=  as.numeric(quantile(vertexIndex,0.95))  ) ) , ]
 subset.mpa.shp@data$COLOUR <- 1
-plot(subset.mpa.shp, col="red", border="red" , add=TRUE)
+plot(subset.mpa.shp, col="black", border="black" , add=TRUE)
 
 ## ------------------------------------------
 
-## Choose first for all MPAs or second for FP MPAs
-
-comb <- connectivity[,c(1,2,7)]
-comb <- connectivity[ Pair.to %in% mpa.shp.notake.id & Pair.from %in% mpa.shp.notake.id , c(1,2,7) ]
-
-comb <- comb[ Pair.from != Pair.to ,]
-comb <- as.data.frame( comb[ sort(comb[,Probability] , decreasing = TRUE, index.return =TRUE)$ix , ] )
-
-# -------------
-
-graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
-E(graph.obj)$weight = -log(comb[,3]) # Hock, Karlo Mumby, Peter J 2015
-graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight == Inf))
-graph.obj <- as.undirected(graph.obj, mode = "collapse", edge.attr.comb = "mean") # min / mean / max
-graph.obj <- simplify(graph.obj)
-
-pairs.poly <- expand.grid(from=unique(mpa.shp.notake.id),to=unique(mpa.shp.notake.id))
-pairs.poly <- pairs.poly[ pairs.poly$from != pairs.poly$to,]
-pairs.poly$conn <- numeric(nrow(pairs.poly))
+pairs.poly <- expand.grid(MPA.from=get(type)$ID,MPA.to=get(type)$ID)
+pairs.poly <- pairs.poly[ pairs.poly$MPA.from != pairs.poly$MPA.to,]
+pairs.poly$Number.steps <- numeric(nrow(pairs.poly))
 
 stones.list <- list()
 
 for(p in 1:nrow(pairs.poly)) { 
   
-  stones <- unlist(get.shortest.paths(graph.obj,as.character( pairs.poly[ p,1] ) , as.character( pairs.poly[ p,2] ),mode="out")$vpath)
-  stones.list <- c(stones.list, list(names(stones)) )
-  pairs.poly[ p,3] <- length(stones) - 1 
+  stones <- get.shortest.paths(graph.obj,as.character( pairs.poly[ p,1] ) , as.character( pairs.poly[ p,2] ),mode="out")$vpath
+  stones <- names(unlist(stones))
   
-} 
+  if(length(stones) == 1) {
+    pairs.poly[ p,3] <- 0
+  }
+  if(length(stones) > 1) {
+    pairs.poly[ p,3] <- 0
+    stones.list <- c(stones.list, list(stones[-c(1,length(stones))]) )
+    pairs.poly[ p,3] <- length(stones) - 1 
+  }
+}
 
-sum(pairs.poly$conn == 0) / nrow(pairs.poly)
-sum(pairs.poly$conn != 0) / nrow(pairs.poly)
+# Proportion of MPA pairs disconnected
+sum(pairs.poly$Number.steps == 0) / nrow(pairs.poly)
 
+# Proportion of MPA pairs connected
+sum(pairs.poly$Number.steps != 0) / nrow(pairs.poly)
+
+# Most important MPAs allowing connectivity
 stones <- unique(unlist(stones.list))
-stones <- stones[ ! stones %in% unique(mpa.shp.notake.id) ] 
 stones <- data.frame(stone=stones,times=sapply(stones , function(x) { sum(unlist(stones.list) == x  ) } ))
 stones <- stones[sort(stones$times , index.return = T , decreasing=T)$ix,]
 
-plot(mpa.shp, col="gray",border="gray")
-subset.mpa.shp <- mpa.shp[ mpas.id %in% stones$stone, ]
-plot(subset.mpa.shp, col="black", border="black",add=TRUE)
-subset.mpa.shp <- mpa.shp[ mpas.id %in% mpa.shp.notake.id, ]
-plot(subset.mpa.shp, col="red", border="red",add=TRUE)
+plot(worldMap , col="#E8E8E8",border="#C9C9C9")
+plot(allMPA, col="gray",border="gray",add=T)
 
-plot(mpa.shp, col="gray",border="gray")
-subset.mpa.shp <- mpa.shp[ mpas.id %in% stones$stone[stones$times >= quantile(stones$times,0.75)], ]
+subset.mpa.shp <- get(type)[ get(type)$ID %in% stones$stone, ]
 plot(subset.mpa.shp, col="black", border="black",add=TRUE)
-subset.mpa.shp <- mpa.shp[ mpas.id %in% mpa.shp.notake.id, ]
-plot(subset.mpa.shp, col="red", border="red",add=TRUE)
+
+quantileThreshold <- 0.9
+  
+# Those with higher importance 
+get(type)$name[get(type)$ID %in% stones$stone[stones$times >= quantile(stones$times,quantileThreshold)]]
+
+plot(worldMap , col="#E8E8E8",border="#C9C9C9")
+plot(allMPA, col="gray",border="gray",add=T)
+subset.mpa.shp <- get(type)[ get(type)$ID %in% stones$stone[stones$times >= quantile(stones$times,quantileThreshold)], ]
+plot(subset.mpa.shp, col="black", border="black",add=TRUE)
 
 ## ----------------------------------------------------------------------------------------------------------------------------------
 ## ----------------------------------------------------------------------------------------------------------------------------------
