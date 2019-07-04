@@ -3,13 +3,6 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
-
-
-## CHECK FOR WRONG DATA > 100
-
-
-
-
 source("0. Project Config.R")
 source("Dependences.R")
 
@@ -85,7 +78,11 @@ for (y in from.year:to.year){
         
       }
 
-      values.to.place.u[values.to.place.u == -30000 ] <- NA
+        
+      if( max(values.to.place.u,na.rm=T) > 100 | min(values.to.place.u,na.rm=T) < -100) { stop("1")}
+      
+      values.to.place.u[values.to.place.u > 100 ] <- NA
+      values.to.place.u[values.to.place.u < -100 ] <- NA
       
       while(is.null(values.to.place.v)) {
         
@@ -93,7 +90,10 @@ for (y in from.year:to.year){
         
       }
       
-      values.to.place.v[values.to.place.v == -30000 ] <- NA
+      if( max(values.to.place.v,na.rm=T) > 100 | min(values.to.place.v,na.rm=T) < -100) { stop("2")}
+      
+      values.to.place.v[values.to.place.v > 100 ] <- NA
+      values.to.place.v[values.to.place.v < -100 ] <- NA
       
       u[,,d] <- values.to.place.u
       v[,,d] <- values.to.place.v

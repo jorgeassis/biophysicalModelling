@@ -152,6 +152,7 @@ if( !is.null(movie.sites.xy) ) {
   
   if(class(movie.sites.xy) =="character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
   
+  movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
   movie.sites.xy <- sort( as.vector(get.knnx( source.sink.xy[,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
   movie.sites.id <- unique(movie.sites.xy)
   movie.sites.xy <- source.sink.xy[ unique(movie.sites.xy) ,c("x","y") ]

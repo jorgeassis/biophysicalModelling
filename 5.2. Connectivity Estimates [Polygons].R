@@ -8,6 +8,7 @@
 rm( list=(ls()[ls()!="v"]) )
 gc(reset=TRUE)
 library(rnaturalearth)
+library(geosphere)
 
 project.folder <- "/media/Bathyscaphe/Transport Simulation in European MPAs/"
 
@@ -58,7 +59,7 @@ worldMap <- ne_countries(scale = 10, returnclass = "sp")
 ## --------------------------------------------------------------------
 # Temporary Subset
 
-subseter <- c(-20,10,0,50)
+subseter <- c(-20,20,0,46)
 
 ## ------------
 
@@ -116,7 +117,7 @@ source.sink.xy.mpa <- foreach( source.sink.xy.i = 1:nrow(source.sink.xy) , .verb
   
   distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], allMPA,byid=TRUE)
   allMPAi <- allMPA[which.min(distances),]$ID
-
+  
   distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], notakeMPAConnectness,byid=TRUE)
   notakeMPAConnectnessi <- notakeMPAConnectness[which.min(distances),]$ID
   
@@ -155,9 +156,9 @@ notakeMPAConnectness <- notakeMPAConnectness[sort(unique(source.sink.xy$notakeMP
 
 list.dirs(path = paste0("../Results"), recursive = FALSE)
 
-project.name <- "Summer_Pld30"
-spawn.p <- c(6,7,8,9)
-pld.period <- 30
+project.name <- "YearRound_Pld20"
+spawn.p <- 1:12 # c(6,7,8,9)
+pld.period <- 20
 
 ## --------------------
 
@@ -253,26 +254,26 @@ connectivity.allMPA <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .co
   
   if(nrow(temp.result) == 0) {
     
-        connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
-                                           Pair.to = mpa.id.2,
-                                           Number.events = 0,
-                                           Time.mean = 0,
-                                           Time.max = 0,
-                                           Time.sd = 0,
-                                           Probability = 0 )
-        
+    connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                       Pair.to = mpa.id.2,
+                                       Number.events = 0,
+                                       Time.mean = 0,
+                                       Time.max = 0,
+                                       Time.sd = 0,
+                                       Probability = 0 )
+    
   }
   
   if(nrow(temp.result) > 0) {
     
-        connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
-                                           Pair.to = mpa.id.2,
-                                           Number.events = mean(temp.result$Mean.events),
-                                           Time.mean = mean(temp.result$Mean.Time),
-                                           Time.max = mean(temp.result$Max.Time),
-                                           Time.sd = mean(temp.result$SD.Time),
-                                           Probability = mean(temp.result$Mean.Probability) )
-  
+    connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                       Pair.to = mpa.id.2,
+                                       Number.events = mean(temp.result$Mean.events),
+                                       Time.mean = mean(temp.result$Mean.Time),
+                                       Time.max = mean(temp.result$Max.Time),
+                                       Time.sd = mean(temp.result$SD.Time),
+                                       Probability = mean(temp.result$Mean.Probability) )
+    
   }
   
   return( connectivity.pairs )
@@ -481,7 +482,11 @@ connected.pairs[,3] <- (1/connected.pairs[,3]) *(-1) * 100
 connected.pairs[,3] <- connected.pairs[,3] - min(connected.pairs[,3])
 connected.pairs[,3] <- connected.pairs[,3] / max(connected.pairs[,3])
 
+# connected.pairs <- connected.pairs[ connected.pairs[,3] != 0 ,1:3]
+
 centroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
+
+# 1000px figure
 
 plot(worldMap , col="#E8E8E8",border="#C9C9C9")
 plot(get(type) , col="black",border="black",add=T)
@@ -491,7 +496,11 @@ colfunc <- colorRampPalette(c("Gray", "#CC6633","#C40F0F"))
 for( i in nrow(connected.pairs):1 ){
   
   strenght <- (connected.pairs[i,3] * 100) + 1 
-  lines(  rbind(centroids[ which(get(type)$ID == connected.pairs[i,1]),],centroids[which(get(type)$ID == connected.pairs[i,2]),]) , type="l" , col=colfunc(101)[strenght])
+  routes_sl <- gcIntermediate(centroids[ which(get(type)$ID == connected.pairs[i,1]),],
+                              centroids[ which(get(type)$ID == connected.pairs[i,2]),],
+                              n = 100, addStartEnd = TRUE, sp = TRUE)
+  
+  lines(  routes_sl , type="l" , col=colfunc(101)[strenght])
   
 }
 
@@ -555,7 +564,7 @@ subset.mpa.shp <- get(type)[ get(type)$ID %in% stones$stone, ]
 plot(subset.mpa.shp, col="black", border="black",add=TRUE)
 
 quantileThreshold <- 0.9
-  
+
 # Those with higher importance 
 get(type)$name[get(type)$ID %in% stones$stone[stones$times >= quantile(stones$times,quantileThreshold)]]
 
