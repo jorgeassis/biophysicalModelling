@@ -96,13 +96,13 @@ colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Prob
 
 # ----------------------------------
 
-extract.simulation.days <- 60
+extract.simulation.days <- 30
 distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
 
 x <- distance.probability.t$Distance
 y <- distance.probability.t$Probability
 
-pdf( file=paste0(project.folder,"Results/Probability vs Distance 60 days.pdf") , width = 10, height = 8 )
+pdf( file=paste0(project.folder,"Results/Probability vs Distance ",extract.simulation.days," days.pdf") , width = 10, height = 8 )
 
 par(mar = c(4.5, 5.5, 4.5, 4.5))
 plot(x,y,ylim=c(min(y),max(y)),col="#A6A6A6", pch=16,ylab="Mean probability of connectivity",xlab="Distance (km)",axes=FALSE)
@@ -110,6 +110,59 @@ axis(2,las=2,col="White",col.ticks="Black")
 axis(1,las=0,col="White",col.ticks="Black")
 box()
 
+dev.off()
+
+# ----------------------------------
+
+resultsTime <- data.frame()
+
+for( t in 1:30){
+  
+  distance.probability.t <- distance.probability[Time.max <= t,]
+  
+  x <- distance.probability.t$Distance
+  y <- distance.probability.t$Probability
+  
+  x[x == Inf] <- NA
+  y[y == Inf] <- NA
+
+    resultsTime <- rbind(resultsTime,data.frame(time=t,
+                                              meandistance=mean(x,na.rm=T),
+                                              maxdistance=max(x,na.rm=T),
+                                              meanprobability=mean(y,na.rm=T),
+                                              maxprobability=max(y,na.rm=T) ))
+}
+  
+pdf( file=paste0(project.folder,"Results/Time vs Mean Distance.pdf") , width = 10, height = 8 )
+par(mar = c(4.5, 5.5, 4.5, 4.5))
+plot(resultsTime$time,resultsTime$meandistance,ylim=c(min(resultsTime$meandistance),max(resultsTime$meandistance)),col="#A6A6A6", pch=16,ylab="Mean travelled distance (km)",xlab="Dispersal period (day)",axes=FALSE)
+axis(2,las=2,col="White",col.ticks="Black")
+axis(1,las=0,col="White",col.ticks="Black")
+box()
+dev.off()
+
+pdf( file=paste0(project.folder,"Results/Time vs Max Distance.pdf") , width = 10, height = 8 )
+par(mar = c(4.5, 5.5, 4.5, 4.5))
+plot(resultsTime$time,resultsTime$maxdistance,ylim=c(min(resultsTime$maxdistance),max(resultsTime$maxdistance)),col="#A6A6A6", pch=16,ylab="Maximum travelled distance (km)",xlab="Dispersal period (day)",axes=FALSE)
+axis(2,las=2,col="White",col.ticks="Black")
+axis(1,las=0,col="White",col.ticks="Black")
+box()
+dev.off()
+
+pdf( file=paste0(project.folder,"Results/Time vs Mean Probability.pdf") , width = 10, height = 8 )
+par(mar = c(4.5, 5.5, 4.5, 4.5))
+plot(resultsTime$time,resultsTime$meanprobability,ylim=c(min(resultsTime$meanprobability),max(resultsTime$meanprobability)),col="#A6A6A6", pch=16,ylab="Mean probability of connectivity",xlab="Dispersal period (day)",axes=FALSE)
+axis(2,las=2,col="White",col.ticks="Black")
+axis(1,las=0,col="White",col.ticks="Black")
+box()
+dev.off()
+
+pdf( file=paste0(project.folder,"Results/Time vs Max Probability.pdf") , width = 10, height = 8 )
+par(mar = c(4.5, 5.5, 4.5, 4.5))
+plot(resultsTime$time,resultsTime$maxprobability,ylim=c(min(resultsTime$maxprobability),max(resultsTime$maxprobability)),col="#A6A6A6", pch=16,ylab="Maximum probability of connectivity",xlab="Dispersal period (day)",axes=FALSE)
+axis(2,las=2,col="White",col.ticks="Black")
+axis(1,las=0,col="White",col.ticks="Black")
+box()
 dev.off()
 
 # ----------------------------------

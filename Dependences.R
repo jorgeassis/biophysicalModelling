@@ -227,7 +227,7 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   comb <- comb[,c("Pair.from","Pair.to","Probability")]
   comb <- comb[comb$Pair.from %in% as.vector(unlist(final.cells)) & comb$Pair.to %in% as.vector(unlist(final.cells)) ,]
   comb <- comb[comb$Pair.from != comb$Pair.to,]
-  comb <- as.data.frame( comb[ sort(comb[,"Probability"] , decreasing = TRUE, index.return =TRUE)$ix , ] )
+  comb <- as.data.frame( comb[ sort( as.vector(unlist(comb[,"Probability"])) , decreasing = TRUE, index.return =TRUE)$ix , ] )
   
   if( network.type == "Prob" ) {
     

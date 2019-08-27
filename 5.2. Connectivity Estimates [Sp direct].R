@@ -48,18 +48,26 @@ differentiation <- read.table(file.differentiation,header = T,sep=";",stringsAsF
 
 differentiation[upper.tri(differentiation)] <- t(differentiation)[upper.tri(differentiation)]
 
-if( nrow(differentiation) != length(sampling.sites.n) | sum(is.na(differentiation)) != length(sampling.sites.n) ) { next }
+if( nrow(differentiation) != length(sampling.sites.n) ) { next }
 
 ## ---------------
 
-subseter <- which(sampling.sites$Lon >= min(source.sink.xy[,2]) & sampling.sites$Lon <= max(source.sink.xy[,2]),
-                  sampling.sites$Lat >= min(source.sink.xy[,3]) & sampling.sites$Lat <= max(source.sink.xy[,3]))
+# subseter <- which(sampling.sites$Lon >= min(source.sink.xy[,2]) & sampling.sites$Lon <= max(source.sink.xy[,2]),
+#                   sampling.sites$Lat >= min(source.sink.xy[,3]) & sampling.sites$Lat <= max(source.sink.xy[,3]))
+# 
+# subseter <- which(sampling.sites$Lat  < 50)
+# 
+# sampling.sites <- sampling.sites[subseter,]
+# sampling.sites.n <- sampling.sites.n[subseter]
+# differentiation <- differentiation[subseter,subseter]
 
-subseter <- which(sampling.sites$Lat  < 50)
+## ---------------
 
-sampling.sites <- sampling.sites[subseter,]
-sampling.sites.n <- sampling.sites.n[subseter]
-differentiation <- differentiation[subseter,subseter]
+# rocky.bottoms <- raster("../Data/Rocky.tif")
+
+# subsetter <- which(extract(rocky.bottoms,source.sink.xy[,.(Lon,Lat)]) == 1)
+# source.sink.xy <- source.sink.xy[subsetter,]
+# distance.probability <- distance.probability[ Pair.from %in% source.sink.xy[,Pair] &  Pair.to %in% source.sink.xy[,Pair],]
 
 ## ---------------
 
@@ -100,12 +108,12 @@ points(source.sink.xy[Pair %in% position.matrix,2:3],col="red")
 
 ## ---------------
 
-n.days <- 30
+n.days <- 15
 
 ## ---------------------------------------------------
 
 new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
-network <- produce.network("Prob",distance.probability,n.days,TRUE,5,source.sink.xy,new.extent)
+network <- produce.network("Prob",distance.probability,n.days,FALSE,10,source.sink.xy,new.extent)
 
 ## ---------------------------------------------------
 
@@ -130,24 +138,14 @@ potential.connectivity <- foreach(from=position.matrix, .verbose=FALSE, .package
     if( from == to ) { path.values <- 1 }
     
     res.connectivity.to <- c(res.connectivity.to,path.values)
-    res.distance <- c(res.distance, costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == from,2:3]) , as.matrix(source.sink.xy[Pair == to,2:3]) ))
+    res.distance.t <- costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == from,2:3]) , as.matrix(source.sink.xy[Pair == to,2:3]) )
+    
+    if(res.distance.t == 0 | res.distance.t == Inf) { res.distance.t <- spDistsN1( as.matrix(source.sink.xy[ Pair == from , 2:3 ]), as.matrix(source.sink.xy[ Pair == to , 2:3 ]), longlat=TRUE) }
+    
+    res.distance <- c(res.distance, res.distance.t)
     
   }
     
-  ## ---------------------
-
-  zeros <- which(res.distance == 0 & position.matrix != from )
-
-  if( length(zeros) > 0 ) {
-
-    for(z in 1:length(zeros)){
-
-      res.distance[zeros[z]] <- spDistsN1( as.matrix(source.sink.xy[ Pair == from , 2:3 ]), as.matrix(source.sink.xy[ Pair == position.matrix[z] , 2:3 ]), longlat=TRUE)
-
-    }
-
-  }
-  
   ## ---------------------
   
   differentiation.to <- unlist(differentiation[ which( position.matrix == from), ])
