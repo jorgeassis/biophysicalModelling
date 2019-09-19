@@ -9,7 +9,7 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
 
-number.cores <- 40
+number.cores <- 30
 
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
 distance.probability <- data.table(distance.probability[,])
@@ -33,10 +33,10 @@ raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Pairwise Connectivity estimates
 
-results.name <- "SP#0"
+results.name <- "SP#2"
 
-file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/ID#0_Coords.txt")
-file.differentiation <- paste0(project.folder,"/Data/Differentiation/ID#0_FST.txt")
+file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/ID#2_Coords.txt")
+file.differentiation <- paste0(project.folder,"/Data/Differentiation/ID#2_FST.txt")
 
 transform.fst <- TRUE
 
@@ -44,11 +44,12 @@ sampling.sites <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFac
 sampling.sites.n <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFactors=F)[,1] 
 differentiation <- read.table(file.differentiation,header = T,sep=";",stringsAsFactors=F)[,-1]
 
-# differentiation[lower.tri(differentiation)] <- t(differentiation)[lower.tri(differentiation)]
-
-differentiation[upper.tri(differentiation)] <- t(differentiation)[upper.tri(differentiation)]
+if( is.na(differentiation[nrow(differentiation),1]) ) { differentiation[lower.tri(differentiation)] <- t(differentiation)[lower.tri(differentiation)] }
+if( is.na(differentiation[1,ncol(differentiation)]) ) { differentiation[upper.tri(differentiation)] <- t(differentiation)[upper.tri(differentiation)] }
 
 if( nrow(differentiation) != length(sampling.sites.n) ) { next }
+
+differentiation
 
 ## ---------------
 
@@ -290,6 +291,8 @@ threshold <- which(connectivity.per.days[,c("aic.min","aic.mean","aic.max")] == 
 
 connectivity.per.days[threshold[1,1],]
 
+write.csv(connectivity.per.days[threshold[1,1],],file=paste0(project.folder,"Results/",results.name," Summary Model.csv"))
+
 ## ------------------------------------
 
 pdf( file=paste0(project.folder,"Results/",results.name," test days.pdf") , width = 9, height = 6 )
@@ -306,7 +309,7 @@ title(ylab="Model performance (AIC)",mgp=c(4,1,0))
 lines(connectivity.per.days$day,connectivity.per.days$aic.mean,ylim=limits.plot,lty=3,col="#5E5E5E")
 lines(connectivity.per.days$day,connectivity.per.days$aic.max,ylim=limits.plot,lty=4,col="#5E5E5E")
 abline(h = min(connectivity.per.days[,2]), lty=3, col="#902828")
-points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c("aic.min","aic.men","aic.max")[threshold[1,2]]],pch=21,bg="#902828",col="black")
+points(connectivity.per.days$day[threshold[1,1]],connectivity.per.days[threshold[1,1],c("aic.min","aic.mean","aic.max")[threshold[1,2]]],pch=21,bg="#902828",col="black")
 legend(49, limits.plot[1] + (limits.plot[2] - limits.plot[1]), legend=c("Distance", "Ocean Min.", "Ocean Mean.", "Ocean Max."),border = "gray",col=c("#902828","#5E5E5E", "#5E5E5E","#5E5E5E","#5E5E5E"), lty=c(3,1,2,3,4), cex=0.8)
 
 dev.off()
