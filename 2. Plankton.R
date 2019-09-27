@@ -340,7 +340,7 @@ if(! exists("particles.to.sql.id")) { particles.to.sql.id <- NULL}
 ## -----------------
 
 global.simulation.parameters <- data.frame(   project.name = project.name,
-                                              sim.years = from.year:to.year,
+                                              sim.years = paste(c(from.year,to.year),collapse="-"),
                                               sim.months = paste(months.all,collapse=","),
                                               kill.by.raft = kill.by.raft , 
                                               n.hours.per.day = n.hours.per.day , 
@@ -351,8 +351,8 @@ global.simulation.parameters <- data.frame(   project.name = project.name,
                                               behaviour = behaviour,
                                               n.particles.per.cell = n.particles.per.cell,
                                               movie.year = movie.year, 
-                                              movie.sites.id = paste(movie.sites.id,collapse=",") , 
-                                              particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
+                                              # movie.sites.id = paste(movie.sites.id,collapse=",") , 
+                                              # particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
                                               extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))

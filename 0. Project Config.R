@@ -14,8 +14,13 @@ project.folder <- "/media/Bathyscaphe/Transport Simulations Explain Genetic Diff
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
-additional.islands.shp <- "Data/Shapefiles/Additional islands.shp"
 bathymetry.tif <- NULL
+
+additional.islands.shp <- "Data/Shapefiles/Additional islands.shp"
+additional.sourcesink.shp <- NULL
+landmass.shp.2 <- NULL
+
+unwanted.release.coastline <- FALSE
 unwanted.release.sites.shp <- "Data/Shapefiles/Unwanted.shp" # NULL
 
 ## ------------------------------------
