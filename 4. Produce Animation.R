@@ -14,7 +14,7 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
-simulation.name <- "SouthAfrica"
+simulation.name <- "Atlantic"
 
 particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
 particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
@@ -138,7 +138,7 @@ for( t in 1:t.steps) {
   points.plot <- points.plot[complete.cases(points.plot),]
   
   print(  plot(land.polygon , col="grey" , border="grey") )
-  print(  title(paste0("Simulation of ", simulation.name ," t: ",print.date.sim), cex = 0.7, col="black") )
+  print(  title(paste0("Simulation of Potential Connectivity: ",print.date.sim), cex = 0.6, col="black") )
   print(  points(points.plot[,1], points.plot[,2], pch=16 , col=as.character(points.plot[,3]),cex=0.9) )
   
   if(show.polygon.region.interest) {

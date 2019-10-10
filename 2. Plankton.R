@@ -31,6 +31,9 @@ crs(clipper) <- dt.projection
 landmass <- gIntersection(landmass, clipper, byid=TRUE)
 coastline <- gIntersection(coastline, clipper, byid=TRUE)
 
+landmass <- crop(landmass,clipper)
+coastline <- crop(coastline,clipper)
+
 ## --------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------
 
