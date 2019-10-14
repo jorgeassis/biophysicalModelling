@@ -106,8 +106,8 @@ if( ! is.null(unwanted.release.sites.shp) ) {
   
   if( length(points.over.polygon) > 0 ) {
     
-    source.sink.xy <- rbind( data.frame(cells.id=1:length(source.points),x=source.sink.xy[source.points,2],y=source.sink.xy[source.points,3],source=1) ,
-                             data.frame(cells.id=(length(source.points)+1):(length(source.points)+length(points.over.polygon)),x=source.sink.xy[points.over.polygon,2],y=source.sink.xy[points.over.polygon,3],source=0) )
+    source.sink.xy[points.over.polygon,4] <- 0
+    
   }
  
 }
@@ -117,10 +117,9 @@ options(warn=0)
 ## ------------------
 
 plot(landmass,box=FALSE,legend=FALSE,col=c("grey"))
-lines(coastline,col=c("yellow"))
 
-points(source.sink.xy[source.sink.xy$source == 1,2:3],col=c("black"),pch=16)
 points(source.sink.xy[source.sink.xy$source == 0,2:3],col=c("yellow"))
+points(source.sink.xy[source.sink.xy$source == 1,2:3],col=c("black"),pch=16)
 
 ## ------------------
 

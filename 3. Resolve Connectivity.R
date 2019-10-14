@@ -9,8 +9,6 @@ rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("0. Project Config.R")
 
-number.cores <- 40
-
 ## --------------------------------------------------------------------------------------------------------------
 ##
 ##
@@ -39,7 +37,7 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/partic
 
 ## ------------------
 
-cl.2 <- makeCluster(number.cores , type="FORK")
+cl.2 <- makeCluster(15 , type="FORK")
 registerDoParallel(cl.2)
 
 all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
@@ -104,6 +102,8 @@ source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
 dbDisconnect(sql)
 Connectivity
 
+plot(source.sink.xy[,2:3] )
+
 Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
 Connectivity[is.na(Connectivity)] <- 0
@@ -113,6 +113,8 @@ Connectivity ; gc()
 ## --------------------------------
 
 source.sink.id <- source.sink.xy$cells.id[which(source.sink.xy$source == 1)] 
+
+plot(source.sink.xy[which(source.sink.xy$source == 1),2:3] )
 
 source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% source.sink.id,]
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
@@ -136,7 +138,7 @@ for(i in 1:matrix.size){
   if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
   
   Connectivity.matrix.probability[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Mean.Probability]
-
+  
 }
 
 Connectivity.matrix.probability.bm <- as.big.matrix(as.matrix(Connectivity.matrix.probability))
@@ -156,7 +158,7 @@ for(i in 1:matrix.size){
   if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
   
   Connectivity.matrix.time[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Mean.Time]
-
+  
 }
 
 Connectivity.matrix.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.time))
