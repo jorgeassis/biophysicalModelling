@@ -692,7 +692,7 @@ for( c in 1:nrow(combinations)){
 ## ---------------------------------------------------------------------------------------------------
 
 x <- combResults$pld
-x.lab <- "Propagule duration (day)"
+x.lab <- "Propagule duration (day)" 
 
 y <- combResults$n.isolated.mpa # colnames(combResults)
 y.lab <- "Closeness (average)"
