@@ -57,7 +57,9 @@ marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packag
   
   x.to <- Connectivity[ Pair.from == x , Pair.to ]
   x.to <- x.to[x.to != 0]
-  partial.distances <- costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ x , 2:3 ]) , as.matrix(source.sink.xy[ x.to , 2:3 ]) )
+
+  partial.distances <- costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ source.sink.xy$Pair == x , 2:3 ]) , as.matrix(source.sink.xy[ source.sink.xy$Pair %in% x.to , 2:3 ]) )
+
   partial.distances <- data.frame(Pair.from=rep(x,length(partial.distances)),Pair.to=x.to,Distance=c(partial.distances)/1000)
   
   zeros <- which(partial.distances$Distance == 0 & partial.distances$Pair.from != partial.distances$Pair.to)
@@ -66,7 +68,7 @@ marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packag
     
     for(z in 1:length(zeros)){
       
-      partial.distances[zeros[z],3] <- spDistsN1( as.matrix(source.sink.xy[ partial.distances[zeros[z],1] , 2:3 ]), as.matrix(source.sink.xy[ partial.distances[zeros[z],2] , 2:3 ]), longlat=TRUE)
+            partial.distances[zeros[z],3] <- spDistsN1( as.matrix(source.sink.xy[ Pair == partial.distances[zeros[z],1] , 2:3 ]), as.matrix(source.sink.xy[ Pair == partial.distances[zeros[z],2] , 2:3 ]), longlat=TRUE)
       
     }
     
