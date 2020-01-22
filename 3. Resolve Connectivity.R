@@ -7,7 +7,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../0. Project Config [SS Connectivity].R")
 
 ## --------------------------------------------------------------------------------------------------------------
 ##
@@ -37,7 +37,7 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/partic
 
 ## ------------------
 
-cl.2 <- makeCluster(15 , type="FORK")
+cl.2 <- makeCluster(5 , type="FORK")
 registerDoParallel(cl.2)
 
 all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 

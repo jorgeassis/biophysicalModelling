@@ -6,7 +6,7 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("0. Project Config.R")
+source("../0. Project Config [SS Connectivity].R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -87,6 +87,7 @@ if( ! is.null(additional.sourcesink.shp) ) {
 
 source.sink.xy <- source.sink.xy[source.sink.xy$x >= extent(clipper)[1] & source.sink.xy$x <= extent(clipper)[2] & source.sink.xy$y >= extent(clipper)[3] & source.sink.xy$y <= extent(clipper)[4],]
 head(source.sink.xy)
+tail(source.sink.xy)
 
 ## -----------------------------------------------------
 
@@ -116,7 +117,7 @@ options(warn=0)
 
 ## ------------------
 
-plot(landmass,box=FALSE,legend=FALSE,col=c("grey"))
+plot(landmass,col=c("grey"))
 
 points(source.sink.xy[source.sink.xy$source == 0,2:3],col=c("yellow"))
 points(source.sink.xy[source.sink.xy$source == 1,2:3],col=c("black"),pch=16)
@@ -152,12 +153,13 @@ if(sum( ! from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"])
 
 if( !is.null(movie.sites.xy) ) {
   
-  if(class(movie.sites.xy) =="character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
+  if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
   
   movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
-  movie.sites.xy <- sort( as.vector(get.knnx( source.sink.xy[,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
-  movie.sites.id <- unique(movie.sites.xy)
-  movie.sites.xy <- source.sink.xy[ unique(movie.sites.xy) ,c("x","y") ]
+  movie.sites.id <- sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy[,4] == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
+  
+  movie.sites.id <-  source.sink.xy[ source.sink.xy[,4] == 1, "cells.id" ][movie.sites.id]
+  movie.sites.xy <- source.sink.xy[ source.sink.xy[,1] %in% movie.sites.id ,c("x","y") ]
   
   points(movie.sites.xy,col=c("green"),pch=16)
   
@@ -353,7 +355,7 @@ global.simulation.parameters <- data.frame(   project.name = project.name,
                                               behaviour = behaviour,
                                               n.particles.per.cell = n.particles.per.cell,
                                               movie.year = movie.year, 
-                                              # movie.sites.id = paste(movie.sites.id,collapse=",") , 
+                                              movie.sites.id = paste(movie.sites.id,collapse=",") , 
                                               # particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
                                               extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
 
@@ -585,7 +587,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
         
         # particles.reference.names
         
-        particles.reference.new <- data.table(particles.reference.bm.all[particles.reference.new.i, ])
+        particles.reference.new <- data.table(matrix(particles.reference.bm.all[particles.reference.new.i, ],ncol=length(particles.reference.names)))
         colnames(particles.reference.new) <- particles.reference.names
         
         particles.reference.new[ , 9 ] <- 1

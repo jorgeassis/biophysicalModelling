@@ -29,8 +29,8 @@ packages.to.use <- c("dggridR","gdata","dplyr","sf",
                      "gdistance",
                      "ggplot2",
                      "bigmemory",
-                     "dismo",
-                     "randomcoloR"
+                     "dismo"
+                     # "randomcoloR"
                      )
 
 for(package in packages.to.use) {
@@ -209,6 +209,13 @@ trim.by.distance <- function(xyDF,source.sink.dist,parallel) {
 
 ## ---------------------------------------------------------------------------------------------------------------------
 
+# network.type = "Prob"
+# comb = distance.probability
+# crop.network = FALSE
+# buffer = 10
+# cells = source.sink.xy
+# new.extent
+
 produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,new.extent) {
   
   if(crop.network) {  final.cells <- which(   cells[,2] >= (new.extent[1] - buffer) & 
@@ -226,7 +233,7 @@ produce.network <- function(network.type,comb,n.days,crop.network,buffer,cells,n
   comb[ which(comb[,"Time.max"] > n.days) , "Probability" ] <- 0
   comb <- comb[,c("Pair.from","Pair.to","Probability")]
   comb <- comb[comb$Pair.from %in% as.vector(unlist(final.cells)) & comb$Pair.to %in% as.vector(unlist(final.cells)) ,]
-  comb <- comb[comb$Pair.from != comb$Pair.to,]
+  # comb <- comb[comb$Pair.from != comb$Pair.to,]
   comb <- as.data.frame( comb[ sort( as.vector(unlist(comb[,"Probability"])) , decreasing = TRUE, index.return =TRUE)$ix , ] )
   
   if( network.type == "Prob" ) {

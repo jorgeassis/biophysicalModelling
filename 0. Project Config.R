@@ -9,19 +9,19 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Atlantic"
-project.folder <- "/media/Bathyscaphe/Transport Simulations Explain Genetic Differention of North Atlantic Marine Forests/"
+project.name <- "Halodule"
+project.folder <- "/Volumes/Jellyfish/Dropbox/Manuscripts/Halodule connectivity patterns throughout West Africa/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
 bathymetry.tif <- NULL
 
-additional.islands.shp <- "Data/Shapefiles/Additional islands.shp"
-additional.sourcesink.shp <- NULL
+additional.islands.shp <- NULL # "Data/Shapefiles/Additional islands.shp"
+additional.sourcesink.shp <- "Data/WAfricaData.shp"
 landmass.shp.2 <- NULL
 
-unwanted.release.coastline <- FALSE
-unwanted.release.sites.shp <- "Data/Shapefiles/Unwanted.shp" # NULL
+unwanted.release.coastline <- TRUE
+unwanted.release.sites.shp <- NULL # "Data/Shapefiles/Unwanted.shp"
 
 ## ------------------------------------
 
@@ -29,24 +29,24 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 30
-parallel.computational.sections <- 30
+number.cores <- 10
+parallel.computational.sections <- 10
 parallel.computational.buffer <- 2 # degrees
 
 # -----------------------------------
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -26
-max.lon <- 37
-min.lat <- 22.5
-max.lat <- 82 # 
+min.lon <- -25
+max.lon <- 14.5
+min.lat <- -10
+max.lat <- 21.5
 source.sink.dist <- 1 # km
 
 # -----------------------------------
 # Traits
 
-months.all <- 4:10 # Spawning 5:10 (30 days off)
+months.all <- 1:12 # Spawning 5:10 (30 days off)
 from.day <- 1 ; to.day <- 31
 from.year <- 2003 ; to.year <- 2012
 depth.range <- c(0)
@@ -71,10 +71,10 @@ final.dimensions <- 2
 # -----------------------------------
 # Ilustration (movie)
 
-movie.year <- 2012
+movie.year <- 2010
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
-movie.sites.xy <- "Data/Shapefiles/Movie.shp" 
+movie.sites.xy <- "Data/Movie.shp" 
 # matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 , -5 , 50 , - 2 , 45 , -5 , 44 , 5 , 40 , -10 , 30 ) , ncol=2 , byrow=TRUE) 
 
 # --------------------------------------------------------------

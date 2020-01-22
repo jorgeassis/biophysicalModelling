@@ -7,9 +7,10 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../0. Project Config [SS Connectivity].R")
+source("Dependences.R")
 
-number.cores <- 40
+number.cores <- 10
 
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
 distance.probability <- data.table(distance.probability[,])
@@ -33,16 +34,16 @@ raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Pairwise Connectivity estimates
 
-file.sampling.sites <- paste0(project.folder,"/Data/Differentiation/ID#0_Coords.txt")
-file.differentiation <- paste0(project.folder,"/Data/Differentiation/ID#0_FST.txt")
+file.sampling.sites <- paste0(project.folder,"/Data Genetics/BEE_DB.csv")
+file.differentiation <- paste0(project.folder,"/Data Genetics/Jost'D.csv")
 
 transform.fst <- TRUE
 
 if( transform.fst ) { project.name <- paste0(project.name,".FstT") }
 
-sampling.sites <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFactors=F)[,2:3] 
-sampling.sites.n <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFactors=F)[,1] 
-differentiation <- read.table(file.differentiation,header = T,sep=";",stringsAsFactors=F)[,-1]
+sampling.sites <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFactors=F, dec=",")[,c(3,2)]
+sampling.sites.n <- read.table(file.sampling.sites,header = T,sep=";",stringsAsFactors=F, dec=",")[,1]
+differentiation <- read.table(file.differentiation,header = F,sep=";",stringsAsFactors=F, dec=",")
 
 # differentiation[lower.tri(differentiation)] <- t(differentiation)[lower.tri(differentiation)]
 
@@ -94,6 +95,8 @@ if( length(position.matrix) != length(unique(position.matrix)) ) {
   
   differentiation <- differentiation.i
   sampling.sites <- unique(sampling.sites)
+  sampling.sites.n <- sampling.sites.n[which(! duplicated(position.matrix))]
+  
   position.matrix <- unique(position.matrix)
   
 }
@@ -108,14 +111,50 @@ points(source.sink.xy[Pair %in% position.matrix,2:3],col="red")
 
 ## ---------------
 
-n.days <- 15
+if( FALSE %in% ( position.matrix %in% unique(c(distance.probability$Pair.from,distance.probability$Pair.to)) ) ) {
+  
+  missing <- position.matrix[which( ! position.matrix %in% unique(c(distance.probability$Pair.from,distance.probability$Pair.to)))]
+  tempDF <- as.data.frame(distance.probability[1,])
+  tempDF[1,1] <- missing
+  tempDF[1,2] <- missing
+  tempDF[1,3:ncol(tempDF)] <- rep(0,ncol(tempDF)-2)
+  distance.probability <- rbind(tempDF,distance.probability)
+    
+}
 
 ## ---------------------------------------------------
 
+n.days <- 60
+
+new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
+network <- produce.network("Prob",distance.probability[Pair.from %in% position.matrix & Pair.to %in% position.matrix, ],n.days,FALSE,10,source.sink.xy,new.extent)
+clustering.graph <- clusters(network[[2]])
+membership.graph <- clustering.graph$membership
+
+distinctColors <- function(n) {
+  library(RColorBrewer)
+  qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+  col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+  return(sample(col_vector, n))
+}
+
+cols.to.use <- distinctColors(length(unique(membership.graph)))
+cols.to.use <- cols.to.use[membership.graph]
+V(network[[2]])$color <- cols.to.use
+l <- layout.fruchterman.reingold(network[[2]])
+reducedNames <- unlist(sapply( names(V(network[[2]])),function(x) { sampling.sites.n[which( position.matrix == x)] } ))
+  
+pdf( file=paste0(project.folder,"Results/Clustering.pdf") , width = 10, height = 8 )
+plot(network[[2]],vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , color=cols.to.use )
+dev.off()
+
+## ---------------------------------------------------
+
+n.days <- 60
 new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
 network <- produce.network("Prob",distance.probability,n.days,FALSE,10,source.sink.xy,new.extent)
 
-## ---------------------------------------------------
+## ------------
 
 cl.3 <- makeCluster(number.cores) ; registerDoParallel(cl.3)
 
@@ -310,3 +349,34 @@ title(ylab="Predicted genetic differentiation",mgp=c(4,1,0))
 fit.mix.line <- lm(Pred ~ Differantiation, data=data.frame(Differantiation=connectivity.final$Differantiation,Pred=predict(fit.mix)), na.action = na.omit)
 lines(seq(min(connectivity.final$Differantiation),max(connectivity.final$Differantiation),length.out = 100),predict(fit.mix.line, data.frame(Differantiation=seq(min(connectivity.final$Differantiation),max(connectivity.final$Differantiation),length.out = 100))) ,lty=2,col="#902828")
 
+## ------------------------------------------------------------------------------------------------------------------------------
+
+comb <- do.call(rbind,potential.connectivity)[,c(1,2,5)]
+comb <- as.data.frame( comb[ sort( as.vector(unlist(comb[,"probability.ss"])) , decreasing = TRUE, index.return =TRUE)$ix , ] )
+
+net.function <<- prod
+graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
+E(graph.obj)$weight = ifelse(-log(comb[,3]) == Inf,0,-log(comb[,3])) # Hock, Karlo Mumby, Peter J 2015
+graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
+network <- simplify(graph.obj)
+  
+clustering.graph <- leading.eigenvector.community(network)
+membership.graph <- clustering.graph$membership
+
+distinctColors <- function(n) {
+  library(RColorBrewer)
+  qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+  col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+  return(sample(col_vector, n))
+}
+
+cols.to.use <- distinctColors(length(unique(membership.graph)))
+cols.to.use <- cols.to.use[membership.graph]
+V(network)$color <- cols.to.use
+l <- layout.fruchterman.reingold(network)
+reducedNames <- unlist(sapply( names(V(network)),function(x) { sampling.sites.n[which( position.matrix == x)] } ))
+
+dev.off()
+pdf( file=paste0(project.folder,"Results/Clustering.pdf") , width = 10, height = 8 )
+plot(network,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , color=cols.to.use )
+dev.off()

@@ -3,6 +3,9 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
+rm(list=(ls()[ls()!="v"]))
+gc(reset=TRUE)
+source("../0. Project Config [SS Connectivity].R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -14,7 +17,7 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
-simulation.name <- "Atlantic"
+simulation.name <- project.name
 
 particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
 particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
@@ -23,18 +26,24 @@ particles.lon <- attach.big.matrix(particles.video.location.x.bm.desc)
 particles.lat <- attach.big.matrix(particles.video.location.y.bm.desc)
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
+dbDisconnect(sql)
 
+if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
+
+movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
+movie.sites.id <- sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy[,4] == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
+movie.sites.id <-  source.sink.xy[ source.sink.xy[,4] == 1, "cells.id" ][movie.sites.id]
+
+sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 sim.extent <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$extent, split=","))))
-
 movie.year <- unique(dbReadTable(sql, "Parameters")$movie.year)
 months <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$sim.months , split=","))))
-particles.to.sql.id <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$particles.to.sql.id , split=","))) )
+#particles.to.sql.id <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$particles.to.sql.id , split=","))) )
 movie.sites.id <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$movie.sites.id , split=","))))
-
 n.hours.per.day <- unique(dbReadTable(sql, "Parameters")$n.hours.per.day)
 n.particles.per.cell <- unique(dbReadTable(sql, "Parameters")$n.particles.per.cell)
 source.sink.xy <- unique(dbReadTable(sql, "SourceSinkSites"))
-
 dbDisconnect(sql)
 
 # --------------------------------------
@@ -48,6 +57,8 @@ ratio <- abs(sim.extent[1]) +  abs(sim.extent[2]) : abs(sim.extent[4]) - abs(sim
 source.sink.id <- 1:nrow(source.sink.xy)
 particles.reference <- data.table( id = 1:(n.particles.per.cell * nrow(source.sink.xy) ) )
 particles.reference[ , start.cell := as.numeric( sapply( source.sink.id ,function(x) { rep(x,n.particles.per.cell) })) ]
+
+particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
 
 # ---------------------------------------------------------------------------------------------------------
 
@@ -86,8 +97,30 @@ change.day[change.day.vect == 1] <- TRUE
 
 # ---------------------------------
 
-cells.colors <- unique(particles.reference[ id %in% particles.to.sql.id , start.cell ])
-cells.colors <- data.frame(cell=cells.colors,color=distinctColorPalette(length(cells.colors), runTsne=TRUE), stringsAsFactors = FALSE)
+distinctColors <- function(n) {
+  library(RColorBrewer)
+  qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+  col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+  return(sample(col_vector, n))
+}
+
+cells.colors <- movie.sites.id
+#cells.colors <- unique(particles.reference[ id %in% movie.sites.id , start.cell ])
+cells.colors <- data.frame(cell=cells.colors,color=distinctColors(length(cells.colors)), stringsAsFactors = FALSE)
+
+# ---------------------------------
+# Aggregate colors
+
+dist <- spDists( as.matrix( source.sink.xy[source.sink.xy$cells.id %in% cells.colors$cell , c(2,3) ] ) , as.matrix( source.sink.xy[source.sink.xy$cells.id %in% cells.colors$cell , c(2,3)  ] ) )
+dist <- as.dist(dist)
+mds.coor <- cmdscale(dist)
+plot(mds.coor)
+plot(hclust(dist(1-dist), method="single"))
+
+k <- 7 
+hc <- hclust(dist, "single")
+cells.colors.i <- distinctColors( k )
+cells.colors <- data.frame(cell=cells.colors$cell,color=sapply(cutree(hc, k = k),function(x) cells.colors.i[x]))
 
 # ---------------------------------
 
@@ -127,7 +160,7 @@ for( t in 1:t.steps) {
   
   print.date.sim <- format(as.Date(  paste(movie.year,"-",days.months[print.day,2],"-",days.months[print.day,1],sep="")  , "%Y-%m-%d"), "%d %b %Y")
 
-  moving.ids <- particles.to.sql.id[which(particles.lon[,t] !=0)]
+  moving.ids <- particles.to.sql.id[which(particles.lon[,t] != 0)]
   moving.cell.ids <- particles.reference[ id %in% moving.ids , start.cell]
   moving.colors <- as.character( sapply(moving.cell.ids, function(x) { cells.colors[ cells.colors$cell %in% x , "color"] } ) )
   
@@ -156,8 +189,27 @@ dev.off()
 
 paste0(project.folder,"/Results/Video/Video map_%02d.png")
 
-system( 'ffmpeg -s 1280x720 -i "/Volumes/Laminaria/Dropbox/Manuscripts/Transport Simulation in Southern Africa Shores//Results/Video/Video map_%02d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p output.mp4 -y' )
+system( 'ffmpeg -s 1280x720 -i "/Volumes/Jellyfish/Dropbox/Manuscripts/Halodule connectivity patterns throughout West Africa//Results/Video/Video map_%02d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
 file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
+
+library(magick)
+library(av)
+
+imagesFiles <- list.files(paste0(project.folder,"/Results/Video/") , full.names = T)
+images <-  image_scale(image_read(imagesFiles[1]), "1280")
+
+for(i in 2:length(imagesFiles)) {
+  
+  images.i <- image_read(imagesFiles[i])
+  images.i <- image_scale(images.i, "1280")
+  images <- c(images,images.i)
+  
+}
+
+image_write_video(images, path = "test", framerate = 10)
+
+video <- image_animate(images, fps = 1)
+image_write(video, "MapIsolatedMPA.gif",quality=100)
 
 # ------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------

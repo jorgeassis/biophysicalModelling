@@ -7,9 +7,10 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../0. Project Config [SS Connectivity].R")
+source("Dependences.R")
 
-number.cores <- 40
+number.cores <- 10
 
 ## ------------------------------------------------------------------------------------------------------------------
 
@@ -31,12 +32,13 @@ cost.surface <- raster("Data/Rasters/Mask.tif")
 # cost.surface <- aggregate(cost.surface, fact=2)
 
 clipper <- as(extent(min(source.sink.xy[,2]) - 2,max(source.sink.xy[,2]) + 2,min(source.sink.xy[,3]) - 2,max(source.sink.xy[,3]) + 2), "SpatialPolygons")
-plot(cost.surface)
+plot(cost.surface, col="gray")
 lines(clipper)
 
 cost.surface <- crop(cost.surface,clipper)
 cost.surface[is.na(cost.surface)] <- 0
-plot(cost.surface,box=FALSE,legend=FALSE,col=c("black","white"))
+plot(cost.surface,box=FALSE,legend=FALSE,col=c("gray","white"))
+points( source.sink.xy[Source == 1 , .(Lon,Lat)], pch=19, col="Black")
 
 # ----------------------------------
 
@@ -44,8 +46,8 @@ raster_tr <- transition(cost.surface, mean, directions=8)
 raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 
 plot(cost.surface,col=c("#737373","#A0CCF2"),box=FALSE,legend=FALSE)
-lines( shortestPath(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 1167,2:3]) , as.matrix(source.sink.xy[Pair == 1,2:3]) , output="SpatialLines") )
-costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 1167,2:3]) , as.matrix(source.sink.xy[Pair == 1,2:3]) )
+lines( shortestPath(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 4,2:3]) , as.matrix(source.sink.xy[Pair == 147,2:3]) , output="SpatialLines") )
+costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 4,2:3]) , as.matrix(source.sink.xy[Pair == 1296,2:3]) )
 
 # ----------------------------------
 
@@ -59,8 +61,7 @@ marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packag
   x.to <- x.to[x.to != 0]
 
   partial.distances <- costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ source.sink.xy$Pair == x , 2:3 ]) , as.matrix(source.sink.xy[ source.sink.xy$Pair %in% x.to , 2:3 ]) )
-
-  partial.distances <- data.frame(Pair.from=rep(x,length(partial.distances)),Pair.to=x.to,Distance=c(partial.distances)/1000)
+  partial.distances <- data.frame(Pair.from=rep(x,length(partial.distances)),Pair.to=source.sink.xy$Pair[source.sink.xy$Pair %in% x.to],Distance=c(partial.distances)/1000)
   
   zeros <- which(partial.distances$Distance == 0 & partial.distances$Pair.from != partial.distances$Pair.to)
   
@@ -118,7 +119,7 @@ dev.off()
 
 resultsTime <- data.frame()
 
-for( t in 1:30){
+for( t in 1:60){
   
   distance.probability.t <- distance.probability[Time.max <= t,]
   
