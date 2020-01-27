@@ -124,7 +124,7 @@ if( FALSE %in% ( position.matrix %in% unique(c(distance.probability$Pair.from,di
 
 ## ---------------------------------------------------
 
-n.days <- 60
+n.days <- 1
 
 new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
 network <- produce.network("Prob",distance.probability[Pair.from %in% position.matrix & Pair.to %in% position.matrix, ],n.days,FALSE,10,source.sink.xy,new.extent)
@@ -144,7 +144,7 @@ V(network[[2]])$color <- cols.to.use
 l <- layout.fruchterman.reingold(network[[2]])
 reducedNames <- unlist(sapply( names(V(network[[2]])),function(x) { sampling.sites.n[which( position.matrix == x)] } ))
   
-pdf( file=paste0(project.folder,"Results/Clustering.pdf") , width = 10, height = 8 )
+pdf( file=paste0(project.folder,"Results/Clustering Direct PD 60.pdf") , width = 10, height = 8 )
 plot(network[[2]],vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , color=cols.to.use )
 dev.off()
 
@@ -356,11 +356,13 @@ comb <- as.data.frame( comb[ sort( as.vector(unlist(comb[,"probability.ss"])) , 
 
 net.function <<- prod
 graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
-E(graph.obj)$weight = ifelse(-log(comb[,3]) == Inf,0,-log(comb[,3])) # Hock, Karlo Mumby, Peter J 2015
+E(graph.obj)$weight = comb[,3] # Hock, Karlo Mumby, Peter J 2015
 graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
-network <- simplify(graph.obj)
-  
-clustering.graph <- leading.eigenvector.community(network)
+network <- simplify(graph.obj,remove.multiple = TRUE, remove.loops = TRUE)
+
+ clustering.graph <- cluster_leading_eigen(network,options=list(maxiter=1000000))
+# clustering.graph <- cluster_edge_betweenness(network)
+ clustering.graph <- cluster_walktrap(network)
 membership.graph <- clustering.graph$membership
 
 distinctColors <- function(n) {
@@ -373,10 +375,9 @@ distinctColors <- function(n) {
 cols.to.use <- distinctColors(length(unique(membership.graph)))
 cols.to.use <- cols.to.use[membership.graph]
 V(network)$color <- cols.to.use
-l <- layout.fruchterman.reingold(network)
+# l <- layout.fruchterman.reingold(network)
 reducedNames <- unlist(sapply( names(V(network)),function(x) { sampling.sites.n[which( position.matrix == x)] } ))
 
-dev.off()
-pdf( file=paste0(project.folder,"Results/Clustering.pdf") , width = 10, height = 8 )
-plot(network,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , color=cols.to.use )
+pdf( file=paste0(project.folder,"Results/Clustering SS PD 60.pdf") , width = 10, height = 8 )
+plot(network,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,edge.curved = F , color=cols.to.use , layout=layout.fruchterman.reingold(network) ) # layout = l,
 dev.off()
