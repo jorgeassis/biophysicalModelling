@@ -140,6 +140,8 @@ distinctColors <- function(n) {
   return(sample(col_vector, n))
 }
 
+reducedNames <- names(V(network[[2]]))
+                      
 countryCodes <- sapply(names(V(network[[2]])),function(x) { getLocation(source.sink.xy[Pair == x,2],source.sink.xy[Pair == x,3]) })
 reducedNames <- sapply( countryCodes, function(x) { codelist$country.name.en[which(codelist$ecb == x)] })
 
