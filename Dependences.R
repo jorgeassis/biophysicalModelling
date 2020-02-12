@@ -12,7 +12,7 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------
 
-packages.to.use <- c("dggridR","gdata","dplyr","sf",
+packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode",
                      "gstat",
                      "compiler",
                      "data.table",
@@ -44,6 +44,26 @@ for(package in packages.to.use) {
 ## ---------------------------------------------------------------------------------------------------------------------
 ## ---------------------------------------------------------------------------------------------------------------------
 ## Functions
+
+
+getLocation <- function(coordLon,coordLat) {
+  
+  construct.geocode.url <- function(coordLon,coordLat, return.call = "json", sensor = "false") {
+    
+    root <- "http://www.mapquestapi.com/geocoding/v1/reverse?key=mpIx2AWq4Lj9R0mDbW1hNWrPe1Jju4X9&"
+    u <- paste(root, "location=", coordLat,",",coordLon,"", sep = "") #&includeRoadMetadata=true&includeNearestIntersection=true
+    return(URLencode(u))
+  }
+  
+  u <- construct.geocode.url(coordLon,coordLat)
+  doc <- getURL(u)
+  x <- fromJSON(doc,simplify = FALSE)
+  
+  
+  return(x$results[[1]]$locations[[1]]$adminArea1)
+  
+}
+
 
 ## Clean Dump
 

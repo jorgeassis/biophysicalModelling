@@ -123,10 +123,43 @@ if( FALSE %in% ( position.matrix %in% unique(c(distance.probability$Pair.from,di
 }
 
 ## ---------------------------------------------------
+## ---------------------------------------------------
+## All Pairs
 
-n.days <- 10
+n.days <- 60
 
-new.extent <- c(min(source.sink.xy[position.matrix,2]),max(source.sink.xy[position.matrix,2]),min(source.sink.xy[position.matrix,3]),max(source.sink.xy[position.matrix,3]))
+new.extent <- c(min(source.sink.xy[,2]),max(source.sink.xy[,2]),min(source.sink.xy[,3]),max(source.sink.xy[,3]))
+network <- produce.network("Prob",distance.probability,n.days,FALSE,10,source.sink.xy,new.extent)
+clustering.graph <- clusters(network[[2]])
+membership.graph <- clustering.graph$membership
+
+distinctColors <- function(n) {
+  library(RColorBrewer)
+  qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+  col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+  return(sample(col_vector, n))
+}
+
+countryCodes <- sapply(names(V(network[[2]])),function(x) { getLocation(source.sink.xy[Pair == x,2],source.sink.xy[Pair == x,3]) })
+reducedNames <- sapply( countryCodes, function(x) { codelist$country.name.en[which(codelist$ecb == x)] })
+
+cols.to.use <- distinctColors(length(unique(membership.graph)))
+cols.to.use <- cols.to.use[membership.graph]
+V(network[[2]])$color <- cols.to.use
+l <- layout.fruchterman.reingold(network[[2]])
+
+plot(network[[2]],vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , color=cols.to.use )
+
+pdf( file=paste0(project.folder,"Results/Clustering Direct PD 60.pdf") , width = 10, height = 8 )
+plot(network[[2]],vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , color=cols.to.use )
+dev.off()
+
+## ---------------------------------------------------
+## ---------------------------------------------------
+## Sampled Pairs
+n.days <- 60
+
+new.extent <- c(min(source.sink.xy[source.sink.xy$Pair %in% position.matrix,2]),max(source.sink.xy[source.sink.xy$Pair %in% position.matrix,2]),min(source.sink.xy[source.sink.xy$Pair %in% position.matrix,3]),max(source.sink.xy[source.sink.xy$Pair %in% position.matrix,3]))
 network <- produce.network("Prob",distance.probability[Pair.from %in% position.matrix & Pair.to %in% position.matrix, ],n.days,FALSE,10,source.sink.xy,new.extent)
 clustering.graph <- clusters(network[[2]])
 membership.graph <- clustering.graph$membership
@@ -360,14 +393,14 @@ graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[
 E(graph.obj)$weight = comb[,3] # Hock, Karlo Mumby, Peter J 2015
 graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
 
- clustering.graph <- cluster_leading_eigen(network,options=list(maxiter=1000000))
+network <- simplify(graph.obj,remove.multiple = TRUE, remove.loops = TRUE)
+
+clustering.graph <- cluster_leading_eigen(network,options=list(maxiter=1000000))
 # clustering.graph <- cluster_edge_betweenness(network)
- clustering.graph <- cluster_walktrap(network)
- clustering.graph <- clusters(network)
+clustering.graph <- cluster_walktrap(network)
+clustering.graph <- clusters(network)
  
 membership.graph <- clustering.graph$membership
-
-network <- simplify(graph.obj,remove.multiple = TRUE, remove.loops = TRUE)
 
 distinctColors <- function(n) {
   library(RColorBrewer)
