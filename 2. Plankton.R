@@ -5,8 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-
-source("../0. Project Config [SS Connectivity].R")
+source("0. Project Config.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -34,49 +33,59 @@ coastline <- gIntersection(coastline, clipper, byid=TRUE)
 landmass <- crop(landmass,clipper)
 coastline <- crop(coastline,clipper)
 
+options(warn=0)
+
 ## --------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------
 
 ## Define source and sink locations
 
-coastline.pts <- as(coastline, "SpatialPointsDataFrame")
+polyDF <- SpatialLinesDataFrame(coastline, data = data.frame(id=1:length(coastline)), match.ID = F)
+coastline.pts <- sample.line(polyDF,d = source.sink.dist,type = "regular",longlat = TRUE)
+coastline.pts <- as(coastline.pts, "SpatialPointsDataFrame")
 coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
-
-coastline.pts <- trim.by.distance(coastline.pts,source.sink.dist,TRUE)
 
 if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
 if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
 
 ## --------------
 
-if( ! is.null(additional.sourcesink.shp) ) {
+if( ! is.null(additional.landmass.shp) ) {
   
   additional.pts <- data.frame()
   
-  for(i in 1:length(additional.sourcesink.shp)){
+  for(i in 1:length(additional.landmass.shp)){
     
-    if(exists("additional.shp")) { rm(additional.shp)} 
+    additional.shp <- shapefile(paste0(project.folder,additional.landmass.shp[i]))
+    crs(additional.shp) <- crs(landmass)
     
-    additional.shp <- shapefile(paste0(project.folder,additional.sourcesink.shp[i]))
+    # Remove parts over land
+    additional.shp = gDifference(additional.shp,landmass,byid=TRUE)
+    
+    additional.shp.i <- SpatialLinesDataFrame(as(additional.shp,"SpatialLines"), data = data.frame(id=1:length(additional.shp)), match.ID = F)
+    additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))
+    coordinates(additional.shp.i) <- ~x+y
+    
+    additional.shp.i <- lapply(split(additional.shp.i, additional.shp.i$id), function(x) Lines(list(Line(coordinates(x))), x$id[1L]))
+    
+    additional.shp.i <- SpatialLines(additional.shp.i)
+    data <- data.frame(id = 1:length(additional.shp.i))
+    rownames(data) <- data$id
+    additional.shp.i <- SpatialLinesDataFrame(additional.shp.i, data)
 
-    if(class(additional.shp) == "SpatialPolygons") { additional.shp <- as(additional.shp, "SpatialLines") }
-    if(class(additional.shp) == "SpatialPolygonsDataFrame") { additional.shp <- as(additional.shp, "SpatialLinesDataFrame") }
+    additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)
+    crs(additional.shp.i) <- crs(landmass)
     
-    if(class(additional.shp) == "SpatialPointsDataFrame") { 
-      
-      crs(additional.shp) <- crs(landmass)
-      over.land <- over(additional.shp,landmass)
-      additional.shp <- additional.shp[which(is.na(over.land)),]
-      
-      }
+    toKeep <- which(is.na(over(additional.shp.i,additional.shp)))
+    additional.shp.i <- additional.shp.i[toKeep,] # plot(additional.shp.i[toKeep,],pch=19,cex=0.1)
+
+    toKeep <- which(is.na(over(additional.shp.i,gBuffer(landmass, byid=TRUE, width=0.001))))
+    additional.shp.i <- additional.shp.i[toKeep,] # plot(additional.shp.i[toKeep,],pch=19,cex=0.1)
     
-    additional.shp <- as.data.frame(as(additional.shp, "SpatialPointsDataFrame"))
-    additional.shp <- data.frame(x=additional.shp[,ncol(additional.shp)-1],y=additional.shp[,ncol(additional.shp)])
-    additional.pts <- rbind(additional.pts,additional.shp)
+    additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))[,c("x","y")]
+    additional.pts <- rbind(additional.pts,additional.shp.i)
 
   }
-
-  additional.pts <- trim.by.distance(additional.pts,source.sink.dist,TRUE)
 
   additional.source.sink.xy <- data.frame(cells.id=(nrow(coastline.pts)+1):(nrow(additional.pts)+nrow(coastline.pts)),x=additional.pts[,1],y=additional.pts[,2],source=1,stringsAsFactors = FALSE) ; head(additional.source.sink.xy)
   source.sink.xy <- rbind(source.sink.xy,additional.source.sink.xy)
@@ -113,8 +122,6 @@ if( ! is.null(unwanted.release.sites.shp) ) {
  
 }
  
-options(warn=0)
-
 ## ------------------
 
 plot(landmass,col=c("grey"))

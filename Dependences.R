@@ -12,7 +12,7 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------
 
-packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode",
+packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco", "geosphere",
                      "gstat",
                      "compiler",
                      "data.table",
@@ -223,6 +223,58 @@ trim.by.distance <- function(xyDF,source.sink.dist,parallel) {
   
   }
   
+  return(source.sink.xy.t)
+  
+}
+
+## ---------------------------------------------------------------------------------------------------------------------
+
+trim.by.distance.poly <- function(poly,source.sink.dist) {
+    
+    polyT <- poly
+    polyT <- as(polyT,"SpatialLines")
+    crds <- coordinates(as(polyT, 'SpatialPoints'))
+    source.sink.xy.t <- matrix(NA,nrow=nrow(crds),ncol=2)
+    colnames(source.sink.xy.t) <- c("Lon","Lat")
+    source.sink.xy.t <- data.frame(source.sink.xy.t)
+    source.sink.xy.t[1,] <- crds[which.max(crds[,2]), ]
+    
+    i <- 0
+    
+    while( !is.null(polyT) ){
+    
+      i <- i + 1
+      cat("\r","Processing point:",i)  
+      
+      circletCentroid <- which(!is.na(source.sink.xy.t[,1]))
+      circle <- circles(source.sink.xy.t[circletCentroid[length(circletCentroid)],], lonlat=TRUE, d=source.sink.dist*1000, dissolve=FALSE)
+      circle <- geometry(circle)
+      crs(circle) <- dt.projection
+      
+      intersectionPolys <- gIntersection(polyT, circle)
+      
+      if( !is.null(intersectionPolys) ) {
+        
+        pt.i <- coordinates(as(intersectionPolys, 'SpatialPoints'))
+        pt.i <- data.frame(Lon=pt.i[2,1],lat=pt.i[2,2])
+        
+      }
+      
+      if( is.null(intersectionPolys) ) {
+        
+        crds <- coordinates(as(polyT, 'SpatialPoints'))
+        pt.i <- data.frame(Lon=crds[which.max(crds[,2]), 1],lat=crds[which.max(crds[,2]), 2])
+
+      }
+      
+      source.sink.xy.t[i,] <- pt.i
+      polyT = gDifference(polyT,circle,byid=TRUE)
+      gc(reset=TRUE)
+      
+    }
+
+    source.sink.xy.t <- source.sink.xy.t[complete.cases(source.sink.xy.t),]
+
   return(source.sink.xy.t)
   
 }

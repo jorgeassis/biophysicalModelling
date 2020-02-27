@@ -9,16 +9,14 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Halodule"
-project.folder <- "/Volumes/Jellyfish/Dropbox/Manuscripts/Halodule connectivity patterns throughout West Africa/"
+project.name <- "WAMPA"
+project.folder <- "/Volumes/Jellyfish/Dropbox/Manuscripts/West Africa MPA connectivity/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
 bathymetry.tif <- NULL
 
-additional.islands.shp <- NULL # "Data/Shapefiles/Additional islands.shp"
-additional.sourcesink.shp <- "Data/WAfricaData.shp"
-landmass.shp.2 <- NULL
+additional.landmass.shp <- "Data/Spatial/surf_marine_2_new130520192.shp" # NULL
 
 unwanted.release.coastline <- TRUE
 unwanted.release.sites.shp <- NULL # "Data/Shapefiles/Unwanted.shp"
@@ -37,10 +35,10 @@ parallel.computational.buffer <- 2 # degrees
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -25
-max.lon <- 14.5
-min.lat <- -10
-max.lat <- 21.5
+min.lon <- -30
+max.lon <- -7.5
+min.lat <- 4.75
+max.lat <- 24.5
 source.sink.dist <- 1 # km
 
 # -----------------------------------
@@ -58,7 +56,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 60                       # Days allowed to travel
+particle.max.duration <- 200                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------
@@ -74,7 +72,7 @@ final.dimensions <- 2
 movie.year <- 2010
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
-movie.sites.xy <- "Data/Movie.shp" 
+movie.sites.xy <- "Data/Spatial/movie.shp" 
 # matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 , -5 , 50 , - 2 , 45 , -5 , 44 , 5 , 40 , -10 , 30 ) , ncol=2 , byrow=TRUE) 
 
 # --------------------------------------------------------------
