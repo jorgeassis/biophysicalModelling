@@ -5,7 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../0. Project Config [SS Connectivity].R")
+source("0. Project Config.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -117,8 +117,9 @@ mds.coor <- cmdscale(dist)
 plot(mds.coor)
 plot(hclust(dist(1-dist), method="single"))
 
-k <- 7 
+k <- length(unique(cells.colors$cell))
 hc <- hclust(dist, "single")
+
 cells.colors.i <- distinctColors( k )
 cells.colors <- data.frame(cell=cells.colors$cell,color=sapply(cutree(hc, k = k),function(x) cells.colors.i[x]))
 
@@ -149,7 +150,14 @@ plot(land.polygon, col="grey")
 # ---------------------------------
 
 show.polygon.region.interest <- TRUE
+show.additional.landmass.shp <- TRUE
 print.day <- 0
+
+if(show.additional.landmass.shp) {
+  
+  additional.landmass.shp <- shapefile(paste0("../",additional.landmass.shp))
+  
+}
 
 png(file=paste0(project.folder,"/Results/Video/Video map_%02d.png"), width=1280, height=720)
 par( mar=c(0,0,3,0) , bg="#ffffff")
@@ -169,10 +177,17 @@ for( t in 1:t.steps) {
   
   points.plot <- data.frame(Lon = moving.lons , Lat = moving.lats , color=moving.colors )
   points.plot <- points.plot[complete.cases(points.plot),]
-  
+
   print(  plot(land.polygon , col="grey" , border="grey") )
-  print(  title(paste0("Simulation of Potential Connectivity: ",print.date.sim), cex = 0.6, col="black") )
-  print(  points(points.plot[,1], points.plot[,2], pch=16 , col=as.character(points.plot[,3]),cex=0.9) )
+  
+  if(show.additional.landmass.shp) {
+    
+    print(  plot(additional.landmass.shp , col="#8D1111" , border="#8D1111",add=TRUE) )
+    
+  }
+  
+  print(  title(paste0("Simulation of Potential Connectivity: ",print.date.sim), cex = 0.5, col="black") )
+  print(  points(points.plot[,1], points.plot[,2], pch=19 , col=as.character(points.plot[,3]),cex=0.8) )
   
   if(show.polygon.region.interest) {
     
