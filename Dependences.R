@@ -55,22 +55,14 @@ distinctColors <- function(n) {
   
   if(n > 74) { col_vector <- sample(col_vector_long, n,replace=FALSE) }
   if(n <= 74) { col_vector <- sample(col_vector, n,replace=FALSE) }
-<<<<<<< HEAD
-  
-=======
 
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
   return(col_vector)
   
 }
 
-<<<<<<< HEAD
 
 ## ----------------------------
 ## ----------------------------
-=======
-## --------------------
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
 
 getLocation <- function(coordLon,coordLat) {
   

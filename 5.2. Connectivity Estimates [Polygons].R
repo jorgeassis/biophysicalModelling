@@ -84,11 +84,7 @@ subseter <- c(-23,40,20,47.5)
 
 source.sink.xy <- source.sink.xy[source.sink.xy$Lon >= subseter[1] & source.sink.xy$Lon <= subseter[2] & source.sink.xy$Lat >= subseter[3] & source.sink.xy$Lat <= subseter[4], ]
 plot(source.sink.xy[,2:3])
-<<<<<<< HEAD
 
-=======
- 
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
 source.sink.xy.sp <- crop(source.sink.xy.sp,extent(subseter))
 mpa.shp <- crop(mpa.shp,extent(source.sink.xy.sp))
 mpa.shp.notake <- crop(mpa.shp.notake,extent(subseter))
@@ -244,7 +240,6 @@ colnames(clusterAssignment) <- 1:nrow(combinations)
 
 for( c in 1:nrow(combinations)){
   
-<<<<<<< HEAD
   season <- combinations[c,1]
   pld.period <- combinations[c,2]
   
@@ -269,15 +264,14 @@ for( c in 1:nrow(combinations)){
   connectivity.source.sink.xy <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
     
     particles.reference.bm.i <- attach.big.matrix(particles.reference.bm.desc)
-=======
+
     season <- combinations[c,1]
     pld.period <- combinations[c,2]
       
     if( season == "SeasonSummer" ) { spawn.p <- c(6,7,8,9) }
     if( season == "SeasonWinter" ) { spawn.p <- c(11,12,1,2) }
     if( season == "YearRound" ) { spawn.p <- 1:12 }
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
-    
+
     project.name <- paste0(season,"_Pld",pld.period)
     
     ## ----------------------------------------------------
@@ -338,7 +332,6 @@ for( c in 1:nrow(combinations)){
     
     stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
     
-<<<<<<< HEAD
   }
   
   stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
@@ -362,28 +355,25 @@ for( c in 1:nrow(combinations)){
   registerDoParallel(cl.2)
   
   connectivity.notakeMPA <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
-=======
+
     connectivity.source.sink.xy <- data.table(connectivity.source.sink.xy[,])
     connectivity.source.sink.xy <- connectivity.source.sink.xy[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
     colnames(connectivity.source.sink.xy) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
     connectivity.source.sink.xy[is.na(connectivity.source.sink.xy)] <- 0
     connectivity.source.sink.xy ; gc()
     save(connectivity.source.sink.xy,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
-    
+
     # project.name
     # load(file=paste0("../Results/YearRound_Pld144/Data/connectivity.source.sink.xy.Rdata"))
     
-<<<<<<< HEAD
     mpa.cells.1 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.1 , 1 ]))
     mpa.cells.2 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.2 , 1 ]))
-=======
+    
     ## ----------------------------------------------------
 
     mpaIDPairs <- expand.grid(from=get(type)$ID,to=get(type)$ID)
     polygonsCompute <- get(type)
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
-    
+
     cl.2 <- makeCluster(40 , type="FORK")
     registerDoParallel(cl.2)
     
@@ -427,7 +417,6 @@ for( c in 1:nrow(combinations)){
     
     stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
     
-<<<<<<< HEAD
   }
   
   stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
@@ -624,7 +613,7 @@ for( c in 1:nrow(combinations)){
   colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
   
   for( i in nrow(connected.pairs):1 ){
-=======
+
     save(connectivity.notakeMPA,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
     
     # project.name
@@ -753,14 +742,12 @@ for( c in 1:nrow(combinations)){
     subset.mpa.shp@data$COLOUR <- membership.graph2
 
     ## ------------------------------------------
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
-    
+
     # Plot clusters with connections
     
     cols.to.use <- distinctColors(length(unique(membership.graph2)))[membership.graph2]
     cols.to.use[which(names(membership.graph2) %in% isolated.mpa.id)] <- "white"
     
-<<<<<<< HEAD
   }
   
   points(non.isolated.mpaCentroids,col="#151515",bg="white",pch=21, cex = 0.8)
@@ -888,7 +875,7 @@ for( c in 1:nrow(combinations)){
   stones.list <- list()
   
   for(p in 1:nrow(pairs.poly)) { 
-=======
+
     pdf(file=paste0("../Results/",project.name,"/Maps/MapClusteringConnections.pdf"), width=11, height=8)
     plot(worldMap , col="#E8E8E8",border="#C9C9C9")
     text(-30.5, y = 61, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
@@ -920,8 +907,7 @@ for( c in 1:nrow(combinations)){
     text(-30.5, y = 61, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
     connected.pairs <- comb[comb$Probability > 0,]
     centroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
-    
+
     colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
     for( i in nrow(connected.pairs):1 ){
       strenght <- (connected.pairs[i,3] * 100) + 1 
@@ -1066,8 +1052,8 @@ for( c in 1:nrow(combinations)){
       routes_sl <- gcIntermediate(centroids[ which(get(type)$ID == connected.pairs[i,1]),],centroids[ which(get(type)$ID == connected.pairs[i,2]),],n = 100, addStartEnd = TRUE, sp = TRUE)
       lines(  routes_sl , type="l" , col=colfunc(101)[round(strenght)])
     }
-<<<<<<< HEAD
-  }
+
+      }
   
   head(pairs.poly)
   
@@ -1126,8 +1112,7 @@ for( c in 1:nrow(combinations)){
   write.csv(combResults,file="../Results/Results.csv")
   save(combResults,file=paste0("../Results/allPLDResults.Rdata"))
   
-=======
-    
+
     subset.mpa.shpCentroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
     points(subset.mpa.shpCentroids,col="#151515",bg=rbPal,pch=21, cex = 0.8)
     points(isolated.mpaCentroids,col="#151515",bg="white",pch=21, cex = 0.8)
@@ -1218,7 +1203,6 @@ for( c in 1:nrow(combinations)){
     write.csv(combResults,file="../Results/Results.csv")
     save(combResults,file=paste0("../Results/allPLDResults.Rdata"))
     
->>>>>>> ab506dc9c6c97f8ec0f00c657700b3e01a3e7d29
 }
 
 ## ---------------------------------------------------------------------------------------------------
