@@ -7,7 +7,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../0. Project Config [SS Connectivity].R")
+source("0. Project Config.R")
 
 ## --------------------------------------------------------------------------------------------------------------
 ##

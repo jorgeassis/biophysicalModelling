@@ -10,7 +10,7 @@ gc(reset=TRUE)
 ## Files and folders
 
 project.name <- "WAMPA"
-project.folder <- "/Volumes/Jellyfish/Dropbox/Manuscripts/West Africa MPA connectivity/"
+project.folder <- "/media/Jellyfish/Dropbox/Manuscripts/West Africa MPA connectivity/"
 
 coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
@@ -27,7 +27,7 @@ source("Dependences.R")
 
 ## ------------------------------------
 
-number.cores <- 10
+number.cores <- 40
 parallel.computational.sections <- 10
 parallel.computational.buffer <- 2 # degrees
 
