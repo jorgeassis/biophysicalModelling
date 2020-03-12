@@ -33,6 +33,8 @@ coastline <- gIntersection(coastline, clipper, byid=TRUE)
 landmass <- crop(landmass,clipper)
 coastline <- crop(coastline,clipper)
 
+landmassBuffered <- gBuffer(landmass, byid=TRUE, width=0.001)
+
 options(warn=0)
 
 ## --------------------------------------------------------------------------------------------------
@@ -60,31 +62,48 @@ if( ! is.null(additional.landmass.shp) ) {
     crs(additional.shp) <- crs(landmass)
     
     # Remove parts over land
-    additional.shp = gDifference(additional.shp,landmass,byid=TRUE)
+    additional.shp <- gDifference(additional.shp,landmass,byid=TRUE)
+    writeOGR(as(additional.shp, "SpatialPolygonsDataFrame"), "../Data/Spatial", gsub("Data/Spatial/","Final",additional.landmass.shp[i]) , driver="ESRI Shapefile",overwrite_layer=TRUE)
     
-    additional.shp.i <- SpatialLinesDataFrame(as(additional.shp,"SpatialLines"), data = data.frame(id=1:length(additional.shp)), match.ID = F)
-    additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))
-    coordinates(additional.shp.i) <- ~x+y
+    for( t in 1:length(additional.shp) ){
     
-    additional.shp.i <- lapply(split(additional.shp.i, additional.shp.i$id), function(x) Lines(list(Line(coordinates(x))), x$id[1L]))
+      error <- FALSE  
+      
+      additional.shp.i <- additional.shp[t,]
+      additional.shp.i <- remove.holes(additional.shp.i)
+      additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
     
-    additional.shp.i <- SpatialLines(additional.shp.i)
-    data <- data.frame(id = 1:length(additional.shp.i))
-    rownames(data) <- data$id
-    additional.shp.i <- SpatialLinesDataFrame(additional.shp.i, data)
-
-    additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)
-    crs(additional.shp.i) <- crs(landmass)
+      tryCatch({ additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)  }, error=function(e){ error <<- TRUE})
+      
+      if(error) {
+        
+        additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))
+        coordinates(additional.shp.i) <- ~x+y
+        additional.shp.i <- lapply(split(additional.shp.i, additional.shp.i$id), function(x) Lines(list(Line(coordinates(x))), x$id[1L]))
+        additional.shp.i <- SpatialLines(additional.shp.i)
+        data <- data.frame(id = 1:length(additional.shp.i))
+        rownames(data) <- data$id
+        additional.shp.i <- SpatialLinesDataFrame(additional.shp.i, data)
+        additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)
+        
+      }
+      
+      crs(additional.shp.i) <- crs(landmass)
+      
+      toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
+      additional.shp.i <- additional.shp.i[toKeep,] 
+      toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
+      additional.shp.i <- additional.shp.i[toKeep,] 
+      
+      plot(additional.shp[t,])
+      plot(landmassBuffered,col="gray",add=TRUE)
+      points(additional.shp.i)
+      
+      additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))[,c("x","y")]
+      additional.pts <- rbind(additional.pts,additional.shp.i)
+      
+    }
     
-    toKeep <- which(is.na(over(additional.shp.i,additional.shp)))
-    additional.shp.i <- additional.shp.i[toKeep,] # plot(additional.shp.i[toKeep,],pch=19,cex=0.1)
-
-    toKeep <- which(is.na(over(additional.shp.i,gBuffer(landmass, byid=TRUE, width=0.001))))
-    additional.shp.i <- additional.shp.i[toKeep,] # plot(additional.shp.i[toKeep,],pch=19,cex=0.1)
-    
-    additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))[,c("x","y")]
-    additional.pts <- rbind(additional.pts,additional.shp.i)
-
   }
 
   additional.source.sink.xy <- data.frame(cells.id=(nrow(coastline.pts)+1):(nrow(additional.pts)+nrow(coastline.pts)),x=additional.pts[,1],y=additional.pts[,2],source=1,stringsAsFactors = FALSE) ; head(additional.source.sink.xy)
@@ -125,7 +144,6 @@ if( ! is.null(unwanted.release.sites.shp) ) {
 ## ------------------
 
 plot(landmass,col=c("grey"))
-
 points(source.sink.xy[source.sink.xy$source == 0,2:3],col=c("yellow"))
 points(source.sink.xy[source.sink.xy$source == 1,2:3],col=c("black"),pch=16)
 
@@ -133,6 +151,14 @@ points(source.sink.xy[source.sink.xy$source == 1,2:3],col=c("black"),pch=16)
 
 initial.coords <- source.sink.xy[source.sink.xy$source == 1 , 2:3 ]
 source.cells.id <- source.sink.xy[source.sink.xy$source == 1,1]
+
+## ------------------------------------------------------------------------------------------------------------------------------
+
+initial.coords.DF <- SpatialPointsDataFrame(data.frame(initial.coords),data=data.frame(Data=rep(1,nrow(initial.coords))))
+crs(initial.coords.DF) <- crs(landmass)
+
+writeOGR(SpatialPolygonsDataFrame(landmass,data=data.frame(ID=1:length(landmass))) , "../Data/Spatial", "landmassCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
+writeOGR(initial.coords.DF, "../Data/Spatial", "sourceSinkSitesCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 

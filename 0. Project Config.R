@@ -16,7 +16,7 @@ coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
 bathymetry.tif <- NULL
 
-additional.landmass.shp <- "Data/Spatial/surf_marine_2_new130520192.shp" # NULL
+additional.landmass.shp <- "Data/Spatial/surf_marine_2_new13052019.shp" # NULL
 
 unwanted.release.coastline <- TRUE
 unwanted.release.sites.shp <- NULL # "Data/Shapefiles/Unwanted.shp"

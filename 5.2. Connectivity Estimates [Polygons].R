@@ -15,6 +15,7 @@ sql.project.name <- "WAMPA"
 number.cores <- 40
 
 additional.landmass.shp <- "../Data/Spatial/surf_marine_2_new130520192.shp"
+additional.landmass.shp <- gsub("Data/Spatial/","Final",additional.landmass.shp) 
 
 sql.file <- "../Results/SQL/WAMPASimulationResults.sql"
 bigmatrix.file <- "../InternalProc/particles.reference.desc"
@@ -647,11 +648,11 @@ y <- combResults$averageResistance #
 y.lab <- "Resistance level (average MPA resistance)"
 file.name <- "averageResistance"
 
-y <- combResults$numberClusters # 
+y <- combResults$numberClusters -  combResults$n.isolated # 
 y.lab <- "Aggregation level (number of clusters)"
 file.name <- "numberClusters"
 
-y <- combResults$numberClustersLeading.eigenvector # 
+y <- combResults$numberClustersLeading.eigenvector -  combResults$n.isolated# 
 y.lab <- "Aggregation level (number of clusters based on leading eigenvector)"
 file.name <- "numberClustersLeading.eigenvector"
 
