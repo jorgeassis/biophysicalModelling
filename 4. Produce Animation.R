@@ -57,7 +57,6 @@ ratio <- abs(sim.extent[1]) +  abs(sim.extent[2]) : abs(sim.extent[4]) - abs(sim
 source.sink.id <- 1:nrow(source.sink.xy)
 particles.reference <- data.table( id = 1:(n.particles.per.cell * nrow(source.sink.xy) ) )
 particles.reference[ , start.cell := as.numeric( sapply( source.sink.id ,function(x) { rep(x,n.particles.per.cell) })) ]
-
 particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
 
 # ---------------------------------------------------------------------------------------------------------

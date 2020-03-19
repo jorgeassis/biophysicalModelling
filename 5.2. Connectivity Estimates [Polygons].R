@@ -11,11 +11,11 @@ library(rnaturalearth)
 library(geosphere)
 source("0. Project Config.R")
 
-sql.project.name <- "WAMPA"
+sql.project.name <- "WMPA"
 number.cores <- 40
 
-additional.landmass.shp <- "../Data/Spatial/surf_marine_2_new130520192.shp"
-additional.landmass.shp <- gsub("Data/Spatial/","Final",additional.landmass.shp) 
+additional.landmass.shp <- "../Data/Spatial/surf_marine_2_new13052019.shp.shp"
+additional.landmass.shp <- gsub("Spatial/","Spatial/Final",additional.landmass.shp) 
 
 sql.file <- "../Results/SQL/WAMPASimulationResults.sql"
 bigmatrix.file <- "../InternalProc/particles.reference.desc"
@@ -118,17 +118,17 @@ combinations <- expand.grid(season=season,pld.period=pld.period,stringsAsFactors
 polygonNames <- polygon.shp$ID
 polygonNamesDuplicated <- which(duplicated(polygonNames))
 
+if(length(length(polygonNamesDuplicated) ) > 0 ){
 for( i in 1:length(polygonNamesDuplicated) ) {
   
-  t <- which(polygonNames %in% MPAnames[polygonNamesDuplicated[i]] )
+  t <- which(polygonNames %in% polygonNames[polygonNamesDuplicated[i]] )
   t <- t[-1]
   
   for( t.i in 1:length(t)) {
     
     polygonNames[t[t.i]] <- paste0(polygonNames[t[t.i]]," ", t.i,collapse = "")
     
-  }
-  
+  } }
 }
 
 ## --------------------
@@ -193,7 +193,7 @@ for( c in 1:nrow(combinations)){
   particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
   cell.to.process <- unique(source.sink.xy$Pair)
 
-  cl.2 <- makeCluster(40 , type="FORK")
+  cl.2 <- makeCluster( number.cores  , type="FORK")
   registerDoParallel(cl.2)
   
   connectivity.source.sink.xy <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
@@ -257,8 +257,7 @@ for( c in 1:nrow(combinations)){
   polygonIDPairs <- expand.grid(from= polygon.shp$ID,to= polygon.shp$ID)
   polygonsCompute <- polygon.shp
 
-
-  cl.2 <- makeCluster(40 , type="FORK")
+  cl.2 <- makeCluster( number.cores  , type="FORK")
   registerDoParallel(cl.2)
   
   connectivity <- foreach( pairs = 1:nrow(polygonIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
