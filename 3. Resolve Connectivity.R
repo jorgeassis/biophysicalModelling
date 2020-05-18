@@ -96,33 +96,35 @@ rm(all.connectivity.pairs.to.sql) ; gc()
 
 # Direct Overall Connectivity matrix (mean of all years)
 
+resultsFolder <- "Results2017" # Results
+
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 Connectivity <- data.table(dbReadTable(sql, "Connectivity"))
 source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
+plot(source.sink.xy[,2:3] )
 dbDisconnect(sql)
 Connectivity
 
-plot(source.sink.xy[,2:3] )
+# Subset Years
+# Connectivity <- Connectivity[ Year == 2017, ]
 
 Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
 Connectivity[is.na(Connectivity)] <- 0
-
 Connectivity ; gc()
 
-## --------------------------------
+## -------
 
 source.sink.id <- source.sink.xy$cells.id[which(source.sink.xy$source == 1)] 
-
 plot(source.sink.xy[which(source.sink.xy$source == 1),2:3] )
 
 source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% source.sink.id,]
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
-write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/source.sink.bm"))
+write.big.matrix(source.sink.bm, paste0(project.folder,"/",resultsFolder,"/source.sink.bm"))
 
 Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/Connectivity.bm")) 
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/",resultsFolder,"/Connectivity.bm")) 
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------

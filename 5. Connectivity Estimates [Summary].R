@@ -7,19 +7,21 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../0. Project Config [SS Connectivity].R")
+source("0. Project Config.R")
 source("Dependences.R")
 
-number.cores <- 10
+number.cores <- 4
 
 ## ------------------------------------------------------------------------------------------------------------------
 
-Connectivity <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.bm"))
+resultsFolder <- "Results2017" # Results
+
+Connectivity <- read.big.matrix(paste0(project.folder,"/",resultsFolder,"/Connectivity.bm"))
 Connectivity <- data.table(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
 Connectivity
 
-source.sink.xy <- read.big.matrix(paste0(project.folder,"/Results/source.sink.bm"))
+source.sink.xy <- read.big.matrix(paste0(project.folder,"/",resultsFolder,"/source.sink.bm"))
 source.sink.xy <- data.table(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
 
@@ -88,12 +90,12 @@ head(marine.distances)
 
 distance.probability <- merge(Connectivity, marine.distances, by=c("Pair.from","Pair.to"))
 distance.probability <- as.big.matrix(as.matrix(distance.probability))
-write.big.matrix(distance.probability, paste0(project.folder,"/Results/Connectivity.Distance.bm"))
+write.big.matrix(distance.probability, paste0(project.folder,"/",resultsFolder,"/Connectivity.Distance.bm"))
 
 # ----------------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------
 
-distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
+distance.probability <- read.big.matrix(paste0(project.folder,"/",resultsFolder,"/Connectivity.Distance.bm"))
 distance.probability <- data.table(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
 
@@ -119,7 +121,7 @@ dev.off()
 
 resultsTime <- data.frame()
 
-for( t in 1:60){
+for( t in 1:30){
   
   distance.probability.t <- distance.probability[Time.max <= t,]
   
@@ -172,7 +174,7 @@ dev.off()
 
 # Summary 1
 
-extract.simulation.days <- 60
+extract.simulation.days <- 30
 distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
 distance.probability.t[distance.probability.t >= 9e99999] <- NA
 

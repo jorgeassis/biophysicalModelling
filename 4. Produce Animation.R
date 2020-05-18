@@ -83,8 +83,8 @@ numberOfDays <- function(date) {
 # --------------------------------------
 
 days.months <- data.frame(
-  day = unlist( sapply(months,function(x) { 1:numberOfDays( as.Date(  paste(unique(movie.year),"-",x[1],"-","01",sep="")  , "%Y-%m-%d") ) } )) ,
-  month = unlist(sapply(months,function(x) { rep(x[1],( numberOfDays( as.Date(  paste(unique(movie.year),"-",x[1],"-","01",sep="")  , "%Y-%m-%d") ) ) ) } ))
+  day = unlist( sapply(sort(months),function(x) { 1:numberOfDays( as.Date(  paste(unique(movie.year),"-",x[1],"-","01",sep="")  , "%Y-%m-%d") ) } )) ,
+  month = unlist(sapply(sort(months),function(x) { rep(x[1],( numberOfDays( as.Date(  paste(unique(movie.year),"-",x[1],"-","01",sep="")  , "%Y-%m-%d") ) ) ) } ))
 )
 
 # ------------------------------------------------------------------------------------------------------
@@ -132,24 +132,23 @@ polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[4] , sim.extent[4] 
 
 # ---------------------------------
 
-# fakePoint <- as.matrix(data.frame( Lon=c(46,46.1,46,46.1),Lat= c(-43.5,-43.5,-43.6,-43.6)))
-# fakePoint <- mapview::coords2Polygons(fakePoint,ID=1)
-# crs(fakePoint) <- dt.projection 
-# 
-# land.polygon <- as(land.polygon,"SpatialPolygons")
-# crs(land.polygon) <- dt.projection 
-# 
-
-# library(sf)
-# land.polygon <- st_union(st_as_sf(land.polygon),st_as_sf(fakePoint))
-# land.polygon <- as_Spatial(land.polygon$geom) 
-
-plot(land.polygon, col="grey")
+if( extent(land.polygon)[1] < min.lon | extent(land.polygon)[2] < max.lon | extent(land.polygon)[3] < min.lat | extent(land.polygon)[4] < max.lat ) {
+  
+  fakePoint <- as.matrix(data.frame( Lon=c(min.lon-2,min.lon-2.0001,min.lon-2,min.lon-2.0001),Lat= c(min.lat-2,min.lat-2,min.lat-2.0001,min.lat-2.0001)))
+  fakePoint <- spPolygons(as.matrix(fakePoint))
+  crs(fakePoint) <- dt.projection 
+  
+  land.polygon <- as(land.polygon,"SpatialPolygons")
+  crs(land.polygon) <- dt.projection 
+  land.polygon <- gUnion(fakePoint,land.polygon)
+  plot(land.polygon, col="grey")
+  
+}
 
 # ---------------------------------
 
 show.polygon.region.interest <- TRUE
-show.additional.landmass.shp <- TRUE
+show.additional.landmass.shp <- FALSE
 print.day <- 0
 
 if(show.additional.landmass.shp) {

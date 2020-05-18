@@ -43,19 +43,25 @@ for (i in 2:nrow(source.sink.xy)) {
 }
 
 source.sink.xy <- source.sink.xy[sorting.sites,]
-sorting.sites <- sorting.sites[-which(sorting.sites == 707)]
-sorting.sites[sorting.sites > 707 ] <- sorting.sites[sorting.sites > 707 ] - 1
+
+# sorting.sites <- sorting.sites[-which(sorting.sites == 707)]
+# sorting.sites[sorting.sites > 707 ] <- sorting.sites[sorting.sites > 707 ] - 1
 
 distance.probability.m <- distance.probability.m[ sorting.sites , rev( sorting.sites ) ]
   
 ## --------------------
 
-file.sampling.sites<- "/Volumes/Jellyfish/Dropbox/Manuscripts/_ Under Revision/Rejection of the Abundant Centre Hypothesis in marine mussels/Data/Sampling_sites.txt"
-sampling.sites <- read.table(file.sampling.sites,sep=",",header=T)
-sampling.sites.names <- as.character(sampling.sites$Site)
-sampling.sites.names <- c(paste0("P",1:9),"M3")
+file.sampling.sites<- shapefile("../locationsFinal.shp")
+sampling.sites <- as.data.frame(file.sampling.sites)[,c("coords.x1","coords.x2")]
+colnames(sampling.sites) <- c("Lon","Lat")
+sampling.sites.names <- as.character(file.sampling.sites$Site.Code)
 
-sampling.sites <- sapply(1:nrow(sampling.sites), function(x) { which.min(spDistsN1(as.matrix(source.sink.xy[,c("Lon","Lat")]),as.matrix(sampling.sites[x,2:3],ncol=2),longlat = TRUE)) } )
+# file.sampling.sites<- "/Volumes/Jellyfish/Dropbox/Manuscripts/_ Under Revision/Rejection of the Abundant Centre Hypothesis in marine mussels/Data/Sampling_sites.txt"
+# sampling.sites <- read.table(file.sampling.sites,sep=",",header=T)
+# sampling.sites.names <- as.character(sampling.sites$Site)
+# sampling.sites.names <- c(paste0("P",1:9),"M3")
+
+sampling.sites <- sapply(1:nrow(sampling.sites), function(x) { which.min(spDistsN1(as.matrix(source.sink.xy[,c("Lon","Lat")]),as.matrix(sampling.sites[x,c("Lon","Lat")],ncol=2),longlat = TRUE)) } )
 
 ## --------------------
 
@@ -64,11 +70,11 @@ plot(raster(-log(distance.probability.m)))
 distance.probability.m <- distance.probability.m / max(distance.probability.m)
 distance.probability.m.reclass <- distance.probability.m
 
-distance.probability.m.reclass[distance.probability.m > 0 & distance.probability.m <= 0.001] <- 1
-distance.probability.m.reclass[distance.probability.m > 0.001 & distance.probability.m <= 0.01] <- 2
-distance.probability.m.reclass[distance.probability.m > 0.01 & distance.probability.m <= 0.1] <- 3
-distance.probability.m.reclass[distance.probability.m > 0.1 & distance.probability.m <= 0.25] <- 4
-distance.probability.m.reclass[distance.probability.m > 0.25 & distance.probability.m <= 1] <- 5
+distance.probability.m.reclass[distance.probability.m > 0 & distance.probability.m <= 0.1] <- 1
+distance.probability.m.reclass[distance.probability.m > 0.1 & distance.probability.m <= 0.25] <- 2
+distance.probability.m.reclass[distance.probability.m > 0.25 & distance.probability.m <= 0.5] <- 3
+distance.probability.m.reclass[distance.probability.m > 0.5 & distance.probability.m <= 0.75] <- 4
+distance.probability.m.reclass[distance.probability.m > 0.75 & distance.probability.m <= 1] <- 5
 
 distance.probability.m.reclass <- raster(distance.probability.m.reclass)
 extent(distance.probability.m.reclass) <- c(-nrow(distance.probability.m.reclass),-1,-nrow(distance.probability.m.reclass),-1)

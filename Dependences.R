@@ -45,6 +45,18 @@ for(package in packages.to.use) {
 ## ---------------------------------------------------------------------------------------------------------------------
 ## Functions
 
+numberOfDays <- function(date) {
+  m <- format(date, format="%m")
+  
+  while (format(date, format="%m") == m) {
+    date <- date + 1
+  }
+  
+  return(as.integer(format(date - 1, format="%d")))
+}
+
+## -------------------
+
 bezierCurve <- function(x, y, n=10)
 {
   outx <- NULL

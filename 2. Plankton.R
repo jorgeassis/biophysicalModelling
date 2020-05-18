@@ -170,7 +170,7 @@ simulation.parameters.step <- data.frame()
 for( file in 1:length(raw.data.files)) {
   
   nc <- nc_open( raw.data.files[file] , verbose=FALSE )
-  nc.date <- as.Date(ncvar_get( nc, "Time"), origin = "1970-01-01")
+  nc.date <- as.Date(ncvar_get( nc, "Date"), origin = as.Date("1970-01-01")) 
   nc_close( nc )
   
   simulation.parameters.step <- rbind( simulation.parameters.step, data.frame( simulation=file, file=raw.data.files[file],  year=substr(nc.date, 1, 4) , month=substr(nc.date, 6, 7) , day=substr(nc.date, 9, 10) , stringsAsFactors = FALSE) )
@@ -323,18 +323,7 @@ gClip <- function(shp, bb){
 
 list.of.polygons <- character()
 
-## -------------------
-
-if( ! is.null(landmass.shp.2) ) { 
-  
-  landmass <- shapefile(paste0(project.folder,landmass.shp.2)) 
-  clipper <- as(extent(min.lon,max.lon,min.lat,max.lat), "SpatialPolygons")
-  crs(clipper) <- dt.projection
-  landmass <- gIntersection(landmass, clipper, byid=TRUE)
-  
-}
-
-## -------------------
+## ---------
 
 for(i in 1:parallel.computational.sections){
   
@@ -343,20 +332,32 @@ for(i in 1:parallel.computational.sections){
   cat('\n')
   cat('\n Progress:', 100 - round((length(parallel.computational.sections) / i) * 100 , digits = 2) , '%' )
   
-  clipper <- as(extent(min.lon,max.lon, sections.lat[i,1] - parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer ), "SpatialPolygons")
-  crs(clipper) <- dt.projection 
+  vertexA <- data.frame( Lon=c(min.lon,min.lon+0.00001,min.lon+0.00001,min.lon),Lat= c(sections.lat[i,1]+0.00001 - parallel.computational.buffer ,sections.lat[i,1]+0.00001 - parallel.computational.buffer ,sections.lat[i,1] - parallel.computational.buffer ,sections.lat[i,1] - parallel.computational.buffer ))
+  vertexA <- spPolygons(as.matrix(vertexA))
 
-  try( geometry.i <- gClip(landmass, sp::bbox(clipper)) , silent = TRUE)
+  vertexB <- data.frame( Lon=c(max.lon,max.lon-0.00001,max.lon-0.00001,max.lon),Lat= c( sections.lat[i,2] - 0.00001 + parallel.computational.buffer , sections.lat[i,2] - 0.00001 + parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer ))
+  vertexB <- spPolygons(as.matrix(vertexB))
+  
+  landmass.i <- gUnion(gUnion(vertexA,vertexB),landmass)
+  crs(landmass.i) <- dt.projection
+  
+  clipper <- as(extent(min.lon,max.lon, sections.lat[i,1] - parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer ), "SpatialPolygons")
+  crs(clipper) <- dt.projection
+
+  tryCatch( geometry.i <- gClip(landmass.i, sp::bbox(clipper)) , error = function(e) { geometry.i <- NULL })
   if( class(geometry.i)[1] ==  "SpatialCollections" ) { geometry.i <- geometry.i@polyobj }
   if( class(geometry.i)[1] !=  "SpatialPolygons" ) { geometry.i <- crop( landmass,clipper ) }
 
   if( is.null(geometry.i) ) { 
     
-    fakePoint <- as.matrix(data.frame(Lon=extent(clipper)[1],Lat=extent(clipper)[3]))
-    fakePoint <- mapview::coords2Polygons(fakePoint,ID=1)
-    crs(fakePoint) <- dt.projection 
-    
-    fakeLandmass <- raster::aggregate(rbind(landmass, fakePoint))
+    fakePoint <- data.frame(Lon=c(extent(clipper)[1],extent(clipper)[2]),Lat=c(extent(clipper)[3],extent(clipper)[4]))
+    coordinates(fakePoint) <- ~Lon+Lat
+    crs(fakePoint) <- dt.projection
+    gridded(fakePoint) <- TRUE
+    fakePoint <- raster(fakePoint)
+    fakePoint = rasterToPolygons(fakePoint, dissolve = T)
+
+    fakeLandmass <- gUnion(landmass,fakePoint)
     geometry.i <- gClip(fakeLandmass, sp::bbox(clipper))
     
     }
@@ -445,7 +446,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   simulation.day <- simulation.parameters.step[simulation.step,"day"]
   simulaton.raw.data.file <- simulation.parameters.step[simulation.step,"file"]
   
-  # Next day 
+  # Next day data
   
   if( simulation.step < nrow(simulation.parameters.step) ) {
     
@@ -454,7 +455,37 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
     simulation.day.n <- simulation.parameters.step[simulation.step +1,"day"]
     simulaton.raw.data.file.n <- simulation.parameters.step[simulation.step +1,"file"]
     
-  } else {
+    if( ( as.numeric(simulation.month.n) - as.numeric(simulation.month) > 1 ) & ( as.numeric(simulation.year.n ) == as.numeric(simulation.year) )  ) {
+      
+      simulation.year.n <- simulation.year
+      simulation.month.n <- simulation.month
+      simulation.day.n <- simulation.day
+      simulaton.raw.data.file.n <- simulaton.raw.data.file
+      
+      # Clean all
+      particles.reference.bm.all.inject <- attach.big.matrix(particles.reference.bm.desc)
+      particles.reference.moving <- mwhich(particles.reference.bm.all.inject,c(9),list(1), list('eq') )
+      particles.reference.bm.all.inject[ particles.reference.moving , 9 ] <- 4
+   
+    }
+    
+    if( ( as.numeric(simulation.month.n ) - as.numeric(simulation.month) != -11 ) & (as.numeric(simulation.year.n ) > as.numeric(simulation.year) )  ) {
+      
+      simulation.year.n <- simulation.year
+      simulation.month.n <- simulation.month
+      simulation.day.n <- simulation.day
+      simulaton.raw.data.file.n <- simulaton.raw.data.file
+      
+      # Clean all
+      particles.reference.bm.all.inject <- attach.big.matrix(particles.reference.bm.desc)
+      particles.reference.moving <- mwhich(particles.reference.bm.all.inject,c(9),list(1), list('eq') )
+      particles.reference.bm.all.inject[ particles.reference.moving , 9 ] <- 4      
+      
+    }
+    
+  }
+  
+  if( simulation.step == nrow(simulation.parameters.step) ) {
     
     simulation.year.n <- simulation.year
     simulation.month.n <- simulation.month
@@ -474,7 +505,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
     dim.j <- ncvar_get( simulation.raw.data, "Y" )
     Longitude <- ncvar_get( simulation.raw.data, "Longitude" )
     Latitude <- ncvar_get( simulation.raw.data, "Latitude" )
-    Time <- ncvar_get( simulation.raw.data, "Time" )
+    Time <- ncvar_get( simulation.raw.data, "Date" )
     Time <- as.Date(Time, origin = "1970-01-01") 
     nc_close(simulation.raw.data)
     
@@ -485,12 +516,12 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   ## --------------------------------------------------------
   
   nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
-  time.start.day <- ncvar_get( nc.file, "Time" )
+  time.start.day <- ncvar_get( nc.file, "Date" )
   time.start.day <- as.Date(time.start.day, origin = "1970-01-01") 
   nc_close(nc.file)
   
   nc.file <- nc_open( simulaton.raw.data.file.n, readunlim=FALSE )
-  time.next.day <- ncvar_get( nc.file, "Time" )
+  time.next.day <- ncvar_get( nc.file, "Date" )
   time.next.day <- as.Date(time.next.day, origin = "1970-01-01") 
   nc_close(nc.file)
   
@@ -580,8 +611,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
     raw.data.u <- raw.data.u[complete.cases(raw.data.u),]
     raw.data.v <- raw.data.v[complete.cases(raw.data.v),]
     
-    # plot(poly)
-    # plot(raw.data.u[,c("Lon","Lat")])
+    # plot(sp.poly) ; points(raw.data.u[,c("Lon","Lat")])
     
     # --------------------------------------------------
     
@@ -844,19 +874,19 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   ## -------------------------------------
   ## Inject particles to final object [ particles.reference.bm.all ] 
   
-  particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
+  particles.reference.bm.all.inject <- attach.big.matrix(particles.reference.bm.desc)
   
   sect.loop <- sect.loop[ sect.loop$state != 0 , ]
 
-  particles.reference.bm.all[ sect.loop$id , 3 ] <- as.numeric(unlist(sect.loop[  , "start.year"] ))
-  particles.reference.bm.all[ sect.loop$id , 4 ] <- as.numeric(unlist(sect.loop[  , "start.month"] ))
-  particles.reference.bm.all[ sect.loop$id , 5 ] <- as.numeric(unlist(sect.loop[  , "start.day"] ))
-  particles.reference.bm.all[ sect.loop$id , 6 ] <- as.numeric(unlist(sect.loop[  , "pos.lon"] ))
-  particles.reference.bm.all[ sect.loop$id , 7 ] <- as.numeric(unlist(sect.loop[  , "pos.lat"] ))
-  particles.reference.bm.all[ sect.loop$id , 9 ] <- as.numeric(unlist(sect.loop[  , "state"] ))
-  particles.reference.bm.all[ sect.loop$id , 10 ] <- as.numeric(unlist(sect.loop[  , "t.start"] ))
-  particles.reference.bm.all[ sect.loop$id , 11 ] <- as.numeric(unlist(sect.loop[  , "t.finish"] ))
-  particles.reference.bm.all[ sect.loop$id , 12 ] <- as.numeric(unlist(sect.loop[  , "cell.rafted"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 3 ] <- as.numeric(unlist(sect.loop[  , "start.year"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 4 ] <- as.numeric(unlist(sect.loop[  , "start.month"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 5 ] <- as.numeric(unlist(sect.loop[  , "start.day"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 6 ] <- as.numeric(unlist(sect.loop[  , "pos.lon"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 7 ] <- as.numeric(unlist(sect.loop[  , "pos.lat"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 9 ] <- as.numeric(unlist(sect.loop[  , "state"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 10 ] <- as.numeric(unlist(sect.loop[  , "t.start"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 11 ] <- as.numeric(unlist(sect.loop[  , "t.finish"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 12 ] <- as.numeric(unlist(sect.loop[  , "cell.rafted"] ))
   
   gc(reset=TRUE)
   
