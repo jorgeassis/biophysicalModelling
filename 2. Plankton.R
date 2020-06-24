@@ -645,7 +645,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
       if( norm.time[t.step,release.particles] ) {   
         
         particles.reference.new.i <- mwhich(particles.reference.bm.all,c(7,7,9),list(sections.lat.f.s,sections.lat.t.s,0), list('ge', 'lt','eq') , 'AND')
-        particles.reference.new.i <- data.table(particles.reference.bm.all[particles.reference.new.i,c(1,2)])
+        particles.reference.new.i <- data.table(matrix(particles.reference.bm.all[particles.reference.new.i,c(1,2)],ncol=2))        
         particles.reference.new.i <- particles.reference.new.i[ , .SD[1] , by=V2][,V1]
         
         # particles.reference.names
