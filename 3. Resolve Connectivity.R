@@ -37,7 +37,7 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/partic
 
 ## ------------------
 
-cl.2 <- makeCluster(5 , type="FORK")
+cl.2 <- makeCluster(8 , type="FORK")
 registerDoParallel(cl.2)
 
 all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
@@ -96,7 +96,7 @@ rm(all.connectivity.pairs.to.sql) ; gc()
 
 # Direct Overall Connectivity matrix (mean of all years)
 
-resultsFolder <- "Results2017" # Results
+resultsFolder <- "Results" # Results
 
 sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
 Connectivity <- data.table(dbReadTable(sql, "Connectivity"))

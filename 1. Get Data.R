@@ -3,16 +3,26 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
+rm(list=(ls()[ls()!="v"]))
+gc(reset=TRUE)
+
 source("0. Project Config.R")
 source("Dependences.R")
+library(httr)
 
 ## -----------------------------------------
 
-files <- c("http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_19.1" ,
-           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_90.9" ,
-           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_91.0" , 
-           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_91.1" , 
-           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_91.2"
+files <- "http://tds.hycom.org/thredds/dodsC/GLBu0.08/reanalysis" # 1992-2012
+file <- "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_90.9"
+
+files <- c(
+           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/reanalysis" ,
+           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_90.9" , 
+           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_91.0" ,
+           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_91.1" ,
+           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_91.2" ,
+           "http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_93.0" 
+
 )
 
 if( buffer == TRUE ) {  
@@ -40,16 +50,20 @@ for(y in from.year:to.year) {
 
 for(file in files) {
   
-  time.corrected <- NULL
-  nc <- NULL
-  increment <- 0
-  while(is.null(nc)) {
-    tryCatch(  nc <- nc_open( file , verbose=FALSE ) , error = function(e) { Sys.sleep(0.25) })
-    increment <- increment + 1
-    if(increment == 100) { stop("100 attempts failed!")}
+  print(file)
+  
+  errorNC <- TRUE
+
+  while( errorNC ) {
+    
+    errorNC <- FALSE
+    file.R <- GET(file)
+    if( file.R$status_code != 400 ) { Sys.sleep(2.5) ; next }
+    tryCatch(  nc <- nc_open( file , verbose=FALSE , suppress_dimvals= TRUE )  , error = function(e) { errorNC <<- TRUE })
+    
   }
   
-  tryCatch( time.corrected <- as.Date(ncvar_get( nc, "time")/24, origin = "2000-01-01") , error = function(e) {  })
+  tryCatch( time.corrected <- as.Date(ncvar_get( nc, "time")/24, origin = "2000-01-01") , error = function(e) { time.corrected <<- NULL })
   if(is.null(time.corrected)) { tryCatch( time.corrected <- as.Date(ncvar_get( nc, "MT"), origin = "1900-12-31 00:00:00") , error = function(e) { }) }
   
   for( i in 1:nrow(fullDates)) {
@@ -61,44 +75,57 @@ for(file in files) {
     if( as.Date(paste0(year, "-" ,ifelse(nchar(month) == 1 , paste0(0,month),month), "-" , ifelse(nchar(day) == 1 , paste0(0,day),day) )) %in% time.corrected ) { fullDates[i,"file"] <- file }
     
   }
+  
+  nc_close(nc)
+  
 }
+
+View(fullDates)
 
 # -----------------------------------------------------------------
 
-for (y in 2014){ # unique(fullDates$year)
+for (y in 2017:2017 ){ # unique(fullDates$year)
   
   fullDates.y <- fullDates[fullDates$year == y,]
   time.window <- apply(fullDates.y[,2:3] , 1 , function(x) { paste0(y,"-",ifelse(nchar(x[1]) == 1 , paste0(0,x[1]),x[1]),"-",ifelse(nchar(x[2]) == 1 , paste0(0,x[2]),x[2])) }  )
-
+  
   for( k in 1:nrow(fullDates.y)) {
+    
+    gc()
     
     day <- fullDates.y[k,]$day
     month <- fullDates.y[k,]$month
     file <- fullDates.y[k,]$file
     
-    if( file == "NA" ) { 
-      day <- fullDates.y[k-1,]$day
-      month <- fullDates.y[k-1,]$month
-      file <- fullDates.y[k-1,]$file
-    }
-    if( file == "NA" ) { 
-      day <- fullDates.y[k+1,]$day
-      month <- fullDates.y[k+1,]$month
-      file <- fullDates.y[k+1,]$file
+    if( file == "NA" | is.na(file) ) { 
+      
+      repo <- c(sapply(1:30,function(x) {  c(x,x*(-1)) }))
+      repo.i <- 0
+      
+      while( file == "NA" | is.na(file) ) {
+        repo.i <- repo.i + 1
+        day <- fullDates.y[k+repo[repo.i],]$day
+        month <- fullDates.y[k+repo[repo.i],]$month
+        file <- fullDates.y[k+repo[repo.i],]$file
+        
+        if(length(file) == 0) { file <- "NA"  }
+        
+      }
     }
     
     time.corrected <- NULL
-    nc <- NULL
-    increment <- 0
-    while(is.null(nc)) {
-      tryCatch(  nc <- nc_open( file , verbose=FALSE ) , error = function(e) { Sys.sleep(5) })
-      increment <- increment + 1
-      if(increment == 50) { stop("50 attempts failed!")}
+    
+    errorNC <- TRUE
+    while( errorNC ) {
+      errorNC <- FALSE
+      file.R <- GET(file)
+      if( file.R$status_code != 400 ) { Sys.sleep(2.5) ; next }
+      tryCatch(  nc <- nc_open( file , verbose=FALSE )  , error = function(e) { errorNC <<- TRUE })
     }
     
     tryCatch( time.corrected <- as.Date(ncvar_get( nc, "time")/24, origin = "2000-01-01") , error = function(e) {  })
     if(is.null(time.corrected)) { tryCatch( time.corrected <- as.Date(ncvar_get( nc, "MT"), origin = "1900-12-31 00:00:00") , error = function(e) { }) }
-
+    
     t <- which(time.corrected == as.Date(paste0(y, "-" ,ifelse(nchar(month) == 1 , paste0(0,month),month), "-" , ifelse(nchar(day) == 1 , paste0(0,day),day) )) )
     
     if( length(t) == 0) { stop("Error ::  102")}
@@ -107,12 +134,31 @@ for (y in 2014){ # unique(fullDates$year)
     depth <-  which(depths %in% depth.range)
     Latitude <- ncvar_get( nc, "lat")
     Longitude <- ncvar_get( nc, "lon")
-    Longitude[Longitude > 180] <- Longitude[Longitude > 180] - 360
+    Longitude[Longitude >= 180] <- Longitude[Longitude >= 180] - 360
+    
+    fix <- FALSE
+    
+    if( Longitude[1] == 0 ) { 
+      
+      fix <- TRUE
+      fix.v <- sort(Longitude,decreasing = FALSE,index.return=T)$x
+      fix.i <- sort(Longitude,decreasing = FALSE,index.return=T)$ix
+      
+      fix.v <- which(fix.v >= min.lon & fix.v <= max.lon)
+      fix.i <- fix.i[fix.v]
+      Longitude <- sort(Longitude)
+      
+    }
     
     array.region.lon <- which(Longitude >= min.lon & Longitude <= max.lon)
     array.region.lat <- which(Latitude >= min.lat & Latitude <= max.lat)
     Longitude.array <- Longitude[array.region.lon]
     Latitude.array <- Latitude[array.region.lat]
+    
+    if( ! exists("Longitude.old")  ) { Longitude.old <- Longitude  }
+    if( y != from.year | k != 1  ) { 
+      if( ! all.equal(Longitude,Longitude.old) ) { stop("Error :: Code 109")}
+      Longitude.old <- Longitude  }
     
     i.min <- min(array.region.lon)
     j.min <- min(array.region.lat)
@@ -121,28 +167,64 @@ for (y in 2014){ # unique(fullDates$year)
     
     u <- array(data = NA, dim = c( i.max-i.min+1 , j.max-j.min+1 , length(depth) ))
     v <- array(data = NA, dim = c( i.max-i.min+1 , j.max-j.min+1 , length(depth) ))
-
+    
     for( d in 1:length(depth) ) {
-
+      
       values.to.place.u <- NULL
       values.to.place.v <- NULL
       
-      while(is.null(values.to.place.u)) {
+      nc_close(nc)
+      errorNC <- TRUE
+      while( errorNC ) {
+        errorNC <- FALSE
+        file.R <- GET(file)
+        if( file.R$status_code != 400 ) { Sys.sleep(2.5) ; next }
+        tryCatch(  nc <- nc_open( file , verbose=FALSE )  , error = function(e) { errorNC <<- TRUE })
+      }
+      
+      while( is.null(values.to.place.u) ) {
         
-        try( values.to.place.u <- ncvar_get( nc, "water_u", start=c(i.min,j.min,depth[d],t), count=c((i.max-i.min+1),(j.max-j.min+1),1,1)))
+        if( ! fix ) { try( values.to.place.u <- ncvar_get( nc, "water_u", start=c(i.min,j.min,depth[d],t), count=c((i.max-i.min+1),(j.max-j.min+1),1,1))) }
+        
+        if(   fix ) { 
+          
+          try( values.to.place.u <- ncvar_get( nc, "water_u", start=c(1,j.min,depth[d],t), count=c(length(Longitude),(j.max-j.min+1),1,1))) 
+          
+          values.to.place.u <- values.to.place.u[fix.i,]
+          
+        }
         
       }
-
+      
       if( max(values.to.place.u,na.rm=T) > 100 | min(values.to.place.u,na.rm=T) < -100) { stop("Strange values") }
       
       # values.to.place.u[values.to.place.u > 100 ] <- NA
       # values.to.place.u[values.to.place.u < -100 ] <- NA
       
+      nc_close(nc)
+      errorNC <- TRUE
+      while( errorNC ) {
+        errorNC <- FALSE
+        file.R <- GET(file)
+        if( file.R$status_code != 400 ) { Sys.sleep(2.5) ; next }
+        tryCatch(  nc <- nc_open( file , verbose=FALSE )  , error = function(e) { errorNC <<- TRUE })
+      }
+      
       while(is.null(values.to.place.v)) {
         
-        try( values.to.place.v <- ncvar_get( nc, "water_v", start=c(i.min,j.min,depth[d],t), count=c((i.max-i.min+1),(j.max-j.min+1),1,1)))
+        if( ! fix ) { try( values.to.place.v <- ncvar_get( nc, "water_v", start=c(i.min,j.min,depth[d],t), count=c((i.max-i.min+1),(j.max-j.min+1),1,1))) }
+        
+        if(   fix ) { 
+          
+          try( values.to.place.v <- ncvar_get( nc, "water_v", start=c(1,j.min,depth[d],t), count=c((length(Longitude)),(j.max-j.min+1),1,1))) 
+          
+          values.to.place.v <- values.to.place.v[fix.i,]
+          
+        }
         
       }
+      
+      nc_close(nc)
       
       if( max(values.to.place.v,na.rm=T) > 100 | min(values.to.place.v,na.rm=T) < -100) { stop("Strange values") }
       
@@ -153,6 +235,7 @@ for (y in 2014){ # unique(fullDates$year)
       v[,,d] <- values.to.place.v
       
     }
+    
     
     if(dim(u)[3] == 1) { u <- u[,,1] }
     if(dim(v)[3] == 1) { v <- v[,,1] }
@@ -172,19 +255,19 @@ for (y in 2014){ # unique(fullDates$year)
       data.u[,,k] <- u
       data.v[,,k] <- v 
       
-      }     
+    }     
     
     # For 3d data
     
     if(  k == 1 & !is.na(dim(u)[3]) )  { 
       
-            data.u <- array(data = NA, dim = c(dim(u)[1],dim(u)[2],dim(u)[3],nrow(fullDates.y)), dimnames = c("Lon","Lat","Depth","Time"))
-            data.v <- array(data = NA, dim = c(dim(v)[1],dim(v)[2],dim(u)[3],nrow(fullDates.y)), dimnames = c("Lon","Lat","Depth","Time")) 
-            
-            }
+      data.u <- array(data = NA, dim = c(dim(u)[1],dim(u)[2],dim(u)[3],nrow(fullDates.y)), dimnames = c("Lon","Lat","Depth","Time"))
+      data.v <- array(data = NA, dim = c(dim(v)[1],dim(v)[2],dim(u)[3],nrow(fullDates.y)), dimnames = c("Lon","Lat","Depth","Time")) 
+      
+    }
     
     if( !is.na(dim(u)[3]) )  {  data.u[,,,k] <- u
-                                data.v[,,,k] <- v }
+    data.v[,,,k] <- v }
     
     cat('\014')
     cat('\n')
@@ -236,6 +319,6 @@ for (y in 2014){ # unique(fullDates$year)
   }
   
 }
-          
+
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------

@@ -60,6 +60,7 @@ if( ! is.null(additional.landmass.shp) ) {
     
     additional.shp <- shapefile(paste0(project.folder,additional.landmass.shp[i]))
     crs(additional.shp) <- crs(landmass)
+    additional.shp <- gBuffer(additional.shp, byid=TRUE, width=0.001)
     
     # Remove parts over land
     additional.shp <- gDifference(additional.shp,landmass,byid=TRUE)
@@ -94,6 +95,26 @@ if( ! is.null(additional.landmass.shp) ) {
       additional.shp.i <- additional.shp.i[toKeep,] 
       toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
       additional.shp.i <- additional.shp.i[toKeep,] 
+      
+      tester <- 0
+      
+      while( length(additional.shp.i) == 0 ) {
+        
+        additional.shp.i <- additional.shp[t,]
+        additional.shp.i <- remove.holes(additional.shp.i)
+        additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
+        
+        additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "random",longlat = TRUE)
+        
+        toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
+        additional.shp.i <- additional.shp.i[toKeep,] 
+        toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
+        additional.shp.i <- additional.shp.i[toKeep,] 
+        
+        tester <- tester + 1
+        if(tester == 100) { break("Error :: CODE0909")}
+        
+      }
       
       plot(additional.shp[t,])
       plot(landmassBuffered,col="gray",add=TRUE)

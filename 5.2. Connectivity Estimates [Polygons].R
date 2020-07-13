@@ -7,21 +7,22 @@
 
 rm( list=(ls()[ls()!="v"]) )
 gc(reset=TRUE)
+
 library(rnaturalearth)
 library(geosphere)
+
 source("0. Project Config.R")
 
-sql.project.name <- "WMPA"
-number.cores <- 40
+sql.project.name <- "MPA"
+number.cores <- 6
 
-additional.landmass.shp <- "../Data/Spatial/surf_marine_2_new13052019.shp.shp"
-additional.landmass.shp <- gsub("Spatial/","Spatial/Final",additional.landmass.shp) 
+mpa.shp.notake.filename <- "../Data/notake_merged_Med_P.shp" 
 
-sql.file <- "../Results/SQL/WAMPASimulationResults.sql"
+sql.file <- "../Results/SQL/CentralityMPASimulationResults.sql"
 bigmatrix.file <- "../InternalProc/particles.reference.desc"
 sorce.sink.cells.file <- "../Results/source.sink.bm"
 
-coordRef <- crs(shapefile(additional.landmass.shp))
+coordRef <- crs(shapefile(mpa.shp.notake.filename))
 
 ## ------------------------------------------------------------------------------------------------------------
 ## Read main sources
@@ -43,37 +44,35 @@ crs(source.sink.xy.sp) <- coordRef
 
 ## ---------------------
 
-polygon.shp <- shapefile(additional.landmass.shp)
-polygon.shp <- gBuffer(polygon.shp, byid=TRUE, width=0)
+mpa.shp.notake <- shapefile(mpa.shp.notake.filename)
+mpa.shp.notake <- gBuffer(mpa.shp.notake, byid=TRUE, width=0)
 
-worldMap <- ne_countries(scale = 50, returnclass = "sp")
+## ----------------
 
-plot(polygon.shp,col="Black",border="Black")
-plot(worldMap,col="Gray",border="Gray",add=T)
-
-plot(source.sink.xy.sp,col="Black",border="Black")
+worldMap <- ne_countries(scale = 10, returnclass = "sp")
 
 ## --------------------------------------------------------------------
 ## --------------------------------------------------------------------
 # Temporary Subset
 
-subseter <- c(-23,40,20,47.5)
+subseter <- c(-11.25,37.85,29.75,46.25)
+
+## ------------
 
 source.sink.xy <- source.sink.xy[source.sink.xy$Lon >= subseter[1] & source.sink.xy$Lon <= subseter[2] & source.sink.xy$Lat >= subseter[3] & source.sink.xy$Lat <= subseter[4], ]
 plot(source.sink.xy[,2:3])
 
 source.sink.xy.sp <- crop(source.sink.xy.sp,extent(subseter))
-mpa.shp <- crop(mpa.shp,extent(source.sink.xy.sp))
-polygon.shp <- crop(polygon.shp,extent(subseter))
-plot(polygon.shp,col="Black",border="Black")
-plot(source.sink.xy.sp,col="Black",border="Black")
+mpa.shp.notake <- crop(mpa.shp.notake,extent(subseter))
 
-## --------------------------------------------------------------------
-## --------------------------------------------------------------------
-## Produce main datasets for further queries
+worldMap <- crop(worldMap,extent(subseter + c(-20,20,-20,20))  ) 
+notakeMPA <- mpa.shp.notake
+notakeMPA$ID <- 1:nrow(notakeMPA)
 
-worldMap <- crop(worldMap,extent(polygon.shp) + c(-2.5,2.5,-3,3.75)) 
-polygon.shp$ID <- 1:nrow(polygon.shp)
+## -----------------
+
+save(notakeMPA,file="../Results/notakeMPA.Rdata")
+plot(notakeMPA , col="Black",border="Black")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Identify MPA id in source sink sites
@@ -81,25 +80,27 @@ polygon.shp$ID <- 1:nrow(polygon.shp)
 # load OR run 1 foreach section bellow
 # load("../Results/source.sink.xy.Rdata") OR run foreach section bellow
 
-cl.2 <- makeCluster(20 , type="FORK")
+cl.2 <- makeCluster(6 , type="FORK")
 registerDoParallel(cl.2)
 
-source.sink.xy.polygon <- foreach( source.sink.xy.i = 1:nrow(source.sink.xy) , .verbose=FALSE, .combine = rbind ,  .packages=c("rgeos","raster","geosphere","FNN","bigmemory")) %dopar% { # 
+source.sink.xy.mpa <- foreach( source.sink.xy.i = 1:nrow(source.sink.xy) , .verbose=FALSE, .combine = rbind ,  .packages=c("rgeos","raster","geosphere","FNN","bigmemory")) %dopar% { # 
   
-  distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], polygon.shp,byid=TRUE)
-  allPolygoni <- polygon.shp[which.min(distances),]$ID
+  allMPAi <- 0
+  notakeMPAConnectnessi <- 0
+  distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], notakeMPA,byid=TRUE)
+  notakeMPAi <- notakeMPA[which.min(distances),]$ID
   
-  return( data.frame( ID = allPolygoni ) )
+  return( data.frame( allMPAID = allMPAi , notakeMPAConnectnessID = notakeMPAConnectnessi , notakeMPAID = notakeMPAi  ) )
   
 }
 
 stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 
-source.sink.xy <- cbind(source.sink.xy[,.(Pair,Lon,Lat)],source.sink.xy.polygon)
+source.sink.xy <- cbind(source.sink.xy[,.(Pair,Lon,Lat)],source.sink.xy.mpa)
 head(source.sink.xy)
+save(source.sink.xy,file="../Results/source.sink.xy.Rdata")
 
-# save(source.sink.xy,file="../Results/source.sink.xy.Rdata")
-# load("../Results/source.sink.xy.Rdata")
+load("../Results/source.sink.xy.Rdata")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -111,69 +112,77 @@ list.dirs(path = paste0("../Results"), recursive = FALSE)
 
 season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
 pld.period <- 1:200 # c(10 , 30 , 90 , 120 , 200)
+
 combinations <- expand.grid(season=season,pld.period=pld.period,stringsAsFactors = F)
 
 ## --------------------
 
-polygonNames <- polygon.shp$ID
-polygonNamesDuplicated <- which(duplicated(polygonNames))
-
-if(length(length(polygonNamesDuplicated) ) > 0 ){
-for( i in 1:length(polygonNamesDuplicated) ) {
-  
-  t <- which(polygonNames %in% polygonNames[polygonNamesDuplicated[i]] )
-  t <- t[-1]
-  
-  for( t.i in 1:length(t)) {
-    
-    polygonNames[t[t.i]] <- paste0(polygonNames[t[t.i]]," ", t.i,collapse = "")
-    
-  } }
-}
-
-## --------------------
+type <- "notakeMPA"
+MPAnames <- get(type)$NAME
+MPAnamesDuplicated <- which(duplicated(MPAnames))
+# 
+# for( mpa.i in 1:length(MPAnamesDuplicated) ) {
+#   
+#   t <- which(MPAnames %in% MPAnames[MPAnamesDuplicated[mpa.i]] )
+#   t <- t[-1]
+#   
+#   for( t.i in 1:length(t)) {
+#     
+#     MPAnames[t[t.i]] <- paste0(MPAnames[t[t.i]]," ", t.i,collapse = "")
+#     
+#   }
+#   
+# }
 
 combResults <- data.frame()
 
-isolatedResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(isolatedResults) <- polygonNames
+isolatedResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(isolatedResults) <- MPAnames
 colnames(isolatedResults) <- 1:nrow(combinations)
 
-betweennessResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(betweennessResults) <- polygonNames
+betweennessResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(betweennessResults) <- MPAnames
 colnames(betweennessResults) <- 1:nrow(combinations)
 
-higherBetweennessResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherBetweennessResults) <- polygonNames
+higherBetweennessResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(higherBetweennessResults) <- MPAnames
 colnames(higherBetweennessResults) <- 1:nrow(combinations)
 
-eighenCentralityResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(eighenCentralityResults) <- polygonNames
+eighenCentralityResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(eighenCentralityResults) <- MPAnames
 colnames(eighenCentralityResults) <- 1:nrow(combinations)
 
-highereighenCentralityResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(highereighenCentralityResults) <- polygonNames
+betweennessResultsSubgraph <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(betweennessResultsSubgraph) <- MPAnames
+colnames(betweennessResultsSubgraph) <- 1:nrow(combinations)
+
+eighenCentralityResultsSubgraph <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(eighenCentralityResultsSubgraph) <- MPAnames
+colnames(eighenCentralityResultsSubgraph) <- 1:nrow(combinations)
+
+highereighenCentralityResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(highereighenCentralityResults) <- MPAnames
 colnames(highereighenCentralityResults) <- 1:nrow(combinations)
 
-higherStoneResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherStoneResults) <- polygonNames
+higherStoneResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(higherStoneResults) <- MPAnames
 colnames(higherStoneResults) <- 1:nrow(combinations)
 
-resistanceResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(resistanceResults) <- polygonNames
+resistanceResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(resistanceResults) <- MPAnames
 colnames(resistanceResults) <- 1:nrow(combinations)
 
-higherResistanceResults <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherResistanceResults) <- polygonNames
+higherResistanceResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(higherResistanceResults) <- MPAnames
 colnames(higherResistanceResults) <- 1:nrow(combinations)
 
-clusterAssignment <- data.frame(matrix(nrow=length(polygonNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(clusterAssignment) <- polygonNames
+clusterAssignment <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
+rownames(clusterAssignment) <- MPAnames
 colnames(clusterAssignment) <- 1:nrow(combinations)
 
 ## ------------------------------------------------------------------------------
 
-for( c in 1:nrow(combinations)){
+for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   
   season <- combinations[c,1]
   pld.period <- combinations[c,2]
@@ -192,8 +201,8 @@ for( c in 1:nrow(combinations)){
   
   particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
   cell.to.process <- unique(source.sink.xy$Pair)
-
-  cl.2 <- makeCluster( number.cores  , type="FORK")
+  
+  cl.2 <- makeCluster(6 , type="FORK")
   registerDoParallel(cl.2)
   
   connectivity.source.sink.xy <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
@@ -247,26 +256,26 @@ for( c in 1:nrow(combinations)){
   colnames(connectivity.source.sink.xy) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
   connectivity.source.sink.xy[is.na(connectivity.source.sink.xy)] <- 0
   connectivity.source.sink.xy ; gc()
+  save(connectivity.source.sink.xy,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
   
-  # save(connectivity.source.sink.xy,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
   # project.name
   # load(file=paste0("../Results/YearRound_Pld144/Data/connectivity.source.sink.xy.Rdata"))
   
   ## ----------------------------------------------------
   
-  polygonIDPairs <- expand.grid(from= polygon.shp$ID,to= polygon.shp$ID)
-  polygonsCompute <- polygon.shp
-
-  cl.2 <- makeCluster( number.cores  , type="FORK")
+  mpaIDPairs <- expand.grid(from=get(type)$ID,to=get(type)$ID)
+  polygonsCompute <- get(type)
+  
+  cl.2 <- makeCluster(6 , type="FORK")
   registerDoParallel(cl.2)
   
-  connectivity <- foreach( pairs = 1:nrow(polygonIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
+  connectivity <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
     
-    mpa.id.1 <- polygonIDPairs[pairs,1]
-    mpa.id.2 <- polygonIDPairs[pairs,2]
+    mpa.id.1 <- mpaIDPairs[pairs,1]
+    mpa.id.2 <- mpaIDPairs[pairs,2]
     
-    mpa.cells.1 <- as.vector(unlist(source.sink.xy[ ID == mpa.id.1 , 1 ]))
-    mpa.cells.2 <- as.vector(unlist(source.sink.xy[ ID == mpa.id.2 , 1 ]))
+    mpa.cells.1 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.1 , 1 ]))
+    mpa.cells.2 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.2 , 1 ]))
     
     temp.result <- connectivity.source.sink.xy[ Pair.from %in% mpa.cells.1 & Pair.to %in% mpa.cells.2 , ]
     
@@ -300,27 +309,29 @@ for( c in 1:nrow(combinations)){
   
   stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
   
-  # save(connectivity.notakeMPA,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
+  save(connectivity,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
+  
   # project.name
   # load(file=paste0("../Results/YearRound_Pld144/Data/connectivity.source.sink.notakeMPA.Rdata"))
   
   ## ------------------------------------------------------------------------------
   ## ------------------------------------------------------------------------------
   
-  connectivity.matrix <- connectivity[ ,c(1,2,7)]
+  connectivity.matrix <- connectivity[ ,c(1,2,7)] 
+  
   connectivity.matrix <- acast(connectivity.matrix, Pair.from ~ Pair.to )
   diag(connectivity.matrix) <- 0
   
-  isolated.polygon <- which(apply(connectivity.matrix,1,sum,na.rm=T) == 0 & apply(connectivity.matrix,2,sum,na.rm=T) == 0)
-  isolated.polygon.id <- colnames(connectivity.matrix)[isolated.polygon]
-  isolated.polygon.names <- polygonNames[which( colnames(connectivity.matrix) %in% isolated.polygon.id)]
-  isolated.polygon.length <- length(isolated.polygon)
+  isolated.mpa <- which(apply(connectivity.matrix,1,sum,na.rm=T) == 0 & apply(connectivity.matrix,2,sum,na.rm=T) == 0)
+  isolated.mpa.id <- colnames(connectivity.matrix)[isolated.mpa]
+  isolated.mpa.names <- MPAnames[which( colnames(connectivity.matrix) %in% isolated.mpa.id)]
+  isolated.mpa.length <- length(isolated.mpa)
   
-  isolatedResults[ which(rownames(isolatedResults) %in% isolated.polygon.names ),c] <- "TRUE"
+  isolatedResults[ which(rownames(isolatedResults) %in% isolated.mpa.names ),c] <- "TRUE"
   write.csv(isolatedResults,file="../Results/isolatedMPAs.csv")
   
   # Aggregation level (Proportion of non-isolated MPAs, at least one connection, in relation to the number of MPAs)
-  aggregationAtLeastOne <- (nrow(connectivity.matrix)- isolated.polygon.length ) / nrow(connectivity.matrix)
+  aggregationAtLeastOne <- (nrow(connectivity.matrix)-length(isolated.mpa)) / nrow(connectivity.matrix)
   
   # Aggregation level (Based on overall connections)
   connectivity.matrix.binomial <- connectivity.matrix
@@ -334,17 +345,24 @@ for( c in 1:nrow(combinations)){
   write.csv(resistanceResults,file="../Results/resistanceMPA.csv")
   
   # Those with higher / Percertil 95%
-  temporaryRes <- polygonNames[ which(resistance >=  as.numeric(quantile(resistance,0.95,na.rm=TRUE))) ]
+  temporaryRes <- MPAnames[ which(resistance >=  as.numeric(quantile(resistance,0.95,na.rm=TRUE))) ]
   higherResistanceResults[ as.numeric(unlist(sapply(  temporaryRes  , function(x)  which( rownames(higherResistanceResults) == x )))) ,c] <- "TRUE"
   write.csv(higherResistanceResults,file="../Results/higheResistanceMPA..csv")
   
   # Average connections between MPAs
   connect.index <- data.frame(MPA=colnames(connectivity.matrix),exportTo=apply(connectivity.matrix,1,function(x){ sum(x != 0) } ) , importFrom=apply(connectivity.matrix,2,function(x){ sum(x != 0) } ))
+  
   averageConnections <- mean(unlist(connect.index[,-1]))
+  # sd(unlist(connect.index[,-1]))
+  # min(apply(connect.index[,-1],1,sum))
   maximumConnections <- max(apply(connect.index[,-1],1,max))
   
   # Export
   averageExport <- mean(connect.index[connect.index[,2] != 0,2])
+  # sd(unlist(connect.index[,2]))
+  # min(unlist(connect.index[,2]))
+  # max(unlist(connect.index[,2]))
+  
   histData <- unlist(connect.index[,2])
   
   pdf(file=paste0("../Results/",project.name,"/histogramExportTo.pdf"), width=5, height=5)
@@ -354,6 +372,10 @@ for( c in 1:nrow(combinations)){
   
   # import
   averageImport <- mean(connect.index[connect.index[,3] != 0,3])
+  # sd(unlist(connect.index[,3]))
+  # min(unlist(connect.index[,3]))
+  # max(unlist(connect.index[,3]))
+  
   histData <- unlist(connect.index[,3])
   
   pdf(file=paste0("../Results/",project.name,"/histogramImportFrom.pdf"), width=5, height=5)
@@ -368,7 +390,50 @@ for( c in 1:nrow(combinations)){
   comb <- comb[ comb$Pair.from != comb$Pair.to ,]
   comb <- as.data.frame( comb[ sort(comb[,"Probability"] , decreasing = TRUE, index.return =TRUE)$ix , c("Pair.from","Pair.to","Probability")] )
   
-  # -------------
+  ## --------------------------------------------------------------------------------
+  
+  # GGPLOT with connections
+  
+  theme_map <- 
+    theme_minimal() +
+    theme(
+      text = element_text(family = "Helvetica", color = "#22211d"),
+      axis.line = element_blank(),
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
+      panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
+      panel.grid.minor = element_blank(),
+      plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+      panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+      legend.background = element_rect(fill = "#f5f5f2", color = NA),
+      panel.border = element_blank()
+    )
+  
+  mapSouthernEurope <- ggplot() +
+    geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group)) +
+    coord_map('lambert', lat0=29.75, lat1=45, xlim=c(-7.70, 35.75), ylim=c(29.75, 44.5)) + theme_map
+  
+  mapSouthernEuropeNet <- mapSouthernEurope
+  mapSouthernEuropeNet
+  
+  connected.pairs <- comb[comb$Probability > 0,]
+  centroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
+  colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
+  for( i in nrow(connected.pairs):1 ){
+    strenght <- (connected.pairs[i,3] * 100) + 1 
+    routes_sl <- gcIntermediate(centroids[ which(get(type)$ID == connected.pairs[i,1]),],
+                                centroids[ which(get(type)$ID == connected.pairs[i,2]),],
+                                n = 100, addStartEnd = TRUE, sp = TRUE)
+    SLDF = sp::SpatialLinesDataFrame(routes_sl, data.frame(ID = NA), match.ID = F)
+    mapSouthernEuropeNet <- mapSouthernEuropeNet + geom_path(data = SLDF, size=0.35 , aes(x = long, y = lat), col = "#949494") # colfunc(101)[round(strenght)]
+  }
+  mapSouthernEuropeNet
+  
+  ## --------------------------------------------------------------------------------
   
   graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
   E(graph.obj)$weight = ifelse(-log(comb[,3]) == Inf,0,-log(comb[,3])) # Hock, Karlo Mumby, Peter J 2015
@@ -387,14 +452,15 @@ for( c in 1:nrow(combinations)){
   
   clustersAll <- clusters(graph.obj)$membership
   membership.graph2 <- clustersAll
+  
   clustersAll <- clustersAll[sort(as.numeric(names(clustersAll)),decreasing = FALSE,index.return=TRUE)$ix]
   
   clusterAssignment[ ,c] <- clustersAll
   write.csv(clusterAssignment,file="../Results/clusterAssignmentMPA.csv")
   
   # Number of clusters
-  numberClustersLeading.eigenvector <- length(unique(membership.graph))
-  numberClusters <- length(unique(clusters(graph.obj)$membership))
+  numberClustersLeading.eigenvector <- length(unique(membership.graph)) - isolated.mpa.length
+  numberClusters <- length(unique(clusters(graph.obj)$membership)) - isolated.mpa.length
   
   # Aggregation factor based on clusters 
   # aggregationBasedOnLeading.eigenvector <- ( length(membership.graph) / numberClustersLeading.eigenvector ) / length(membership.graph)
@@ -406,80 +472,56 @@ for( c in 1:nrow(combinations)){
   V(graph.obj)$color <- "#000000"
   
   pdf(file=paste0("../Results/",project.name,"/Clustering.pdf"), width=11, height=11)
-  plot(clustering.graph,graph.obj,vertex.label=NA,vertex.size=2,edge.curved = T  ) 
+  plot(clustering.graph,graph.obj,vertex.label=NA,vertex.size=2,edge.curved = F  ) 
   title(paste0("Particle duration: ",c," day",ifelse(c==1,"","s")), line = 2,col="#797979" , cex=0.75)
   dev.off()
   
-  polygon.shp.sorted <- polygon.shp[ sapply( as.numeric(as_ids(V(graph.obj))) , function(x) { which(polygon.shp$ID %in% x ) } ) ,]
-  polygon.shp.sorted@data$COLOUR <- membership.graph2
+  subset.mpa.shp <- get(type)[ sapply( as.numeric(as_ids(V(graph.obj))) , function(x) { which(get(type)$ID %in% x ) } ) ,]
+  subset.mpa.shp@data$COLOUR <- membership.graph2
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(subset.mpa.shp,byid=TRUE),xy=T)
   
   ## ------------------------------------------
   
   # Plot clusters with connections
   
   cols.to.use <- distinctColors(length(unique(membership.graph2)))[membership.graph2]
-  cols.to.use[ which(names(membership.graph2) %in% isolated.polygon.id)] <- "white"
+  cols.to.use[which(names(membership.graph2) %in% isolated.mpa.id)] <- "white"
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapClusteringConnections.pdf"), width=11, height=8)
-  plot(worldMap , col="#E8E8E8",border="#C9C9C9")
-  text(-25.2, y = 24, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
-  connected.pairs <- comb[comb$Probability > 0,]
-  centroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
   
-  colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
-  for( i in nrow(connected.pairs):1 ){
-    strenght <- (connected.pairs[i,3] * 100) + 1 
-    routes_sl <- gcIntermediate(centroids[ which(polygon.shp$ID == connected.pairs[i,1]),],
-                                centroids[ which(polygon.shp$ID == connected.pairs[i,2]),],
-                                n = 100, addStartEnd = TRUE, sp = TRUE)
-    lines(  routes_sl , type="l" , col=colfunc(101)[round(strenght)])
-  }
+  mapSouthernEuropeNet + 
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = 3, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = 3, stroke = 0.25, alpha = 0.7)
   
-  subset.Centroids <- as.data.frame(gCentroid(polygon.shp.sorted,byid=TRUE),xy=T)
-  points(subset.Centroids,col="#151515",bg=cols.to.use,pch=21, cex = 0.8)
   dev.off()
-  
-  ## ------------------------------------------
   
   # Plot eigenvector with connections
   
   cols.to.use <- distinctColors(length(unique(membership.graph)))[membership.graph]
-  cols.to.use[which(names(membership.graph2) %in% isolated.polygon.id)] <- "white"
+  cols.to.use[which(names(membership.graph) %in% isolated.mpa.id)] <- "white"
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapClusteringEigenvectorConnections.pdf"), width=11, height=8)
-  plot(worldMap , col="#E8E8E8",border="#C9C9C9")
-  text(-25.2, y = 24, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
-  connected.pairs <- comb[comb$Probability > 0,]
-  centroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
   
-  colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
-  for( i in nrow(connected.pairs):1 ){
-    strenght <- (connected.pairs[i,3] * 100) + 1 
-    routes_sl <- gcIntermediate(centroids[ which(polygon.shp$ID == connected.pairs[i,1]),],
-                                centroids[ which(polygon.shp$ID == connected.pairs[i,2]),],
-                                n = 100, addStartEnd = TRUE, sp = TRUE)
-    lines(  routes_sl , type="l" , col=colfunc(101)[round(strenght)])
-  }
+  mapSouthernEuropeNet + 
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = 3, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = 3, stroke = 0.25, alpha = 0.7)
   
-  subset.Centroids <- as.data.frame(gCentroid(polygon.shp.sorted,byid=TRUE),xy=T)
-  points(subset.Centroids,col="#151515",bg=cols.to.use,pch=21, cex = 0.8)
   dev.off()
+  
   
   ## ------------------------------------------
   
   # Plot isolated with connections
   
-  pdf(file=paste0("../Results/",project.name,"/Maps/MapIsolatedConnMPA.pdf"), width=11, height=8)
-  plot(worldMap , col="#E8E8E8",border="#C9C9C9")
-  text(-25.2, y = 24, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
-  non.isolated.mpaCentroids <- as.data.frame(gCentroid(polygon.shp[which(! colnames(connectivity.matrix) %in% isolated.polygon.id),],byid=TRUE),xy=T)
-  connected.pairs <- comb[comb$Probability > 0,]
-  centroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
-  colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
+  non.isolated.mpaCentroids <- as.data.frame(gCentroid(get(type)[which(! colnames(connectivity.matrix) %in% isolated.mpa.id),],byid=TRUE),xy=T)
+  isolated.mpaCentroids <- as.data.frame(gCentroid(get(type)[which(colnames(connectivity.matrix) %in% isolated.mpa.id),],byid=TRUE),xy=T)
   
-  points(non.isolated.mpaCentroids,col="#151515",bg="white",pch=21, cex = 0.8)
-  isolated.mpaCentroids <- as.data.frame(gCentroid(polygon.shp[which(colnames(connectivity.matrix) %in% isolated.polygon.id),],byid=TRUE),xy=T)
-  points(isolated.mpaCentroids,col="#151515",bg="#9C2323",pch=21, cex = 0.8)
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapIsolatedConnMPA.pdf"), width=11, height=8)
+  
+  mapSouthernEuropeNet + 
+    geom_point(data = non.isolated.mpaCentroids ,  aes(x = x, y = y) , shape = 21, colour = "#151515", fill = "white", size = 3, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = isolated.mpaCentroids ,  aes(x = x, y = y) , shape = 21, colour = "#151515", fill = "#9C2323", size = 3, stroke = 0.25, alpha = 0.7)
+  
   dev.off()
   
   ## ------------------------------------------
@@ -496,6 +538,39 @@ for( c in 1:nrow(combinations)){
   eigen_centralityIndex <- eigen_centralityIndex[sort(as.numeric(names(eigen_centralityIndex)),decreasing = FALSE,index.return=TRUE)$ix]
   averageeigen_centrality <- mean(eigen_centralityIndex)
   
+  for(ji in unique(membership.graph2)) {
+    
+    subgraph.obj <- subgraph(graph.obj, names(which(membership.graph2 == ji)))
+    
+    if( length(V(subgraph.obj)) < 3 ) {
+      
+      eigen_centralityIndexSubgraph <- rep(0,length(V(subgraph.obj)))
+      betweennessIndexSubgraph <- rep(0,length(V(subgraph.obj)))
+      names(eigen_centralityIndexSubgraph) <- names(V(subgraph.obj))
+      names(betweennessIndexSubgraph) <- names(V(subgraph.obj))
+      
+    } 
+    
+    if( length(V(subgraph.obj)) > 2 ) {
+      
+      eigen_centralityIndexSubgraph <- eigen_centrality(subgraph.obj, directed = TRUE, scale = TRUE)$vector
+      eigen_centralityIndexSubgraph <- eigen_centralityIndexSubgraph[sort(as.numeric(names(eigen_centralityIndexSubgraph)),decreasing = FALSE,index.return=TRUE)$ix]
+      betweennessIndexSubgraph <- betweenness(subgraph.obj)
+      betweennessIndexSubgraph <- betweennessIndexSubgraph[sort(as.numeric(names(betweennessIndexSubgraph)),decreasing = FALSE,index.return=TRUE)$ix]
+      
+    }
+    
+    eighenCentralityResultsSubgraph[as.numeric(names(eigen_centralityIndexSubgraph)) ,c] <- eigen_centralityIndexSubgraph
+    betweennessResultsSubgraph[as.numeric(names(eigen_centralityIndexSubgraph)) ,c] <- betweennessIndexSubgraph
+    
+  }
+  
+  plot( as.numeric(eighenCentralityResults[ ,c] ) , as.numeric(eighenCentralityResultsSubgraph[ ,c]) )
+  plot( as.numeric(betweennessResults[ ,c] ) , as.numeric(betweennessResultsSubgraph[ ,c]) )
+  
+  write.csv(eighenCentralityResultsSubgraph,file="../Results/eighenCentralitySubgraphMPAs.csv")
+  write.csv(betweennessResultsSubgraph,file="../Results/eighenCentralitySubgraphMPAs.csv")
+  
   closenessindex <- closeness(graph.obj)
   averageCloseness <- mean(closenessindex)
   
@@ -503,101 +578,232 @@ for( c in 1:nrow(combinations)){
   write.csv(betweennessResults,file="../Results/betweennessMPAs.csv")
   
   eighenCentralityResults[ ,c] <- eigen_centralityIndex
-  write.csv(eighenCentralityResults,file="../Results/isolatedMPAs.csv")
+  write.csv(eighenCentralityResults,file="../Results/eighenCentralityMPAs.csv")
   
   # Those with higher / Percertil 95%
-  temporaryRes <- polygonNames[ as.numeric(names(which(betweennessIndex >=  as.numeric(quantile(betweennessIndex,0.95))))) ]
+  temporaryRes <- MPAnames[ as.numeric(names(which(betweennessIndex >=  as.numeric(quantile(betweennessIndex,0.95))))) ]
   higherBetweennessResults[ as.numeric(unlist(sapply(  temporaryRes  , function(x)  which( rownames(higherBetweennessResults) == x )))) ,c] <- "TRUE"
-  write.csv(higherBetweennessResults,file="../Results/higherBetweennessMPA.csv")
+  write.csv(higherBetweenness95Results,file="../Results/higher95BetweennessMPA.csv")
   
-  temporaryRes <- polygonNames[ as.numeric(names(which(eigen_centralityIndex >=  as.numeric(quantile(eigen_centralityIndex,0.95))))) ]
+  temporaryRes <- MPAnames[ as.numeric(names(which(eigen_centralityIndex >=  as.numeric(quantile(eigen_centralityIndex,0.95))))) ]
   highereighenCentralityResults[ as.numeric(unlist(sapply(  temporaryRes  , function(x)  which( rownames(highereighenCentralityResults) == x )))) ,c] <- "TRUE"
-  write.csv(highereighenCentralityResults,file="../Results/higherBetweennessMPA.csv")
+  write.csv(highereighenCentrality95Results,file="../Results/higher95eighenMPA.csv")
+  
+  # Those with higher / Percertil 90%
+  temporaryRes <- MPAnames[ as.numeric(names(which(betweennessIndex >=  as.numeric(quantile(betweennessIndex,0.9))))) ]
+  higherBetweennessResults[ as.numeric(unlist(sapply(  temporaryRes  , function(x)  which( rownames(higherBetweennessResults) == x )))) ,c] <- "TRUE"
+  write.csv(higherBetweenness90Results,file="../Results/higher90BetweennessMPA.csv")
+  
+  temporaryRes <- MPAnames[ as.numeric(names(which(eigen_centralityIndex >=  as.numeric(quantile(eigen_centralityIndex,0.9))))) ]
+  highereighenCentralityResults[ as.numeric(unlist(sapply(  temporaryRes  , function(x)  which( rownames(highereighenCentralityResults) == x )))) ,c] <- "TRUE"
+  write.csv(highereighenCentrality90Results,file="../Results/higher90eighenMPA.csv")
   
   # Plot Betweenness Connections
   
-  polygon.shp.sorted <- polygon.shp[  as.numeric(names(which(betweennessIndex >=  as.numeric(quantile(betweennessIndex,0.95))))) , ]
+  betweennessIndexPlot <- 0.5 + (betweennessIndex / max(betweennessIndex) )
+  
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapBetweennessConnections.pdf"), width=11, height=8)
+  
+  mapSouthernEuropeNet + 
+    geom_point(data = subset.mpa.shpCentroids ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#5293C4", size = betweennessIndexPlot * 3, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[which(betweennessIndex >=  as.numeric(quantile(betweennessIndex,0.95))),] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#5293C4", size = (betweennessIndexPlot * 3)[which(betweennessIndex >=  as.numeric(quantile(betweennessIndex,0.95)))], stroke = 1, alpha = 1)
+  
+  dev.off()
+  
+  # Plot eigen_centrality Connections
+  
+  eighenCentralityResultsSubgraphIndex <- as.numeric(eighenCentralityResults[ ,c])
+  eighenCentralityResultsSubgraphPlot <- 0.5 + (eighenCentralityResultsSubgraphIndex / max( eighenCentralityResultsSubgraphIndex ) )
+  
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapBetweennessConnections.pdf"), width=11, height=8)
+  
+  mapSouthernEuropeNet + 
+    geom_point(data = subset.mpa.shpCentroids ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#5293C4", size = eighenCentralityResultsSubgraphPlot * 3, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[which(eighenCentralityResultsSubgraphIndex >=  as.numeric(quantile(eighenCentralityResultsSubgraphIndex,0.95))),] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#5293C4", size = (eighenCentralityResultsSubgraphPlot * 3)[which(eighenCentralityResultsSubgraphIndex >=  as.numeric(quantile(eighenCentralityResultsSubgraphIndex,0.95)))], stroke = 1, alpha = 1)
+  
+  dev.off()
+  
+  # Plot eigen_centrality Connections + Clusters
+  
+  cols.to.use <- distinctColors(length(unique(membership.graph2)))[membership.graph2]
+  cols.to.use[which(names(membership.graph2) %in% isolated.mpa.id)] <- "white"
+  
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapBetweennessConnections.pdf"), width=11, height=8)
+  
+  mapSouthernEuropeNet + 
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = 2, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = (eighenCentralityResultsSubgraphPlot * 3)[cols.to.use != "white"], stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[which(eighenCentralityResultsSubgraphIndex >=  as.numeric(quantile(eighenCentralityResultsSubgraphIndex,0.95))),] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[which(eighenCentralityResultsSubgraphIndex >=  as.numeric(quantile(eighenCentralityResultsSubgraphIndex,0.95)))], size = (eighenCentralityResultsSubgraphPlot * 3)[which(eighenCentralityResultsSubgraphIndex >=  as.numeric(quantile(eighenCentralityResultsSubgraphIndex,0.95)))], stroke = 1, alpha = 1)
+  dev.off()
+  
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapClusteringConnections.pdf"), width=11, height=8)
+  
+  mapSouthernEuropeNet + 
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = 3, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = 3, stroke = 0.25, alpha = 0.7)
+  
+  dev.off()
+  
+  
+  
+  
+  # Plot closeness Connections
+  
+  closenessIndex <- as.numeric(closenessindex)
+  closenessIndexPlot <- 0.5 + (closenessindex / max( closenessindex ) )
+  
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapBetweennessConnections.pdf"), width=11, height=8)
+  
+  mapSouthernEuropeNet + 
+    geom_point(data = subset.mpa.shpCentroids ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#5293C4", size = closenessIndexPlot * 3, stroke = 0.25, alpha = 0.7) +
+    geom_point(data = subset.mpa.shpCentroids[which(closenessIndex >=  as.numeric(quantile(closenessIndex,0.95))),] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#5293C4", size = (closenessIndexPlot * 3)[which(closenessIndex >=  as.numeric(quantile(closenessIndex,0.95)))], stroke = 1, alpha = 1)
+  
+  dev.off()
+  
+  closenessindex
+  
+  
+  subset.mpa.shp <- get(type)[  as.numeric(names(which(betweennessIndex >=  as.numeric(quantile(betweennessIndex,0.95))))) , ]
   rbPal <- colorRampPalette(c('#BAE2FF','yellow','orange'))
   rbPal <- rbPal(100)[as.numeric(cut(betweennessIndex,breaks = 100))]
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapBetweennessConnections.pdf"), width=11, height=8)
   plot(worldMap , col="#E8E8E8",border="#C9C9C9")
-  text(-25.2, y = 24, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
+  text(-30.5, y = 61, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
   connected.pairs <- comb[comb$Probability > 0,]
-  centroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
+  centroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
   colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
   for( i in nrow(connected.pairs):1 ){
     strenght <- (connected.pairs[i,3] * 100) + 1 
-    routes_sl <- gcIntermediate(centroids[ which(polygon.shp$ID == connected.pairs[i,1]),],
-                                centroids[ which(polygon.shp$ID == connected.pairs[i,2]),],
+    routes_sl <- gcIntermediate(centroids[ which(get(type)$ID == connected.pairs[i,1]),],
+                                centroids[ which(get(type)$ID == connected.pairs[i,2]),],
                                 n = 100, addStartEnd = TRUE, sp = TRUE)
     lines(  routes_sl , type="l" , col=colfunc(101)[round(strenght)])
   }
-  subset.shpCentroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg=rbPal,pch=21, cex = 0.8)
   points(isolated.mpaCentroids,col="#151515",bg="white",pch=21, cex = 0.8)
-  points(subset.shpCentroids,col="#151515",bg=rbPal,pch=21, cex = 0.8)
-  subset.shpCentroids <- as.data.frame(gCentroid(polygon.shp.sorted,byid=TRUE),xy=T)
-  points(subset.shpCentroids,col="#151515",bg="#9C2323",pch=21, cex = 0.8)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(subset.mpa.shp,byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg="#9C2323",pch=21, cex = 0.8)
   dev.off()
   
   ## ------------------------------------------
   
   # Plot eighen Centrality Connections
   
-  polygon.shp.sorted <- polygon.shp[  as.numeric(names(which(eigen_centralityIndex >=  as.numeric(quantile(eigen_centralityIndex,0.95))))) , ]
+  subset.mpa.shp <- get(type)[  as.numeric(names(which(eigen_centralityIndex >=  as.numeric(quantile(eigen_centralityIndex,0.95))))) , ]
   rbPal <- colorRampPalette(c('#BAE2FF','yellow','orange'))
   rbPal <- rbPal(100)[as.numeric(cut(eigen_centralityIndex,breaks = 100))]
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapEighenCentralityConnections.pdf"), width=11, height=8)
   plot(worldMap , col="#E8E8E8",border="#C9C9C9")
-  text(-25.2, y = 24, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
+  text(-30.5, y = 61, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
   connected.pairs <- comb[comb$Probability > 0,]
-  centroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
+  centroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
   colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
   for( i in nrow(connected.pairs):1 ){
     strenght <- (connected.pairs[i,3] * 100) + 1 
-    routes_sl <- gcIntermediate(centroids[ which(polygon.shp$ID == connected.pairs[i,1]),],
-                                centroids[ which(polygon.shp$ID == connected.pairs[i,2]),],
+    routes_sl <- gcIntermediate(centroids[ which(get(type)$ID == connected.pairs[i,1]),],
+                                centroids[ which(get(type)$ID == connected.pairs[i,2]),],
                                 n = 100, addStartEnd = TRUE, sp = TRUE)
     lines(  routes_sl , type="l" , col=colfunc(101)[round(strenght)])
   }
-  subset.shpCentroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg=rbPal,pch=21, cex = 0.8)
   points(isolated.mpaCentroids,col="#151515",bg="white",pch=21, cex = 0.8)
-  points(subset.shpCentroids,col="#151515",bg=rbPal,pch=21, cex = 0.8)
-  subset.shpCentroids <- as.data.frame(gCentroid(polygon.shp.sorted,byid=TRUE),xy=T)
-  points(subset.shpCentroids,col="#151515",bg="#9C2323",pch=21, cex = 0.8)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(subset.mpa.shp,byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg="#9C2323",pch=21, cex = 0.8)
   dev.off()
   
   ## ------------------------------------------
   
-  polygon.shp.sorted <- polygon.shp[ which(resistance >=  as.numeric(quantile(resistance,0.95,na.rm=T))) , ]
+  subset.mpa.shp <- get(type)[ which(resistance >=  as.numeric(quantile(resistance,0.95,na.rm=T))) , ]
   rbPal <- colorRampPalette(c('#BAE2FF','yellow','orange'))
   rbPal <- rbPal(100)[as.numeric(cut(resistance,breaks = 100))]
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapResistance.pdf"), width=11, height=8)
   plot(worldMap , col="#E8E8E8",border="#C9C9C9")
-  text(-25.2, y = 24, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
+  text(-30.5, y = 61, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
   connected.pairs <- comb[comb$Probability > 0,]
-  centroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
+  centroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
   colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
   for( i in nrow(connected.pairs):1 ){
     strenght <- (connected.pairs[i,3] * 100) + 1 
-    routes_sl <- gcIntermediate(centroids[ which(polygon.shp$ID == connected.pairs[i,1]),],centroids[ which(polygon.shp$ID == connected.pairs[i,2]),],n = 100, addStartEnd = TRUE, sp = TRUE)
+    routes_sl <- gcIntermediate(centroids[ which(get(type)$ID == connected.pairs[i,1]),],centroids[ which(get(type)$ID == connected.pairs[i,2]),],n = 100, addStartEnd = TRUE, sp = TRUE)
     lines(  routes_sl , type="l" , col=colfunc(101)[round(strenght)])
   }
   
-  subset.shpCentroids <- as.data.frame(gCentroid(polygon.shp,byid=TRUE),xy=T)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(get(type),byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg=rbPal,pch=21, cex = 0.8)
   points(isolated.mpaCentroids,col="#151515",bg="white",pch=21, cex = 0.8)
-  points(subset.shpCentroids,col="#151515",bg=rbPal,pch=21, cex = 0.8)
-  subset.shpCentroids <- as.data.frame(gCentroid(polygon.shp.sorted,byid=TRUE),xy=T)
-  points(subset.shpCentroids,col="#151515",bg="#9C2323",pch=21, cex = 0.8)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(subset.mpa.shp,byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg="#9C2323",pch=21, cex = 0.8)
   dev.off()
   
   ## ------------------------------------------
   
+  pairs.poly <- expand.grid(MPA.from=get(type)$ID,MPA.to=get(type)$ID)
+  pairs.poly <- pairs.poly[ pairs.poly$MPA.from != pairs.poly$MPA.to,]
+  pairs.poly$Number.steps <- numeric(nrow(pairs.poly))
+  
+  stones.list <- list()
+  
+  for(p in 1:nrow(pairs.poly)) { 
+    
+    stones <- get.shortest.paths(graph.obj,as.character( as.numeric(V(graph.obj)$name)[pairs.poly[ p,1]] ) , as.character( as.numeric(V(graph.obj)$name)[pairs.poly[ p,2]] ),mode="out")$vpath
+    
+    # stones <- get.shortest.paths(graph.obj,as.character( pairs.poly[ p,1] ) , as.character( pairs.poly[ p,2] ),mode="out")
+    
+    stones <- names(unlist(stones))
+    
+    if(length(stones) == 1) {
+      pairs.poly[ p,3] <- 0
+    }
+    if(length(stones) > 1) {
+      pairs.poly[ p,3] <- 0
+      stones.list <- c(stones.list, list(stones[-c(1,length(stones))]) )
+      pairs.poly[ p,3] <- length(stones) - 1 
+    }
+  }
+  
+  head(pairs.poly)
+  
+  # # Proportion of MPA pairs disconnected
+  # sum(pairs.poly$Number.steps == 0) / nrow(pairs.poly)
+  # 
+  # # Proportion of MPA pairs connected
+  # sum(pairs.poly$Number.steps != 0) / nrow(pairs.poly)
+  
+  # Most important MPAs allowing connectivity
+  stones <- unique(unlist(stones.list))
+  stones <- data.frame(stone=stones,times=sapply(stones , function(x) { sum(unlist(stones.list) == x  ) } ))
+  stones <- stones[sort(stones$times , index.return = T , decreasing=T)$ix,]
+  
+  head(stones)
+  
+  quantileThreshold <- 0.95
+  
+  temporaryRes <-  MPAnames[get(type)$ID %in% stones$stone[stones$times >= quantile(stones$times,quantileThreshold)]]
+  vertexIndex <- as.numeric(stones$times[stones$times >= quantile(stones$times,quantileThreshold)])
+  
+  higherStoneResults[ as.numeric(unlist(sapply(  temporaryRes  , function(x)  which( rownames(higherStoneResults) == x )))) ,c] <- vertexIndex
+  write.csv(higherStoneResults,file="../Results/higherStoneResults.csv")
+  
+  subset.mpa.shp <- get(type)[  which(MPAnames %in% MPAnames[get(type)$ID %in% stones$stone[stones$times >= quantile(stones$times,quantileThreshold)]] ) , ]
+  subset.mpa.shp2 <- get(type)[  which( ! MPAnames %in% MPAnames[get(type)$ID %in% stones$stone[stones$times >= quantile(stones$times,quantileThreshold)]] )  , ]
+  
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapHighStone.pdf"), width=11, height=8)
+  plot(worldMap , col="#E8E8E8",border="#C9C9C9")
+  text(-30.5, y = 61, labels = paste0("Particle duration: ",c," day",ifelse(c==1,"","s")  ) , col="#5E5E5E" , cex=0.9)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(subset.mpa.shp2,byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg="#9C9C9C",pch=21, cex = 0.8)
+  subset.mpa.shpCentroids <- as.data.frame(gCentroid(subset.mpa.shp,byid=TRUE),xy=T)
+  points(subset.mpa.shpCentroids,col="#151515",bg="#FD7F00",pch=21, cex = 0.8)
+  dev.off()
+  
   combResults <- rbind(combResults,
                        data.frame(pld=pld.period,
-                                  n.isolated=isolated.polygon.length,
+                                  n.isolated.mpa=isolated.mpa.length,
                                   aggregationAtLeastOne=aggregationAtLeastOne,
                                   aggregationAllConnections=aggregationAllConnections,
                                   averageConnections=averageConnections,
@@ -625,51 +831,11 @@ for( c in 1:nrow(combinations)){
 x <- combResults$pld
 x.lab <- "Propagule duration (day)"
 
-colnames(combResults)
+y <- combResults$averageeigen_centrality # colnames(combResults)
+y.lab <- "Eigen centrality (average)"
 
-y <- combResults$n.isolated # 
-y.lab <- "Isolated MPA (number)"
-file.name <- "isolated"
+pdf(file=paste0("../Results/Plots/averageEigen_centrality.pdf"), width=12, height=5)
 
-y <- combResults$aggregationAtLeastOne # 
-y.lab <- "Aggregation level (proportion of connection)"
-file.name <- "aggregationAtLeastOne"
-
-y <- combResults$aggregationAllConnections # 
-y.lab <- "Aggregation level (proportion of connection)"
-file.name <- "aggregationAllConnections"
-
-y <- combResults$averageConnections # 
-y.lab <- "Aggregation level (average number of connections)"
-file.name <- "averageConnections"
-
-y <- combResults$averageResistance # 
-y.lab <- "Resistance level (average MPA resistance)"
-file.name <- "averageResistance"
-
-y <- combResults$numberClusters -  combResults$n.isolated # 
-y.lab <- "Aggregation level (number of clusters)"
-file.name <- "numberClusters"
-
-y <- combResults$numberClustersLeading.eigenvector -  combResults$n.isolated# 
-y.lab <- "Aggregation level (number of clusters based on leading eigenvector)"
-file.name <- "numberClustersLeading.eigenvector"
-
-y <- combResults$averageeigen_centrality # 
-y.lab <- "Centrality (average MPA centrality)"
-file.name <- "averageeigen_centrality"
-
-y <- combResults$averageBetweenness # 
-y.lab <- "Betweenness (average MPA betweenness)"
-file.name <- "averageBetweenness"
-
-y <- combResults$averageCloseness # 
-y.lab <- "Closeness (average MPA closeness)"
-file.name <- "averageCloseness"
-
-# ---------
-
-pdf(file=paste0("../Results/Plots/",file.name,".pdf"), width=12, height=5)
 par(mar = c(4.5, 5.5, 4.5, 4.5))
 plot(x,y,pch=20,col="#A6A6A6", ylab="",xlab=x.lab,axes=FALSE)
 title(ylab=y.lab, line=4)
@@ -677,38 +843,8 @@ lines(bezierCurve(x,y,100)$x,bezierCurve(x,y,100)$y,type="l", lwd=1, lty=2)
 axis(2,las=2,col="White",col.ticks="Black", cex.axis=0.9)
 axis(1,las=0,col="White",col.ticks="Black", cex.axis=0.9)
 box()
+
 dev.off()
 
 ## ----------------------------------------------------------------------------------------------------------
 ## ----------------------------------------------------------------------------------------------------------
-
-boxplotData <- data.frame( Area=area(polygon.shp) , Isolation=ifelse(isolatedResults[,ncol(isolatedResults)] == "TRUE","Isolated","Connected"))
-boxplotData <- boxplotData[sort(boxplotData$Area,decreasing = TRUE,index.return=TRUE)$ix,]
-boxplotData[,1] <- boxplotData[,1] / 1000000
-
-mean(boxplotData[boxplotData$Isolation == "Isolated","Area"])
-sd(boxplotData[boxplotData$Isolation == "Isolated","Area"])
-
-mean(boxplotData[boxplotData$Isolation != "Isolated","Area"])
-sd(boxplotData[boxplotData$Isolation != "Isolated","Area"])
-
-kruskal.test( c(boxplotData[boxplotData$Isolation != "Isolated","Area"] , boxplotData[boxplotData$Isolation == "Isolated","Area"]) , c(rep(1,sum(boxplotData$Isolation != "Isolated")),rep(2,sum(boxplotData$Isolation == "Isolated"))) )
-# Kruskal-Wallis chi-squared = 55.247, df = 1, p-value = 1.063e-13
-
-p <- ggplot(boxplotData, aes(x=Isolation, y=Area)) + 
-  geom_boxplot()
-p
-
-p <- ggplot(boxplotData, aes(x=Isolation, y=Area)) + 
-  geom_boxplot() + ylim(0, 1100) + xlab("Isolation (level)") + ylab("MPA area (km2)")
-p
-
-pdf(file=paste0("../Results/Plots/AreaVsIsolationNoOut.pdf"), width=10, height=7)
-ggplot(boxplotData, aes(x=Isolation, y=Area)) + 
-geom_boxplot() + ylim(0, 1100) + xlab("Isolation (level)") + ylab("MPA area (km2)")
-dev.off()
-
-pdf(file=paste0("../Results/Plots/AreaVsIsolationAll.pdf"), width=10, height=7)
-ggplot(boxplotData, aes(x=Isolation, y=Area)) + 
-geom_boxplot() + xlab("Isolation (level)") + ylab("MPA area (km2)")
-dev.off()
