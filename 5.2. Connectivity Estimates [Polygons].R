@@ -10,18 +10,18 @@ gc(reset=TRUE)
 
 library(rnaturalearth)
 library(geosphere)
+library(rgeos)
 
 source("0. Project Config.R")
 
 sql.project.name <- "MPA"
-number.cores <- 8
+number.cores <- 16
 
 notakeMPA <- "../Data/notake_merged_Med_P.shp" 
 
 sql.file <- "../Results/SQL/CentralityMPASimulationResults.sql"
 bigmatrix.file <- "../InternalProc/particles.reference.desc"
 sorce.sink.cells.file <- "../Results/source.sink.bm"
-
 coordRef <- crs(shapefile(notakeMPA))
 
 ## ------------------------------------------------------------------------------------------------------------
@@ -46,7 +46,6 @@ crs(source.sink.xy.sp) <- coordRef
 
 notakeMPA <- shapefile(notakeMPA)
 notakeMPA <- gBuffer(notakeMPA, byid=TRUE, width=0)
-
 worldMap <- ne_countries(scale = 10, returnclass = "sp")
 
 ## --------------------------------------------------------------------
@@ -63,18 +62,15 @@ plot(source.sink.xy[,2:3])
 source.sink.xy.sp <- crop(source.sink.xy.sp,extent(subseter))
 notakeMPA <- crop(notakeMPA,extent(subseter))
 notakeMPA$ID <- 1:nrow(notakeMPA)
-
 worldMap <- crop(worldMap,extent(subseter + c(-20,20,-20,20))  ) 
 
 ## -----------------
 
+plot(worldMap , col="Black",border="Black")
 plot(notakeMPA , col="Black",border="Black")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Identify MPA id in source sink sites
-
-# load OR run 1 foreach section bellow
-# load("../Results/source.sink.xy.Rdata") OR run foreach section bellow
 
 cl.2 <- makeCluster(6 , type="FORK")
 registerDoParallel(cl.2)
@@ -105,14 +101,12 @@ load("../Results/source.sink.xy.Rdata")
 list.dirs(path = paste0("../Results"), recursive = FALSE)
 
 season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
-pld.period <- 1:200 # c(10 , 30 , 90 , 120 , 200)
-
+pld.period <- 1:120 # c(10 , 30 , 90 , 120 , 200)
 combinations <- expand.grid(season=season,pld.period=pld.period,stringsAsFactors = F)
 
 ## --------------------
 
 MPAnames <- notakeMPA$NAME
-
 combResults <- data.frame()
 
 isolatedResults <- data.frame(matrix(nrow=length(MPAnames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
@@ -157,7 +151,13 @@ colnames(higherResistanceResults) <- 1:nrow(combinations)
 
 ## ------------------------------------------------------------------------------
 
-for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
+dev.off()
+doParallelCalculations <- FALSE
+
+for( c in 1:76 ){ #  77:nrow(combinations)
+  
+  cat(c,"\n")
+  gc(reset=TRUE)
   
   season <- combinations[c,1]
   pld.period <- combinations[c,2]
@@ -174,119 +174,121 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   if( ! dir.exists(paste0("../Results/",project.name,"/Data")) ) { dir.create(file.path(paste0("../Results/",project.name,"/Data")), showWarnings = FALSE) } 
   if( ! dir.exists(paste0("../Results/",project.name,"/Maps")) ) { dir.create(file.path(paste0("../Results/",project.name,"/Maps")), showWarnings = FALSE) } 
   
-  particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
-  cell.to.process <- unique(source.sink.xy$Pair)
-  
-  cl.2 <- makeCluster(8 , type="FORK")
-  registerDoParallel(cl.2)
-  
-  connectivity.source.sink.xy <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
-    
-    particles.reference.bm.i <- attach.big.matrix(particles.reference.bm.desc)
-    
-    connectivity.temp.m <- particles.reference.bm.i[ mwhich(particles.reference.bm.i,2,list(cell.id.ref.f), list('eq')) , ]
-    connectivity.temp.m <- data.frame(connectivity.temp.m)
-    colnames(connectivity.temp.m) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted")
-    
-    connectivity.temp.m <- connectivity.temp.m[connectivity.temp.m$cell.rafted != 0 & connectivity.temp.m$state == 2,]
-    connectivity.temp.m <- data.frame(connectivity.temp.m,travel.time= (1 + connectivity.temp.m$t.finish - connectivity.temp.m$t.start) / n.steps.per.day)
-    connectivity.temp.m <- as.data.table(connectivity.temp.m)
-    
-    connectivity.temp.m <- connectivity.temp.m[start.month %in% spawn.p , ]
-    connectivity.temp.m <- connectivity.temp.m[travel.time <= pld.period , ]
-    
-    connectivity.pairs.to.sql <- data.frame()
-    
-    for(y in unique(connectivity.temp.m$start.year) ) {
+  if(doParallelCalculations) {
       
-      connectivity.temp <- connectivity.temp.m[ start.year == y , ]
-      
-      for( cell.id.ref.t in unique(connectivity.temp[ , cell.rafted ]) ) {
+        particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
+        cell.to.process <- unique(source.sink.xy$Pair)
         
-        connectivity.pairs.to.sql <- rbind(connectivity.pairs.to.sql,
-                                           
-                                           data.frame(  Pair.from = cell.id.ref.f,
-                                                        Pair.to = cell.id.ref.t,
-                                                        Number.events = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]),
-                                                        Time.mean = mean(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                        Time.min = min(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                        Time.max = max(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                        Time.sd = sd(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                        Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / round( n.particles.per.cell / length(unique(connectivity.temp.m$start.year)) ),
-                                                        Year = y ) )
-      }
-      
-    }
-    
-    connectivity.pairs.to.sql[is.na(connectivity.pairs.to.sql)] <- 0
-    
-    return( connectivity.pairs.to.sql )
-    
+        cl.2 <- makeCluster(number.cores, type="FORK" )
+        registerDoParallel(cl.2)
+        
+        connectivity.source.sink.xy <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
+          
+          particles.reference.bm.i <- attach.big.matrix(particles.reference.bm.desc)
+          
+          connectivity.temp.m <- particles.reference.bm.i[ mwhich(particles.reference.bm.i,2,list(cell.id.ref.f), list('eq')) , ]
+          connectivity.temp.m <- data.frame(connectivity.temp.m)
+          colnames(connectivity.temp.m) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted")
+          
+          connectivity.temp.m <- connectivity.temp.m[connectivity.temp.m$cell.rafted != 0 & connectivity.temp.m$state == 2,]
+          connectivity.temp.m <- data.frame(connectivity.temp.m,travel.time= (1 + connectivity.temp.m$t.finish - connectivity.temp.m$t.start) / n.steps.per.day)
+          connectivity.temp.m <- as.data.table(connectivity.temp.m)
+          
+          connectivity.temp.m <- connectivity.temp.m[start.month %in% spawn.p , ]
+          connectivity.temp.m <- connectivity.temp.m[travel.time <= pld.period , ]
+          
+          connectivity.pairs.to.sql <- data.frame()
+          
+          for(y in unique(connectivity.temp.m$start.year) ) {
+            
+            connectivity.temp <- connectivity.temp.m[ start.year == y , ]
+            
+            for( cell.id.ref.t in unique(connectivity.temp[ , cell.rafted ]) ) {
+              
+              connectivity.pairs.to.sql <- rbind(connectivity.pairs.to.sql,
+                                                 
+                                                 data.frame(  Pair.from = cell.id.ref.f,
+                                                              Pair.to = cell.id.ref.t,
+                                                              Number.events = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]),
+                                                              Time.mean = mean(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
+                                                              Time.min = min(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
+                                                              Time.max = max(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
+                                                              Time.sd = sd(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
+                                                              Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / round( n.particles.per.cell / length(unique(connectivity.temp.m$start.year)) ),
+                                                              Year = y ) )
+            }
+            
+          }
+          
+          connectivity.pairs.to.sql[is.na(connectivity.pairs.to.sql)] <- 0
+          
+          return( connectivity.pairs.to.sql )
+          
+        }
+        
+        stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
+        
+        connectivity.source.sink.xy <- data.table(connectivity.source.sink.xy[,])
+        connectivity.source.sink.xy <- connectivity.source.sink.xy[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
+        colnames(connectivity.source.sink.xy) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
+        connectivity.source.sink.xy[is.na(connectivity.source.sink.xy)] <- 0
+        connectivity.source.sink.xy ; gc()
+        save(connectivity.source.sink.xy,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
+        
+        ## ----------------------------------------------------
+        
+        mpaIDPairs <- expand.grid(from=notakeMPA$ID,to=notakeMPA$ID)
+        polygonsCompute <- mpaIDPairs
+        
+        cl.2 <- makeCluster(number.cores , type="FORK")
+        registerDoParallel(cl.2)
+        
+        connectivity <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
+          
+          mpa.id.1 <- mpaIDPairs[pairs,1]
+          mpa.id.2 <- mpaIDPairs[pairs,2]
+          
+          mpa.cells.1 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.1 , 1 ]))
+          mpa.cells.2 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.2 , 1 ]))
+          
+          temp.result <- connectivity.source.sink.xy[ Pair.from %in% mpa.cells.1 & Pair.to %in% mpa.cells.2 , ]
+          
+          if(nrow(temp.result) == 0) {
+            
+            connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                               Pair.to = mpa.id.2,
+                                               Number.events = 0,
+                                               Time.mean = 0,
+                                               Time.max = 0,
+                                               Time.sd = 0,
+                                               Probability = 0 )
+            
+          }
+          
+          if(nrow(temp.result) > 0) {
+            
+            connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
+                                               Pair.to = mpa.id.2,
+                                               Number.events = mean(temp.result$Mean.events),
+                                               Time.mean = mean(temp.result$Mean.Time),
+                                               Time.max = mean(temp.result$Max.Time),
+                                               Time.sd = mean(temp.result$SD.Time),
+                                               Probability = mean(temp.result$Mean.Probability) )
+            
+          }
+          
+          return( connectivity.pairs )
+          
+        }
+        
+        stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
+        
+        save(connectivity,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
+        
   }
-  
-  stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
-  
-  connectivity.source.sink.xy <- data.table(connectivity.source.sink.xy[,])
-  connectivity.source.sink.xy <- connectivity.source.sink.xy[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
-  colnames(connectivity.source.sink.xy) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
-  connectivity.source.sink.xy[is.na(connectivity.source.sink.xy)] <- 0
-  connectivity.source.sink.xy ; gc()
-  save(connectivity.source.sink.xy,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
-  
-  ## ----------------------------------------------------
-  
-  mpaIDPairs <- expand.grid(from=notakeMPA$ID,to=notakeMPA$ID)
-  polygonsCompute <- mpaIDPairs
-  
-  cl.2 <- makeCluster(8 , type="FORK")
-  registerDoParallel(cl.2)
-  
-  connectivity <- foreach( pairs = 1:nrow(mpaIDPairs) , .verbose=FALSE, .combine = rbind ,  .packages=c("geosphere","rgeos","raster","data.table","FNN","bigmemory")) %dopar% { # 
-    
-    mpa.id.1 <- mpaIDPairs[pairs,1]
-    mpa.id.2 <- mpaIDPairs[pairs,2]
-    
-    mpa.cells.1 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.1 , 1 ]))
-    mpa.cells.2 <- as.vector(unlist(source.sink.xy[ notakeMPAID == mpa.id.2 , 1 ]))
-    
-    temp.result <- connectivity.source.sink.xy[ Pair.from %in% mpa.cells.1 & Pair.to %in% mpa.cells.2 , ]
-    
-    if(nrow(temp.result) == 0) {
-      
-      connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
-                                         Pair.to = mpa.id.2,
-                                         Number.events = 0,
-                                         Time.mean = 0,
-                                         Time.max = 0,
-                                         Time.sd = 0,
-                                         Probability = 0 )
-      
-    }
-    
-    if(nrow(temp.result) > 0) {
-      
-      connectivity.pairs <- data.frame(  Pair.from = mpa.id.1,
-                                         Pair.to = mpa.id.2,
-                                         Number.events = mean(temp.result$Mean.events),
-                                         Time.mean = mean(temp.result$Mean.Time),
-                                         Time.max = mean(temp.result$Max.Time),
-                                         Time.sd = mean(temp.result$SD.Time),
-                                         Probability = mean(temp.result$Mean.Probability) )
-      
-    }
-    
-    return( connectivity.pairs )
-    
-  }
-  
-  stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
-  
-  save(connectivity,file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
   
   ## ------------------------------------------------------------------------------
   ## ------------------------------------------------------------------------------
-  
-  # project.name
   
   load(file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
   load(file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
@@ -318,12 +320,12 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   
   # Resistance index
   resistance <- sapply( 1:nrow(connectivity.matrix.binomial) , function(res) { 1- length(unique(c(which(connectivity.matrix.binomial[res,] == 1 ) ,  which(connectivity.matrix.binomial[,res] == 1 )))) / nrow(connectivity.matrix.binomial) } )
-  resistance[resistance == 1] <- NA
   resistanceResults[ ,c] <- resistance
   write.csv(resistanceResults,file="../Results/resistanceMPA.csv")
   
   # Those with higher / Percertil 95%
-  temporaryRes <- MPAnames[ which(resistance >=  as.numeric(quantile(resistance,0.95,na.rm=TRUE))) ]
+  higherResistance <- which(resistance >=  as.numeric(quantile(resistance[resistance !=1 ],0.95,na.rm=TRUE))) 
+  temporaryRes <- MPAnames[ higherResistance ]
   higherResistanceResults[ as.numeric(unlist(sapply(  temporaryRes  , function(x)  which( rownames(higherResistanceResults) == x )))) ,c] <- "TRUE"
   write.csv(higherResistanceResults,file="../Results/higheResistanceMPA..csv")
   
@@ -380,8 +382,7 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
     SLDF = sp::SpatialLinesDataFrame(routes_sl, data.frame(ID = NA), match.ID = F)
     mapSouthernEuropeNet <- mapSouthernEuropeNet + geom_path(data = SLDF, size=0.35 , aes(x = long, y = lat), col = "#797979") # colfunc(101)[round(strenght)]
   }
-  mapSouthernEuropeNet
-  
+
   ## --------------------------------------------------------------------------------
   
   graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
@@ -412,11 +413,11 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   cols.to.use[which(names(membership.graph) %in% isolated.mpa.id)] <- "white"
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapClusteringConnections.pdf"), width=12)
-  
+  print(
   mapSouthernEuropeNet + 
     geom_point(data = centroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = 2.5, stroke = 0.35, alpha = 0.9) +
     geom_point(data = centroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = 2.5, stroke = 0.35, alpha = 0.7)
-  
+  )
   dev.off()
   
   ## ------------------------------------------
@@ -424,11 +425,11 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   # Plot isolated with connections
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapIsolatedConnMPA.pdf"), width=12)
-  
+  print(
   mapSouthernEuropeNet + 
     geom_point(data = centroids ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "white", size = 2.5, stroke = 0.35, alpha = 0.7) +
     geom_point(data = centroids[as.numeric(isolated.mpa.id),] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#9C2323", size = 2.5, stroke = 0.35, alpha = 0.9)
-      
+  )
   dev.off()
   
   ## ------------------------------------------
@@ -526,34 +527,121 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   closenessIndexPlot <- (closenessIndexPlot * 2) + 2.5
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapEighenCentralityConnections.pdf"), width=12)
-  
+  print(
   mapSouthernEuropeNet + 
     geom_point(data = centroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = eighenCentralityIndexPlot[cols.to.use == "white"], stroke = 0.25, alpha = 0.9) +
     geom_point(data = centroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = eighenCentralityIndexPlot[cols.to.use != "white"], stroke = 0.25, alpha = 0.7) +
     geom_point(data = centroids[eigen_centralityIndexQ95 == 1,] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[eigen_centralityIndexQ95 == 1], size = eighenCentralityIndexPlot[eigen_centralityIndexQ95 == 1], stroke = 1.2, alpha = 0.7)
-    
+  )
   dev.off()
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapBetweennessConnections.pdf"), width=12)
-  
+  print(
   mapSouthernEuropeNet + 
     geom_point(data = centroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = betweennessIndexPlot[cols.to.use == "white"], stroke = 0.25, alpha = 0.9) +
     geom_point(data = centroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = betweennessIndexPlot[cols.to.use != "white"], stroke = 0.25, alpha = 0.7) +
     geom_point(data = centroids[betweennessIndexQ95 == 1,] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[betweennessIndexQ95 == 1], size = betweennessIndexPlot[betweennessIndexQ95 == 1], stroke = 1.2, alpha = 0.7)
-  
+  )
   dev.off()
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapClosenessConnections.pdf"), width=12)
-  
+  print(
   mapSouthernEuropeNet + 
     geom_point(data = centroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = closenessIndexPlot[cols.to.use == "white"], stroke = 0.25, alpha = 0.9) +
     geom_point(data = centroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = closenessIndexPlot[cols.to.use != "white"], stroke = 0.25, alpha = 0.7) +
     geom_point(data = centroids[closenessIndexQ95 == 1,] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[closenessIndexQ95 == 1], size = closenessIndexPlot[closenessIndexQ95 == 1], stroke = 1.2, alpha = 0.7)
-  
+  )
   dev.off()
     
   # ----------------------------------
-  # eighenvector vs area
+  # Plot resistance
+  
+  resistanceIndexPlot <- (resistance / max(resistance) )
+  resistanceIndexPlot <- (resistanceIndexPlot * 2) + 2.5
+  
+  pdf(file=paste0("../Results/",project.name,"/Maps/MapResistanceConnections.pdf"), width=12)
+  print(
+  mapSouthernEuropeNet + 
+    geom_point(data = centroids[cols.to.use == "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use == "white"], size = resistanceIndexPlot[cols.to.use == "white"], stroke = 0.25, alpha = 0.9) +
+    geom_point(data = centroids[cols.to.use != "white",] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[cols.to.use != "white"], size = resistanceIndexPlot[cols.to.use != "white"], stroke = 0.25, alpha = 0.7) +
+    geom_point(data = centroids[higherResistance,] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = cols.to.use[higherResistance], size = resistanceIndexPlot[higherResistance], stroke = 1.2, alpha = 0.7)
+  )
+  dev.off()
+  
+  # ----------------------------------
+  # centrality vs area vs shape (corrected perimeter-area ratio; https://doi.org/10.1016/j.gecco.2018.e00504)
+  
+  shapeIndex <- perimeter(notakeMPA) / sqrt( 4*pi*area(notakeMPA))
+  
+  par(mar=c(5,5,3,3),bg = 'white')  
+  
+  data <- data.frame(Type=ifelse(eigen_centralityIndexQ95 == 1 , "Hub" , "non-Hub"),data=shapeIndex)
+  data <- data[ data$data != max(data$data) ,]
+  
+  pdf(file=paste0("../Results/",project.name,"/shapeEffectEigencentrality.pdf"),  width=10)
+  
+  boxplot(data[data$Type == "Hub",2], data[data$Type == "non-Hub",2],
+          names = c("Hub", "non-Hub"),
+          las = 2,
+          bg="#9A9A9A",
+          col = c("#9A9A9A","#D4D4D4"),
+          border = "#505050",
+          horizontal = TRUE ,
+          medcol = c("#9A9A9A","#D4D4D4"),
+          xlab = "Marine reserve shape index" )
+  
+  points(mean(data[data$Type == "Hub",2]),1,pch=19)
+  points(mean(data[data$Type != "Hub",2]),2,pch=19)
+  text(max(data$data)-0.3,2.3,paste0("p-value: ",round(kruskal.test(data[,2],as.numeric(data$Type))$p.value, digits=4)))
+  shapeEffectEigencentrality <- kruskal.test(data[,2],as.numeric(data$Type))$p.value < 0.05
+  
+  dev.off()
+  
+  data <- data.frame(Type=ifelse(betweennessIndexQ95 == 1 , "Hub" , "non-Hub"),data=shapeIndex)
+  data <- data[ data$data != max(data$data) ,]
+  
+  pdf(file=paste0("../Results/",project.name,"/shapeEffectBetweenness.pdf"), width=10)
+  
+  boxplot(data[data$Type == "Hub",2], data[data$Type == "non-Hub",2],
+          names = c("Hub", "non-Hub"),
+          las = 2,
+          bg="#9A9A9A",
+          col = c("#9A9A9A","#D4D4D4"),
+          border = "#505050",
+          horizontal = TRUE ,
+          medcol = c("#9A9A9A","#D4D4D4"),
+          xlab = "Marine reserve shape index" )
+  
+  points(mean(data[data$Type == "Hub",2]),1,pch=19)
+  points(mean(data[data$Type != "Hub",2]),2,pch=19)
+  text(max(data$data)-0.3,2.3,paste0("p-value: ",round(kruskal.test(data[,2],as.numeric(data$Type))$p.value, digits=4)))
+  shapeEffectBetweenness <- kruskal.test(data[,2],as.numeric(data$Type))$p.value < 0.05
+  
+  dev.off()
+  
+  data <- data.frame(Type=ifelse(closenessIndexQ95 == 1 , "Hub" , "non-Hub"),data=shapeIndex)
+  data <- data[ data$data != max(data$data) ,]
+  
+  pdf(file=paste0("../Results/",project.name,"/shapeEffectCloseness.pdf"), width=10)
+  
+  boxplot(data[data$Type == "Hub",2], data[data$Type == "non-Hub",2],
+          names = c("Hub", "non-Hub"),
+          las = 2,
+          bg="#9A9A9A",
+          col = c("#9A9A9A","#D4D4D4"),
+          border = "#505050",
+          horizontal = TRUE ,
+          medcol = c("#9A9A9A","#D4D4D4"),
+          xlab = "Marine reserve shape index" )
+  
+  points(mean(data[data$Type == "Hub",2]),1,pch=19)
+  points(mean(data[data$Type != "Hub",2]),2,pch=19)
+  text(max(data$data)-0.3,2.3,paste0("p-value: ",round(kruskal.test(data[,2],as.numeric(data$Type))$p.value, digits=4)))
+  shapeEffectCloseness <- kruskal.test(data[,2],as.numeric(data$Type))$p.value < 0.05
+  
+  dev.off()
+  
+  # --------------
   
   par(mar=c(5,5,3,3),bg = 'white')  
   
@@ -575,6 +663,7 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   points(mean(data[data$Type == "Hub",2]),1,pch=19)
   points(mean(data[data$Type != "Hub",2]),2,pch=19)
   text(max(data$data)-3,2.3,paste0("p-value: ",round(kruskal.test(data[,2],as.numeric(data$Type))$p.value, digits=4)))
+  areaEffectEigencentrality <- kruskal.test(data[,2],as.numeric(data$Type))$p.value < 0.05
   
   dev.off()
   
@@ -596,6 +685,7 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   points(mean(data[data$Type == "Hub",2]),1,pch=19)
   points(mean(data[data$Type != "Hub",2]),2,pch=19)
   text(max(data$data)-3,2.3,paste0("p-value: ",round(kruskal.test(data[,2],as.numeric(data$Type))$p.value, digits=4)))
+  areaEffectBetweenness <- kruskal.test(data[,2],as.numeric(data$Type))$p.value < 0.05
   
   dev.off()
   
@@ -617,6 +707,7 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
   points(mean(data[data$Type == "Hub",2]),1,pch=19)
   points(mean(data[data$Type != "Hub",2]),2,pch=19)
   text(max(data$data)-3,2.3,paste0("p-value: ",round(kruskal.test(data[,2],as.numeric(data$Type))$p.value, digits=4)))
+  areaEffectCloseness <- kruskal.test(data[,2],as.numeric(data$Type))$p.value < 0.05
   
   dev.off()
   
@@ -632,17 +723,26 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
                                   maximumConnections=maximumConnections,
                                   numberClusters=numberClusters,
                                   aggregationBasedOnClusters=aggregationBasedOnClusters,
+                                  averageResistance=mean(resistance,na.rm=T),
                                   averageEighenCentrality=averageEighenCentrality,
                                   sdEighenCentrality=sdEighenCentrality,
                                   averageBetweenness=averageBetweenness,
                                   sdBetweenness=sdBetweenness,
                                   averageCloseness=averageCloseness,
-                                  sdCloseness=sdCloseness) )
+                                  sdCloseness=sdCloseness,
+                                  shapeEffectEigencentrality=shapeEffectEigencentrality,
+                                  shapeEffectBetweenness=shapeEffectBetweenness,
+                                  shapeEffectCloseness=shapeEffectCloseness,
+                                  areaEffectEigencentrality=areaEffectEigencentrality,
+                                  areaEffectBetweenness=areaEffectBetweenness,
+                                  areaEffectCloseness=areaEffectCloseness ))
   
   write.csv(combResults,file="../Results/Results.csv")
   save(combResults,file=paste0("../Results/allPLDResults.Rdata"))
-  dev.off()
   
+  # list.memory()
+  rm(connectivity.source.sink.xy )
+
 }
 
 ## ---------------------------------------------------------------------------------------------------
@@ -651,10 +751,12 @@ for( c in c(2,5,17,36) ){ # 1:nrow(combinations)
 x <- combResults$pld
 x.lab <- "Propagule duration (day)"
 
-y <- combResults$averageeigen_centrality # colnames(combResults)
-y.lab <- "Eigen centrality (average)"
+names(combResults)
+y <- combResults$averageConnections
+y <- combResults$shapeEffectEigencentrality
+y.lab <- "aggregation degree (average number of reserve connections)"
 
-pdf(file=paste0("../Results/Plots/averageEigen_centrality.pdf"), width=12, height=5)
+pdf(file=paste0("../Results/aggregation degree.pdf"), width=12)
 
 par(mar = c(4.5, 5.5, 4.5, 4.5))
 plot(x,y,pch=20,col="#A6A6A6", ylab="",xlab=x.lab,axes=FALSE)
