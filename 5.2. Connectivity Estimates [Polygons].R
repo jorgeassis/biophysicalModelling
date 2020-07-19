@@ -15,7 +15,7 @@ library(rgeos)
 source("0. Project Config.R")
 
 sql.project.name <- "MPA"
-number.cores <- 16
+number.cores <- 8
 
 notakeMPA <- "../Data/notake_merged_Med_P.shp" 
 
@@ -152,9 +152,9 @@ colnames(higherResistanceResults) <- 1:nrow(combinations)
 ## ------------------------------------------------------------------------------
 
 dev.off()
-doParallelCalculations <- FALSE
+doParallelCalculations <- TRUE
 
-for( c in 1:76 ){ #  77:nrow(combinations)
+for( c in 77:nrow(combinations) ){ #  
   
   cat(c,"\n")
   gc(reset=TRUE)
@@ -290,8 +290,8 @@ for( c in 1:76 ){ #  77:nrow(combinations)
   ## ------------------------------------------------------------------------------
   ## ------------------------------------------------------------------------------
   
-  load(file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
-  load(file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
+  # load(file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.notakeMPA.Rdata"))
+  # load(file=paste0("../Results/",project.name,"/Data/connectivity.source.sink.xy.Rdata"))
   
   ## ------------------------------------------------------------------------------
   ## ------------------------------------------------------------------------------
@@ -748,15 +748,13 @@ for( c in 1:76 ){ #  77:nrow(combinations)
 ## ---------------------------------------------------------------------------------------------------
 ## ---------------------------------------------------------------------------------------------------
 
+library(ggplot2)
+names(combResults)
+
 x <- combResults$pld
 x.lab <- "Propagule duration (day)"
-
-names(combResults)
-y <- combResults$averageConnections
-y <- combResults$shapeEffectEigencentrality
-y.lab <- "aggregation degree (average number of reserve connections)"
-
-pdf(file=paste0("../Results/aggregation degree.pdf"), width=12)
+y <- combResults$areaEffectBetweenness
+y.lab <- "areaEffectEigencentrality"
 
 par(mar = c(4.5, 5.5, 4.5, 4.5))
 plot(x,y,pch=20,col="#A6A6A6", ylab="",xlab=x.lab,axes=FALSE)
@@ -765,6 +763,13 @@ lines(bezierCurve(x,y,100)$x,bezierCurve(x,y,100)$y,type="l", lwd=1, lty=2)
 axis(2,las=2,col="White",col.ticks="Black", cex.axis=0.9)
 axis(1,las=0,col="White",col.ticks="Black", cex.axis=0.9)
 box()
+
+pdf(file=paste0("../Results/aggregation degree.pdf"), width=12)
+
+ggplot(combResults, aes(x = pld, y = averageConnections)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = averageConnections - sdConnections/2,
+                  ymax = averageConnections + sdConnections/2), alpha = 0.2) + xlab("Propagule duration (day)") + ylab("Network connections (average ± standard deviation)") + xlim(0,120)
 
 dev.off()
 
