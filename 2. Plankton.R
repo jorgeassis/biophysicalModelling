@@ -202,7 +202,7 @@ writeOGR(initial.coords.DF, "../Data/Spatial", "sourceSinkSitesCropped", driver=
 
 ## Define Available raw data and Test if data is available
 
-raw.data.files <- list.files(paste0(project.folder,"/Data"),full.names = TRUE,pattern="nc")
+raw.data.files <- list.files(currentsVel.data.folder,full.names = TRUE,pattern="nc")
 simulation.parameters.step <- data.frame()
 
 for( file in 1:length(raw.data.files)) {
