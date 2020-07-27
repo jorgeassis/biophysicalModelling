@@ -12,6 +12,8 @@ gc(reset=TRUE)
 project.name <- "Azores"
 project.folder <- "/Volumes/Jellyfish/Dropbox/theMarineDataScientist/Projects/Azores connectivity estimates/"
 
+currentsVel.data.folder <- paste0(project.folder,"Data/depth 0/")
+
 landmass.shp <- "../Data/mainLandAzores.shp"
 coastline.shp <- "../Data/shoreLineAzores.shp"
 
