@@ -9,14 +9,20 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "CentralityMPA"
-project.folder <- "/Volumes/Jellyfish/Dropbox/Manuscripts/Network analyses reveal weak and strong links in the European network of Marine Protected Areas/"
+project.name <- "Azores"
+project.folder <- "/Volumes/Jellyfish/Dropbox/theMarineDataScientist/Projects/Azores connectivity estimates/"
 
-coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
-landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
+landmass.shp <- "../Data/mainLandAzores.shp"
+coastline.shp <- "../Data/shoreLineAzores.shp"
+
+# coastline.shp <- "Data/Shapefiles/Global Coastline.shp"
+# landmass.shp <- "Data/Shapefiles/Global Landmass.shp"
+
+
 bathymetry.tif <- NULL
 
-additional.landmass.shp <- "Data/notake_merged_Med_P.shp" 
+additional.landmass.shp <- "Data/sourceSinkPolygons_0.shp" 
+additional.landmass.shp.type <- "centroid" # peripherical centroid
 
 unwanted.release.coastline <- TRUE
 unwanted.release.sites.shp <- NULL # "Data/Shapefiles/Unwanted.shp"
@@ -35,10 +41,10 @@ parallel.computational.buffer <- 0.5 # degrees
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -9
-max.lon <- 38
-min.lat <- 29
-max.lat <- 47
+min.lon <- -35 
+max.lon <- -19 
+min.lat <- 34.25
+max.lat <- 42.25
 source.sink.dist <- 1 # km
 
 # -----------------------------------
@@ -57,7 +63,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 125                       # Days allowed to travel
+particle.max.duration <- 120                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------

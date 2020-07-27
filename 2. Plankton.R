@@ -5,7 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../Project Config 0.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -42,13 +42,19 @@ options(warn=0)
 
 ## Define source and sink locations
 
-polyDF <- SpatialLinesDataFrame(coastline, data = data.frame(id=1:length(coastline)), match.ID = F)
-coastline.pts <- sample.line(polyDF,d = source.sink.dist,type = "regular",longlat = TRUE)
-coastline.pts <- as(coastline.pts, "SpatialPointsDataFrame")
-coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
+if( additional.landmass.shp.type == "peripherical" ) {
+  
+  polyDF <- SpatialLinesDataFrame(coastline, data = data.frame(id=1:length(coastline)), match.ID = F)
+  coastline.pts <- sample.line(polyDF,d = source.sink.dist,type = "regular",longlat = TRUE)
+  coastline.pts <- as(coastline.pts, "SpatialPointsDataFrame")
+  coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
+  
+  if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
+  if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
+  
+}
 
-if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
-if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
+if( additional.landmass.shp.type == "centroid" ) { coastline.pts <- data.frame(); source.sink.xy <- data.frame() }
 
 ## --------------
 
@@ -62,66 +68,77 @@ if( ! is.null(additional.landmass.shp) ) {
     crs(additional.shp) <- crs(landmass)
     additional.shp <- gBuffer(additional.shp, byid=TRUE, width=0.001)
     
-    # Remove parts over land
-    additional.shp <- gDifference(additional.shp,landmass,byid=TRUE)
-    writeOGR(as(additional.shp, "SpatialPolygonsDataFrame"), "../Data/Spatial", gsub("Data/Spatial/","Final",additional.landmass.shp[i]) , driver="ESRI Shapefile",overwrite_layer=TRUE)
+    if( additional.landmass.shp.type == "peripherical" ) { # peripherical
+      
+      # Remove parts over land
+      additional.shp <- gDifference(additional.shp,landmass,byid=TRUE)
+      # writeOGR(as(additional.shp, "SpatialPolygonsDataFrame"), "../Data/Spatial", gsub("Data/Spatial/","Final",additional.landmass.shp[i]) , driver="ESRI Shapefile",overwrite_layer=TRUE)
+        
+        for( t in 1:length(additional.shp) ){
+        
+          error <- FALSE  
+          
+          additional.shp.i <- additional.shp[t,]
+          additional.shp.i <- remove.holes(additional.shp.i)
+          additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
+        
+          tryCatch({ additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)  }, error=function(e){ error <<- TRUE})
+          
+          if(error) {
+            
+            additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))
+            coordinates(additional.shp.i) <- ~x+y
+            additional.shp.i <- lapply(split(additional.shp.i, additional.shp.i$id), function(x) Lines(list(Line(coordinates(x))), x$id[1L]))
+            additional.shp.i <- SpatialLines(additional.shp.i)
+            data <- data.frame(id = 1:length(additional.shp.i))
+            rownames(data) <- data$id
+            additional.shp.i <- SpatialLinesDataFrame(additional.shp.i, data)
+            additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)
+            
+          }
+          
+          crs(additional.shp.i) <- crs(landmass)
+          
+          toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
+          additional.shp.i <- additional.shp.i[toKeep,] 
+          toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
+          additional.shp.i <- additional.shp.i[toKeep,] 
+          
+          tester <- 0
+          
+          while( length(additional.shp.i) == 0 ) {
+            
+            additional.shp.i <- additional.shp[t,]
+            additional.shp.i <- remove.holes(additional.shp.i)
+            additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
+            
+            additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "random",longlat = TRUE)
+            
+            toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
+            additional.shp.i <- additional.shp.i[toKeep,] 
+            toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
+            additional.shp.i <- additional.shp.i[toKeep,] 
+            
+            tester <- tester + 1
+            if(tester == 100) { break("Error :: CODE0909")}
+            
+          }
+          
+          plot(additional.shp[t,])
+          plot(landmassBuffered,col="gray",add=TRUE)
+          points(additional.shp.i)
+          
+          additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))[,c("x","y")]
+          additional.pts <- rbind(additional.pts,additional.shp.i)
+          
+        }
+       
+    } 
     
-    for( t in 1:length(additional.shp) ){
-    
-      error <- FALSE  
+    if( additional.landmass.shp.type == "centroid" ) { 
       
-      additional.shp.i <- additional.shp[t,]
-      additional.shp.i <- remove.holes(additional.shp.i)
-      additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
-    
-      tryCatch({ additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)  }, error=function(e){ error <<- TRUE})
-      
-      if(error) {
-        
-        additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))
-        coordinates(additional.shp.i) <- ~x+y
-        additional.shp.i <- lapply(split(additional.shp.i, additional.shp.i$id), function(x) Lines(list(Line(coordinates(x))), x$id[1L]))
-        additional.shp.i <- SpatialLines(additional.shp.i)
-        data <- data.frame(id = 1:length(additional.shp.i))
-        rownames(data) <- data$id
-        additional.shp.i <- SpatialLinesDataFrame(additional.shp.i, data)
-        additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)
-        
-      }
-      
-      crs(additional.shp.i) <- crs(landmass)
-      
-      toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
-      additional.shp.i <- additional.shp.i[toKeep,] 
-      toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
-      additional.shp.i <- additional.shp.i[toKeep,] 
-      
-      tester <- 0
-      
-      while( length(additional.shp.i) == 0 ) {
-        
-        additional.shp.i <- additional.shp[t,]
-        additional.shp.i <- remove.holes(additional.shp.i)
-        additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
-        
-        additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "random",longlat = TRUE)
-        
-        toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
-        additional.shp.i <- additional.shp.i[toKeep,] 
-        toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
-        additional.shp.i <- additional.shp.i[toKeep,] 
-        
-        tester <- tester + 1
-        if(tester == 100) { break("Error :: CODE0909")}
-        
-      }
-      
-      plot(additional.shp[t,])
-      plot(landmassBuffered,col="gray",add=TRUE)
-      points(additional.shp.i)
-      
-      additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))[,c("x","y")]
-      additional.pts <- rbind(additional.pts,additional.shp.i)
+      additional.pts.i <- centroid(additional.shp)
+      additional.pts <- rbind(additional.pts,additional.pts.i)
       
     }
     
@@ -288,12 +305,12 @@ nrow(particles.reference)
 
 ## Out of memory objects
 
-clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/InternalProc"))
-clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/InternalProc"))
-clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/InternalProc"))
+clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/Results/InternalProc"))
+clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/Results/InternalProc"))
+clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/Results/InternalProc"))
 
-particles.reference.bm <- big.matrix(nrow=nrow(particles.reference),ncol=ncol(particles.reference) , backingpath=paste0(project.folder,"InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
-particles.reference.bm.desc <- dget( paste0(project.folder,"InternalProc/particles.reference.desc"))
+particles.reference.bm <- big.matrix(nrow=nrow(particles.reference),ncol=ncol(particles.reference) , backingpath=paste0(project.folder,"Results/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
+particles.reference.bm.desc <- dget( paste0(project.folder,"Results/InternalProc/particles.reference.desc"))
 
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm[,1] <- unlist(particles.reference[,1])
@@ -313,16 +330,16 @@ if( movie.year > 0 ) {
                                                           ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.x.bin",
                                                           descriptorfile = "particles.video.location.x.desc",
-                                                          backingpath=paste0(project.folder,"/InternalProc"))
+                                                          backingpath=paste0(project.folder,"/Results/InternalProc"))
                                     
   particles.video.location.y.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
                                                           ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.y.bin",
                                                           descriptorfile = "particles.video.location.y.desc",
-                                                          backingpath=paste0(project.folder,"/InternalProc"))
+                                                          backingpath=paste0(project.folder,"/Results/InternalProc"))
 
-  particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
-  particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
+  particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/Results/InternalProc/particles.video.location.x.desc"))
+  particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/Results/InternalProc/particles.video.location.y.desc"))
   
 }
 
@@ -553,11 +570,11 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   
   ## --------------------------------------------------------
   
-  if( ! "InternalProc" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/InternalProc"))) }
+  if( ! "InternalProc" %in% list.files(paste0(project.folder,"/Results/")) ) { dir.create(file.path(paste0(project.folder,"/Results/InternalProc"))) }
   
   ## ------------------------------------- 
   
-  padlock(paste0(project.folder,"/InternalProc/"),"Unlock",-1)
+  padlock(paste0(project.folder,"/Results/InternalProc/"),"Unlock",-1)
   
   ## Divide computations by sections (parallel.computational.sections)
   

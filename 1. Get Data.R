@@ -6,7 +6,7 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("0. Project Config.R")
+source("../Project Config 4.R")
 source("Dependences.R")
 library(httr)
 
@@ -84,7 +84,7 @@ View(fullDates)
 
 # -----------------------------------------------------------------
 
-for (y in 2017:2017 ){ # unique(fullDates$year)
+for (y in unique(fullDates$year) ){ # 
   
   fullDates.y <- fullDates[fullDates$year == y,]
   time.window <- apply(fullDates.y[,2:3] , 1 , function(x) { paste0(y,"-",ifelse(nchar(x[1]) == 1 , paste0(0,x[1]),x[1]),"-",ifelse(nchar(x[2]) == 1 , paste0(0,x[2]),x[2])) }  )

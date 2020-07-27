@@ -33,7 +33,7 @@ dbDisconnect(sql)
 
 ## ------------------
 
-particles.reference.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.reference.desc"))
+particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/InternalProc/particles.reference.desc"))
 
 ## ------------------
 
