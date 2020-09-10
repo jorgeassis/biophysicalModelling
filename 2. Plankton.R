@@ -5,7 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../Project Config 0.R")
+source("../Project Config 5.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -34,6 +34,19 @@ landmass <- crop(landmass,clipper)
 coastline <- crop(coastline,clipper)
 
 landmassBuffered <- gBuffer(landmass, byid=TRUE, width=0.001)
+
+if( ! is.null(additional.landmass.shp) ) {
+  
+  if( length(additional.landmass.shp) > 1 ) { stop("Code to have multiple shapefiles") }
+  
+  additional.shp <- shapefile(paste0(project.folder,additional.landmass.shp))
+  crs(additional.shp) <- dt.projection
+  
+  additional.shp <- gBuffer(additional.shp, byid=TRUE, width=0)
+  additional.shp <- gIntersection(additional.shp, clipper, byid=TRUE)
+  additional.shp <- gUnaryUnion(additional.shp, id = rep(1,length(additional.shp)))
+  
+}
 
 options(warn=0)
 
@@ -195,8 +208,8 @@ source.cells.id <- source.sink.xy[source.sink.xy$source == 1,1]
 initial.coords.DF <- SpatialPointsDataFrame(data.frame(initial.coords),data=data.frame(Data=rep(1,nrow(initial.coords))))
 crs(initial.coords.DF) <- crs(landmass)
 
-writeOGR(SpatialPolygonsDataFrame(landmass,data=data.frame(ID=1:length(landmass))) , "../Data/Spatial", "landmassCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
-writeOGR(initial.coords.DF, "../Data/Spatial", "sourceSinkSitesCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
+writeOGR(SpatialPolygonsDataFrame(landmass,data=data.frame(ID=1:length(landmass))) , paste0("../Data/Spatial/",project.name,"/"), "landmassCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
+writeOGR(initial.coords.DF, paste0("../Data/Spatial/",project.name,"/"), "sourceSinkSitesCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 
@@ -222,7 +235,7 @@ if(sum( ! from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"])
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Prepare video (animation) points
 
-if( !is.null(movie.sites.xy) ) {
+if( ! is.null(movie.sites.xy) ) {
   
   if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
   
@@ -305,12 +318,16 @@ nrow(particles.reference)
 
 ## Out of memory objects
 
-clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/Results/InternalProc"))
-clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/Results/InternalProc"))
-clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/Results/InternalProc"))
+if(! dir.exists(paste0(project.folder,"/Results/",project.name))) { dir.create(paste0(project.folder,"/Results/",project.name)) }
+if(! dir.exists(paste0(project.folder,"/Results/",project.name,"/InternalProc"))) { dir.create(paste0(project.folder,"/Results/",project.name,"/InternalProc")) }
+if(! dir.exists(paste0(project.folder,"/Results/",project.name,"/SQL"))) { dir.create(paste0(project.folder,"/Results/",project.name,"/SQL")) }
 
-particles.reference.bm <- big.matrix(nrow=nrow(particles.reference),ncol=ncol(particles.reference) , backingpath=paste0(project.folder,"Results/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
-particles.reference.bm.desc <- dget( paste0(project.folder,"Results/InternalProc/particles.reference.desc"))
+clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
+clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
+clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
+
+particles.reference.bm <- big.matrix(nrow=nrow(particles.reference),ncol=ncol(particles.reference) , backingpath=paste0(project.folder,"Results/",project.name,"/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
+particles.reference.bm.desc <- dget( paste0(project.folder,"Results/",project.name,"/InternalProc/particles.reference.desc"))
 
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm[,1] <- unlist(particles.reference[,1])
@@ -330,23 +347,23 @@ if( movie.year > 0 ) {
                                                           ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.x.bin",
                                                           descriptorfile = "particles.video.location.x.desc",
-                                                          backingpath=paste0(project.folder,"/Results/InternalProc"))
+                                                          backingpath=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
                                     
   particles.video.location.y.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
                                                           ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.y.bin",
                                                           descriptorfile = "particles.video.location.y.desc",
-                                                          backingpath=paste0(project.folder,"/Results/InternalProc"))
+                                                          backingpath=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
 
-  particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/Results/InternalProc/particles.video.location.x.desc"))
-  particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/Results/InternalProc/particles.video.location.y.desc"))
+  particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.x.desc"))
+  particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.y.desc"))
   
 }
 
 ## ------------------------------------------------------------------------------------------------------------------
 
 ## Generate regions for simulation
-## Parallel.computational.sections : latitudinal section
+## Parallel.computational.sections by latitudinal section
  
 sections.lat <- data.frame( sect.from = seq(min.lat,max.lat,length.out = parallel.computational.sections+1)[-(parallel.computational.sections+1)] , 
                             sect.to = seq(min.lat,max.lat,length.out = parallel.computational.sections+1)[-1] )
@@ -372,9 +389,10 @@ for(i in 1:parallel.computational.sections){
   
   vertexA <- data.frame( Lon=c(min.lon,min.lon+0.00001,min.lon+0.00001,min.lon),Lat= c(sections.lat[i,1]+0.00001 - parallel.computational.buffer ,sections.lat[i,1]+0.00001 - parallel.computational.buffer ,sections.lat[i,1] - parallel.computational.buffer ,sections.lat[i,1] - parallel.computational.buffer ))
   vertexA <- spPolygons(as.matrix(vertexA))
-
+  crs(vertexA) <- dt.projection
   vertexB <- data.frame( Lon=c(max.lon,max.lon-0.00001,max.lon-0.00001,max.lon),Lat= c( sections.lat[i,2] - 0.00001 + parallel.computational.buffer , sections.lat[i,2] - 0.00001 + parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer , sections.lat[i,2] + parallel.computational.buffer ))
   vertexB <- spPolygons(as.matrix(vertexB))
+  crs(vertexB) <- dt.projection
   
   landmass.i <- gUnion(gUnion(vertexA,vertexB),landmass)
   crs(landmass.i) <- dt.projection
@@ -385,25 +403,25 @@ for(i in 1:parallel.computational.sections){
   tryCatch( geometry.i <- gClip(landmass.i, sp::bbox(clipper)) , error = function(e) { geometry.i <- NULL })
   if( class(geometry.i)[1] ==  "SpatialCollections" ) { geometry.i <- geometry.i@polyobj }
   if( class(geometry.i)[1] !=  "SpatialPolygons" ) { geometry.i <- crop( landmass,clipper ) }
-
-  if( is.null(geometry.i) ) { 
-    
-    fakePoint <- data.frame(Lon=c(extent(clipper)[1],extent(clipper)[2]),Lat=c(extent(clipper)[3],extent(clipper)[4]))
-    coordinates(fakePoint) <- ~Lon+Lat
-    crs(fakePoint) <- dt.projection
-    gridded(fakePoint) <- TRUE
-    fakePoint <- raster(fakePoint)
-    fakePoint = rasterToPolygons(fakePoint, dissolve = T)
-
-    fakeLandmass <- gUnion(landmass,fakePoint)
-    geometry.i <- gClip(fakeLandmass, sp::bbox(clipper))
-    
-    }
-
+  if( is.null(geometry.i) ) { stop("Null geometry. Get Old Code") }
+  
   assign( paste0("landmass.sect.",i) , geometry.i )
   list.of.polygons <- c(list.of.polygons,paste0("landmass.sect.",i))
-  gc(reset=TRUE)
-
+  
+  # If source and sink polygons beyond regular landmass
+  
+  if( ! is.null(additional.landmass.shp) ) {
+    
+    if( length(additional.landmass.shp) > 1 ) { stop("Code to have multiple shapefiles") }
+    
+      additional.shp.i <- gUnion(gUnion(vertexA,vertexB),additional.shp)
+    
+      tryCatch( additional.shp.i <- gClip(additional.shp.i, sp::bbox(clipper)) , error = function(e) { additional.shp.i <- NULL })
+      
+      assign( paste0("additional.shp.sect.",i) , additional.shp.i )
+      list.of.polygons <- c(list.of.polygons,paste0("additional.shp.sect.",i))
+      
+    }
 }
 
 ## ------------------------------------------------------------------------------------------------------------------
@@ -431,7 +449,9 @@ global.simulation.parameters <- data.frame(   project.name = project.name,
                                               # particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
                                               extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
 
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.y.desc")
+
+sql <- dbConnect(RSQLite::SQLite(), paste0(project.folder,"/Results/",project.name,"/SQL/","SimulationResults.sql"))
 dbWriteTable(sql, "SourceSinkSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
 dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
 dbDisconnect(sql)
@@ -455,9 +475,23 @@ list.memory()
 ## Start Simulation
 ## 1:nrow(simulation.parameters.step)
 
+# Test Day 101!!
+
+# 20 days
+# 40 cores : 37 min
+# 01 cores : 17
+
+# 100 days
+# 40 cores : 3.66h
+# 01 cores : 1.59h
+
+start_time <- Sys.time()
+
 time.i <- character(nrow(simulation.parameters.step))
 
-for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
+for ( simulation.step in 1:10 ) {
+  
+  gc(reset=TRUE)
   
   ## --------------------------------------------------------
   ## Progress
@@ -570,29 +604,28 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   
   ## --------------------------------------------------------
   
-  if( ! "InternalProc" %in% list.files(paste0(project.folder,"/Results/")) ) { dir.create(file.path(paste0(project.folder,"/Results/InternalProc"))) }
-  
-  ## ------------------------------------- 
-  
-  padlock(paste0(project.folder,"/Results/InternalProc/"),"Unlock",-1)
-  
   ## Divide computations by sections (parallel.computational.sections)
-  
-  gc(reset=TRUE)
   
   cl.2 <- makeCluster(number.cores)
   registerDoParallel(cl.2)
   
-  sect.loop <- foreach(section=1:parallel.computational.sections, .combine=rbind, .verbose=FALSE, .export=list.of.polygons , .packages=c("ncdf4","gstat","gdata","raster","data.table","bigmemory","FNN")) %dopar% { 
-    
-    require(bigmemory)
+  sect.loop <- foreach(section=1:parallel.computational.sections, .combine=rbind, .verbose=FALSE, .export=list.of.polygons , .packages=c("ncdf4","gstat","gdata","raster","data.table","bigmemory","FNN","sf")) %dopar% { 
     
     ## -------------------------------------------------------------------------
     
-    sp.poly <- get(paste0("landmass.sect.",section))
+    landmass.sect <- get(paste0("landmass.sect.",section))
+
+    if( class(landmass.sect) != "SpatialPolygons" &  class(landmass.sect) != "NULL"  ) { landmass.sect <- get(paste0("landmass.sect.",section))@polyobj }
+    landmass.sect$ID <- 1:length(landmass.sect)
+    landmass.sect <- st_as_sf(landmass.sect)
     
-    if( class(sp.poly) != "SpatialPolygons" &  class(sp.poly) != "NULL"  ) { sp.poly <- get(paste0("landmass.sect.",section))@polyobj }
-    if( class(sp.poly) != "NULL"  ) { sp.poly.line <- as(sp.poly, "SpatialLines")  }
+    if( ! is.null(additional.landmass.shp) ) { 
+        
+        additional.shp.sect <- get(paste0("additional.shp.sect.",section)) 
+        additional.shp.sect$ID <- 1:length(additional.shp.sect)
+        additional.shp.sect <- st_as_sf(additional.shp.sect)
+      
+    }    
     
     ## -------------------------------------------------------------------------
     
@@ -649,7 +682,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
     raw.data.u <- raw.data.u[complete.cases(raw.data.u),]
     raw.data.v <- raw.data.v[complete.cases(raw.data.v),]
     
-    # plot(sp.poly) ; points(raw.data.u[,c("Lon","Lat")])
+    # plot(landmass.sect) ; points(raw.data.u[,c("Lon","Lat")])
     
     # --------------------------------------------------
     
@@ -785,16 +818,24 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
         particles.reference.moving.dt[ id %in% out.of.space.ids , state := 3  ]
         
         # -----------------------------------------------
-        # kill by first raft . Will eliminate particles that got to another cell - first raft event
-        
-        if( kill.by.raft & ! is.null(sp.poly) ) {
+
+        if( kill.by.raft ) {
           
           setkey(particles.reference.moving.dt,id)
           points.to.test <- particles.reference.moving.dt[, .(pos.lon,pos.lat)]
           coordinates(points.to.test) = ~pos.lon+pos.lat
           crs(points.to.test) <- dt.projection
           
-          particles.on.land <- as.vector(which(!is.na(over(points.to.test,sp.poly))))
+          points.to.test.i <- points.to.test
+          points.to.test.i$ID <- 1:length(points.to.test.i)
+          points.to.test.i <- st_as_sf(points.to.test.i)
+          
+          # ----------------------------
+          # Test over Land
+          
+          # particles.on.land <- as.vector(which(!is.na(over(points.to.test,landmass.sect.i))))
+          particles.on.land <- as.data.frame(st_join(points.to.test.i,landmass.sect , join = st_intersects))
+          particles.on.land <- which(!is.na(particles.on.land$ID.y))
           particles.on.land.condition <- length(particles.on.land) > 0
           
           if( particles.on.land.condition ) {    
@@ -814,7 +855,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
             
             displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
             
-            # For Rafters
+            # True Rafters [Distinct cell]
             
             true.rafters.id <- who.at.land.id[ displacement != 0 ]
             true.rafters.cell <- cells.rafted[ displacement != 0 ]
@@ -824,17 +865,25 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
             particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
             particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
             
-            # For non-Rafters New Particles
+            # False Rafters [same cell of origin]
             
             non.rafters.id <- who.at.land.id[ displacement == 0 ]
             non.rafters.cell <- cells.started[ displacement == 0 ]
             non.rafters.t <- who.at.land.t.start[ displacement == 0 ] == t.step
+
+            if( TRUE %in% non.rafters.t & allow.retention ) {    
+              
+              particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 2 ]
+              particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(true.rafters.cell) ]
+              particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(t.step) ]
+              
+            }
             
-            if( TRUE %in% non.rafters.t ) {    
+            if( TRUE %in% non.rafters.t & ! allow.retention ) {    
               
               particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t] ,1] ]
               particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t]  ,2] ]
-              
+
             }
             
             # For non-Rafters Old Particles
@@ -848,6 +897,46 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
               particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(t.step) ]
               
             }
+            
+          }
+          
+          # ----------------------------
+          # Test over additional shapefile
+          
+          if( ! is.null(additional.landmass.shp) ) { 
+
+              particles.on.additional.shp <- as.data.frame(st_join(points.to.test.i, additional.shp.sect, join = st_intersects))
+              particles.on.additional.shp <- which(!is.na(particles.on.additional.shp$ID.y))
+              particles.on.additional.shp.condition <- length(particles.on.additional.shp) > 0
+              
+              if( particles.on.additional.shp.condition ) {    
+                
+                who.at.shp.id <- moving.particles.id[particles.on.additional.shp]
+                
+                cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.shp.id, "start.cell"]))
+                who.at.shp.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.shp.id, "t.start"]))
+                
+                points.on.shp.t <- particles.reference.moving.dt[id %in% who.at.shp.id , 6:7 ]
+                points.on.shp.t.minus <- particles.reference.moving.old.pos[id %in% who.at.shp.id , 1:2 ]
+                
+                points.on.shp.corrected <- points.on.shp.t.minus
+                
+                cells.rafted <- get.knnx( source.sink.xy.s, points.on.shp.corrected, k=1 , algorithm="kd_tree" )$nn.index
+                cells.rafted <- source.sink.xy.id.s[cells.rafted]
+                
+                displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
+                
+                # True Rafters [Distinct cell]
+                
+                true.rafters.id <- who.at.shp.id[ displacement != 0 ]
+                true.rafters.cell <- cells.rafted[ displacement != 0 ]
+                
+                setkey(particles.reference.moving.dt,id)
+                particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
+                particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
+                particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
+                
+              }
           }
           
         }
@@ -868,7 +957,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
       ## ---------------------------------------------------------------
       ## Save positions to Video matrix (if condition matched) 
       
-      if( movie.year == as.numeric(simulation.year) ) {
+      if( ! is.null(movie.sites.xy) & movie.year == as.numeric(simulation.year) ) {
         
         ## --------------------------------------------------------
         
@@ -904,7 +993,6 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
     
     # -----------------------------------------------
     
-    
   }
   
   stopCluster(cl.2) ; rm(cl.2)
@@ -929,6 +1017,9 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   gc(reset=TRUE)
   
 }
+
+end_time <- Sys.time()
+end_time - start_time
 
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
@@ -963,9 +1054,9 @@ nrow(ReferenceTable)
 
 ## -----------------------
 
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-dbWriteTable(sql, "ReferenceTable", ReferenceTable , append=FALSE, overwrite=TRUE )
-dbDisconnect(sql)
+# sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
+# dbWriteTable(sql, "ReferenceTable", ReferenceTable , append=FALSE, overwrite=TRUE )
+# dbDisconnect(sql)
 
 ## ------------------------------------------------------------------------------------------------------------------
 # Time taken
