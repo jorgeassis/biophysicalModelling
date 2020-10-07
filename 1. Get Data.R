@@ -6,8 +6,7 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("../Project Config 5.R")
-source("Dependences.R")
+source("0. Project Config.R")
 library(httr)
 
 ## -----------------------------------------
@@ -165,8 +164,8 @@ for (y in unique(fullDates$year) ){ #
     i.max <- max(array.region.lon)
     j.max <- max(array.region.lat)
     
-    u <- array(data = NA, dim = c( i.max-i.min+1 , j.max-j.min+1 , length(depth) ))
-    v <- array(data = NA, dim = c( i.max-i.min+1 , j.max-j.min+1 , length(depth) ))
+    u <- array(data = NA, dim = c( i.max-i.min+1 , j.max-j.min + 1 , length(depth) ))
+    v <- array(data = NA, dim = c( i.max-i.min+1 , j.max-j.min + 1 , length(depth) ))
     
     for( d in 1:length(depth) ) {
       
@@ -221,7 +220,6 @@ for (y in unique(fullDates$year) ){ #
           values.to.place.v <- values.to.place.v[fix.i,]
           
         }
-        
       }
       
       nc_close(nc)
@@ -235,7 +233,6 @@ for (y in unique(fullDates$year) ){ #
       v[,,d] <- values.to.place.v
       
     }
-    
     
     if(dim(u)[3] == 1) { u <- u[,,1] }
     if(dim(v)[3] == 1) { v <- v[,,1] }
@@ -259,15 +256,19 @@ for (y in unique(fullDates$year) ){ #
     
     # For 3d data
     
-    if(  k == 1 & !is.na(dim(u)[3]) )  { 
+    if(  k == 1 & ! is.na(dim(u)[3]) )  { 
       
       data.u <- array(data = NA, dim = c(dim(u)[1],dim(u)[2],dim(u)[3],nrow(fullDates.y)), dimnames = c("Lon","Lat","Depth","Time"))
       data.v <- array(data = NA, dim = c(dim(v)[1],dim(v)[2],dim(u)[3],nrow(fullDates.y)), dimnames = c("Lon","Lat","Depth","Time")) 
       
     }
     
-    if( !is.na(dim(u)[3]) )  {  data.u[,,,k] <- u
-    data.v[,,,k] <- v }
+    if( ! is.na(dim(u)[3]) )  {  
+      
+      data.u[,,,k] <- u
+      data.v[,,,k] <- v 
+      
+    }
     
     cat('\014')
     cat('\n')
@@ -294,9 +295,12 @@ for (y in unique(fullDates$year) ){ #
   # 2D
   
   if(final.dimensions == 2) {
+    
+    setfileoption("nc","format","netcdf4") 
+    
     var4d <- ncvar_def( "UComponent", "m", list(dimX,dimY,dimT), mv, prec="double")
     var5d <- ncvar_def( "VComponent", "m", list(dimX,dimY,dimT), mv,  prec="double")
-    nc.file <- nc_create( paste(project.folder,"/Data","/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d) )
+    nc.file <- nc_create( paste(project.folder,"/Data","/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d) ,  force_v4=TRUE )
     ncvar_put( nc.file, var1d, Longitude.array )  
     ncvar_put( nc.file, var2d, Latitude.array )   
     ncvar_put( nc.file, var3d, as.numeric(as.Date(time.window)) )
