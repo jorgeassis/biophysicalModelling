@@ -12,8 +12,16 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------
 
-packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco", "geosphere",
+packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco", "geosphere","httr",
                      "gstat",
+                     
+                     
+                     "spdep",
+                     
+                     
+                     "rworldxtra",
+                     "rworldmap",
+                     "cleangeo",
                      "compiler",
                      "data.table",
                      "raster",
@@ -29,15 +37,24 @@ packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco",
                      "gdistance",
                      "ggplot2",
                      "bigmemory",
-                     "dismo"
-                     # "randomcoloR"
-                     )
+                     "devtools",
+                     "dismo",
+                     "h3js",
+                     "h3r",
+                     "h3")
 
 for(package in packages.to.use) {
   sink("/dev/null") 
       if( ! package %in% rownames(installed.packages()) ) { install.packages( package ) }
-      if( ! package %in% rownames(installed.packages()) ) { sink() ; stop("Error on package instalation") }
-      library(package, character.only = TRUE)
+  if( ! package %in% rownames(installed.packages()) & package == "h3js" ) { devtools::install_github("saurfang/h3js") }
+  if( ! package %in% rownames(installed.packages()) & package == "h3r" ) { devtools::install_github("scottmmjackson/h3r") }
+  if( ! package %in% rownames(installed.packages()) & package == "h3-r" ) { devtools::install_github("crazycapivara/h3-r") }
+  if( ! package %in% rownames(installed.packages()) & package == "rnaturalearthhires" ) { devtools::install_github("ropensci/rnaturalearthhires")  }
+  
+  
+    if( ! package %in% rownames(installed.packages()) ) { sink() ; stop("Error on package instalation") }
+    library(package, character.only = TRUE)
+  
   sink()
 }
 

@@ -5,7 +5,9 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
+
 source("0. Project Config.R")
+source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -17,59 +19,82 @@ source("0. Project Config.R")
 
 options(warn=-1)
 
-landmass <- shapefile(landmass.shp)
-crs(landmass) <- dt.projection
-landmass <- gBuffer(landmass, byid=TRUE, width=0)
+worldmap <- shapefile(landmass.shp)
+worldmap <- crop(worldmap,extent(min.lon,max.lon,min.lat,max.lat))
 
 if( ! is.null(additional.landmass.shp) ) {
   
   if( length(additional.landmass.shp) > 1 ) { stop("Code to have multiple shapefiles") }
-  landmass <- raster::union(landmass,shapefile(additional.landmass.shp))
-
+  worldmap <- raster::union(worldmap,shapefile(additional.landmass.shp))
+  
 }
- 
-coastline <- shapefile(coastline.shp)
-crs(coastline) <- dt.projection
 
-clipper <- as(extent(min.lon,max.lon,min.lat,max.lat), "SpatialPolygons")
-crs(clipper) <- dt.projection
+worldmap$id <- rep(1,nrow(worldmap))
+worldmap <- gUnaryUnion(worldmap, id = worldmap$id)
+worldmap <- st_as_sf(worldmap)
 
-landmass <- gIntersection(landmass, clipper, byid=TRUE)
-coastline <- gIntersection(coastline, clipper, byid=TRUE)
+## --------------------------------------
 
-landmass <- crop(landmass,clipper)
-coastline <- crop(coastline,clipper)
+coords <- as.data.frame(spsample(as(worldmap,"Spatial"),cellsize=0.01,type="regular"))
+coords <- data.frame(Lat=coords[,2],Lon=coords[,1])
+hexagons.address <- unique( geo_to_h3(coords, sim.resolution) )
 
-landmassBuffered <- gBuffer(landmass, byid=TRUE, width=0.001)
+ggplot() + geom_sf(data = worldmap ) + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address), fill=NA, colour="red", size=0.1)
 
-landmass$ID <- 1:length(landmass)
-landmass <- st_as_sf(landmass)
+## --------------------------------------
+
+# Get Land hexagons
+
+polygons <- h3_to_geo_boundary_sf(hexagons.address)
+nb <- poly2nb(polygons)
+hexagons.address.land <- hexagons.address[which(card(nb) == max(card(nb)))]
+hexagons.address.shore <- hexagons.address[which(card(nb) != max(card(nb)))]
+
+ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons[hexagons.address %in% hexagons.address.land,], fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons[hexagons.address %in% hexagons.address.shore,], fill=NA, colour="red", size=0.1)
+
+polygons.land <- polygons[hexagons.address %in% hexagons.address.land,]
+polygons.shore <- polygons[hexagons.address %in% hexagons.address.shore,]
+
+centroid.land <- st_centroid(polygons.land)
+
+buffer.remover <- which(st_coordinates(centroid.land)[,1] <= max.lon - buffer.val &
+                        st_coordinates(centroid.land)[,1] >= min.lon + buffer.val &
+                        st_coordinates(centroid.land)[,2] <= max.lat - buffer.val &
+                        st_coordinates(centroid.land)[,2] >= min.lat + buffer.val )
+
+hexagons.address.land <- hexagons.address.land[buffer.remover]
+polygons.land <- polygons.land[buffer.remover,]
+centroid.land <- centroid.land[buffer.remover,]
+
+centroid.shore <- st_centroid(polygons.shore)
+
+buffer.remover <- which(st_coordinates(centroid.shore)[,1] <= max.lon - buffer.val &
+                          st_coordinates(centroid.shore)[,1] >= min.lon + buffer.val &
+                          st_coordinates(centroid.shore)[,2] <= max.lat - buffer.val &
+                          st_coordinates(centroid.shore)[,2] >= min.lat + buffer.val )
+
+hexagons.address.shore <- hexagons.address.shore[buffer.remover]
+polygons.shore <- polygons.shore[buffer.remover,]
+centroid.shore <- centroid.shore[buffer.remover,]
 
 options(warn=0)
 
 ## --------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------
 
-## Define source and sink locations
+coastline.pts <- st_coordinates(centroid.shore)
 
-if( source.sink.generation.type == "peripherical" ) {
-  
-  polyDF <- SpatialLinesDataFrame(coastline, data = data.frame(id=1:length(coastline), row.names=1:length(coastline)), match.ID = F)
-  coastline.pts <- sample.line(polyDF,d = source.sink.dist,type = "regular",longlat = TRUE)
-  
-  coastline.pts <- as(coastline.pts, "SpatialPointsDataFrame")
-  coastline.pts <- as.data.frame(coastline.pts)[,c("x","y")]
-  
-  if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
-  if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
-  
-}
+if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),hexagons.address=hexagons.address.shore,x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
+if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),hexagons.address=hexagons.address.shore,x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
 
-if( source.sink.generation.type == "centroid" ) { coastline.pts <- data.frame(); source.sink.xy <- data.frame() }
+plot(h3_to_geo_boundary_sf(source.sink.xy$hexagons.address))
 
 ## --------------
 
 if( ! is.null(additional.source.sink.shp) ) {
+  
+  stop("Revise as above")
   
   additional.pts <- data.frame()
   
@@ -171,12 +196,12 @@ if( ! is.null(additional.source.sink.shp) ) {
   
 }
 
+## --------------
 
 if( is.null(additional.source.sink.shp) ) { additional.shp <- NULL }
   
 ## --------------
 
-source.sink.xy <- source.sink.xy[source.sink.xy$x >= extent(clipper)[1] & source.sink.xy$x <= extent(clipper)[2] & source.sink.xy$y >= extent(clipper)[3] & source.sink.xy$y <= extent(clipper)[4],]
 head(source.sink.xy)
 tail(source.sink.xy)
 
@@ -186,19 +211,20 @@ tail(source.sink.xy)
 
 if( ! is.null(unwanted.release.sites.shp) ) {
   
-  source.sink.xy.t <- source.sink.xy[,2:3]
+  source.sink.xy.t <- source.sink.xy
   coordinates(source.sink.xy.t) <- c("x","y")
-  crs(source.sink.xy.t) <- dt.projection
+  crs(source.sink.xy.t) <- crs(worldmap)
 
   unwanted <- shapefile(paste0(project.folder,unwanted.release.sites.shp))
   unwanted <- as(unwanted,"SpatialPolygons")
+  crs(source.sink.xy.t) <- crs(worldmap)
   
   points.over.polygon <- as.vector(which( ! is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )) )
   source.points <- as.vector(which( is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )))
   
   if( length(points.over.polygon) > 0 ) {
     
-    source.sink.xy[points.over.polygon,4] <- 0
+    source.sink.xy[points.over.polygon,"source"] <- 0
     
   }
  
@@ -206,21 +232,14 @@ if( ! is.null(unwanted.release.sites.shp) ) {
  
 ## ------------------
 
-ggplot() + geom_sf(data=landmass) + geom_point(data = source.sink.xy[source.sink.xy$source == 0,2:3], aes(x = x, y = y), size = 1, shape = 1, fill = "darkred")
-ggplot() + geom_sf(data=landmass) + geom_point(data = source.sink.xy[source.sink.xy$source == 1,2:3], aes(x = x, y = y), size = 1, shape = 1, fill = "darkred")
+ggplot() + geom_sf(data=worldmap) + geom_point(data = source.sink.xy[source.sink.xy$source == 0,c("x","y")], aes(x = x, y = y), size = 1, shape = 1, fill = "darkred")
+ggplot() + geom_sf(data=worldmap) + geom_point(data = source.sink.xy[source.sink.xy$source == 1,c("x","y")], aes(x = x, y = y), size = 1, shape = 1, fill = "darkred")
 
 ## ------------------
 
-initial.coords <- source.sink.xy[source.sink.xy$source == 1 , 2:3 ]
+initial.coords <- source.sink.xy[source.sink.xy$source == 1 , c("x","y") ]
 source.cells.id <- source.sink.xy[source.sink.xy$source == 1,1]
-
-## ------------------------------------------------------------------------------------------------------------------------------
-
-initial.coords.DF <- SpatialPointsDataFrame(data.frame(initial.coords),data=data.frame(Data=rep(1,nrow(initial.coords))))
-crs(initial.coords.DF) <- dt.projection
-
-# writeOGR(SpatialPolygonsDataFrame(landmass,data=data.frame(ID=1:length(landmass))) , paste0("../Data/Spatial/",project.name,"/"), "landmassCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
-# writeOGR(initial.coords.DF, paste0("../Data/Spatial/",project.name,"/"), "sourceSinkSitesCropped", driver="ESRI Shapefile",overwrite_layer=TRUE) #also you were missing the driver argument
+source.cells.address <- source.sink.xy[source.sink.xy$source == 1,2]
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 
@@ -251,14 +270,14 @@ if( ! is.null(movie.sites.xy) ) {
   if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
   
   movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
-  movie.sites.id <- sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy[,4] == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
+  movie.sites.id <- unique(sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy[,"source"] == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) ))
   
-  movie.sites.id <-  source.sink.xy[ source.sink.xy[,4] == 1, "cells.id" ][movie.sites.id]
-  movie.sites.xy <- source.sink.xy[ source.sink.xy[,1] %in% movie.sites.id ,c("x","y") ]
+  movie.sites.id <- source.sink.xy[ source.sink.xy[,"source"] == 1, "cells.id" ][movie.sites.id]
+  movie.sites.xy <- source.sink.xy[ source.sink.xy[,"cells.id"] %in% movie.sites.id ,c("x","y") ]
   
 }
 
-ggplot() + geom_sf(data=landmass) + geom_point(data = movie.sites.xy, aes(x = x, y = y), size = 2, shape = 16, fill = "darkred")
+ggplot() + geom_sf(data=worldmap) + geom_point(data = movie.sites.xy, aes(x = x, y = y), size = 2, shape = 16, fill = "darkred")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
@@ -297,14 +316,15 @@ n.particles.per.cell <- (nrow(simulation.parameters.step)) * n.new.particles.per
 # 2 rafted 
 # 3 out of space
 # 4 dead by time
+# 5 oceanized
 
 particles.reference <- data.table( id = 1:(n.particles.per.cell * nrow(initial.coords) ) )
-particles.reference[ , start.cell := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , 1 ] ,function(x) { rep(x,n.particles.per.cell) })) ]
+particles.reference[ , start.cell := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , "cells.id" ] ,function(x) { rep(x,n.particles.per.cell) })) ]
 particles.reference[ , start.year := 0 ]
 particles.reference[ , start.month := 0 ]
 particles.reference[ , start.day := 0 ]
-particles.reference[ , pos.lon := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , 1 ] ,function(c) { rep( source.sink.xy[source.sink.xy$cells.id == c , 2 ] ,n.particles.per.cell) })) ]
-particles.reference[ , pos.lat := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , 1 ] ,function(c) { rep( source.sink.xy[source.sink.xy$cells.id == c , 3 ] ,n.particles.per.cell) })) ]
+particles.reference[ , pos.lon := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , "cells.id" ] ,function(c) { rep( source.sink.xy[source.sink.xy$cells.id == c , "x" ] ,n.particles.per.cell) })) ]
+particles.reference[ , pos.lat := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , "cells.id" ] ,function(c) { rep( source.sink.xy[source.sink.xy$cells.id == c , "y" ] ,n.particles.per.cell) })) ]
 particles.reference[ , pos.alt := 0 ]
 particles.reference[ , state := 0 ]
 particles.reference[ , t.start := 0 ]
@@ -375,7 +395,6 @@ if(! exists("particles.to.sql.id")) { particles.to.sql.id <- NULL}
 global.simulation.parameters <- data.frame(   project.name = project.name,
                                               sim.years = paste(c(from.year,to.year),collapse="-"),
                                               sim.months = paste(months.all,collapse=","),
-                                              kill.by.raft = kill.by.raft , 
                                               n.hours.per.day = n.hours.per.day , 
                                               n.new.particles.per.day = n.new.particles.per.day , 
                                               remove.new.particles.last.days = remove.new.particles.last.days , 
@@ -385,7 +404,6 @@ global.simulation.parameters <- data.frame(   project.name = project.name,
                                               n.particles.per.cell = n.particles.per.cell,
                                               movie.year = movie.year, 
                                               movie.sites.id = paste(movie.sites.id,collapse=",") , 
-                                              # particles.to.sql.id = paste(particles.to.sql.id,collapse=",") , 
                                               extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
 
 paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.y.desc")
