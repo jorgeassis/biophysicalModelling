@@ -1,6 +1,6 @@
 ## ------------------------------------------------------------------------------------------------------------------
 ## PlankTonic
-## Assis et al., 2018
+## Assis et al., 2020
 ## ------------------------------------------------------------------------------------------------------------------
 
 rm(list=(ls()[ls()!="v"]))
@@ -35,8 +35,10 @@ worldmap <- st_as_sf(worldmap)
 
 ## --------------------------------------
 
-coords <- as.data.frame(spsample(as(worldmap,"Spatial"),cellsize=0.01,type="regular"))
-coords <- data.frame(Lat=coords[,2],Lon=coords[,1])
+shape <- raster(extent(min.lon,max.lon,min.lat,max.lat))
+res(shape) <- c(0.01,0.01)
+shape <- rasterize(worldmap,shape)
+coords <- as.data.frame(shape,xy=TRUE,na.rm=T)[,c("y","x")]
 hexagons.address <- unique( geo_to_h3(coords, sim.resolution) )
 
 ggplot() + geom_sf(data = worldmap ) + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address), fill=NA, colour="red", size=0.1)
@@ -50,14 +52,17 @@ nb <- poly2nb(polygons)
 hexagons.address.land <- hexagons.address[which(card(nb) == max(card(nb)))]
 hexagons.address.shore <- hexagons.address[which(card(nb) != max(card(nb)))]
 
-ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons[hexagons.address %in% hexagons.address.land,], fill=NA, colour="red", size=0.1)
-ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons[hexagons.address %in% hexagons.address.shore,], fill=NA, colour="red", size=0.1)
-
 polygons.land <- polygons[hexagons.address %in% hexagons.address.land,]
 polygons.shore <- polygons[hexagons.address %in% hexagons.address.shore,]
 
-centroid.land <- st_centroid(polygons.land)
+## ----------
 
+ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons.land, fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons.shore, fill="Black", colour="Black", size=0.1)
+
+## ----------
+
+centroid.land <- st_centroid(polygons.land)
 buffer.remover <- which(st_coordinates(centroid.land)[,1] <= max.lon - buffer.val &
                         st_coordinates(centroid.land)[,1] >= min.lon + buffer.val &
                         st_coordinates(centroid.land)[,2] <= max.lat - buffer.val &
@@ -68,7 +73,6 @@ polygons.land <- polygons.land[buffer.remover,]
 centroid.land <- centroid.land[buffer.remover,]
 
 centroid.shore <- st_centroid(polygons.shore)
-
 buffer.remover <- which(st_coordinates(centroid.shore)[,1] <= max.lon - buffer.val &
                           st_coordinates(centroid.shore)[,1] >= min.lon + buffer.val &
                           st_coordinates(centroid.shore)[,2] <= max.lat - buffer.val &
@@ -316,7 +320,6 @@ n.particles.per.cell <- (nrow(simulation.parameters.step)) * n.new.particles.per
 # 2 rafted 
 # 3 out of space
 # 4 dead by time
-# 5 oceanized
 
 particles.reference <- data.table( id = 1:(n.particles.per.cell * nrow(initial.coords) ) )
 particles.reference[ , start.cell := as.numeric( sapply( source.sink.xy[source.sink.xy$source == 1 , "cells.id" ] ,function(x) { rep(x,n.particles.per.cell) })) ]
@@ -330,6 +333,7 @@ particles.reference[ , state := 0 ]
 particles.reference[ , t.start := 0 ]
 particles.reference[ , t.finish := 0 ]
 particles.reference[ , cell.rafted := 0 ]
+particles.reference[ , at.sea := 0 ]
 
 particles.reference.names <- colnames(particles.reference)
 
@@ -364,15 +368,15 @@ particles.reference.bm[,7] <- unlist(particles.reference[,7])
 
 if( movie.year > 0 ) {
   
-  particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
+  particles.video.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
   
-  particles.video.location.x.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
+  particles.video.location.x.bm <- filebacked.big.matrix( nrow = length(particles.video.id), 
                                                           ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.x.bin",
                                                           descriptorfile = "particles.video.location.x.desc",
                                                           backingpath=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
                                     
-  particles.video.location.y.bm <- filebacked.big.matrix( nrow = length(particles.to.sql.id), 
+  particles.video.location.y.bm <- filebacked.big.matrix( nrow = length(particles.video.id), 
                                                           ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
                                                           backingfile = "particles.video.location.y.bin",
                                                           descriptorfile = "particles.video.location.y.desc",
@@ -385,10 +389,8 @@ if( movie.year > 0 ) {
 
 ## ------------------------------------------------------------------------------------------------------------------
 
-## SQL configuration
-
 if(! exists("movie.sites.id")) { movie.sites.id <- NULL}
-if(! exists("particles.to.sql.id")) { particles.to.sql.id <- NULL}
+if(! exists("particles.video.id")) { particles.video.id <- NULL}
 
 ## -----------------
 
@@ -406,16 +408,12 @@ global.simulation.parameters <- data.frame(   project.name = project.name,
                                               movie.sites.id = paste(movie.sites.id,collapse=",") , 
                                               extent = paste(c(min.lon,max.lon,min.lat,max.lat),collapse=",") )       
 
-paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.y.desc")
-
-sql <- dbConnect(RSQLite::SQLite(), paste0(project.folder,"/Results/",project.name,"/SQL/","SimulationResults.sql"))
-dbWriteTable(sql, "SourceSinkSites", as.data.frame(source.sink.xy)  , append=FALSE, overwrite=TRUE )
-dbWriteTable(sql, "Parameters", global.simulation.parameters , append=FALSE, overwrite=TRUE )
-dbDisconnect(sql)
+save(source.sink.xy, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
+save(global.simulation.parameters, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
 
 ## -----------------------
 
-rm(coastline) ; rm(particles.reference.bm) ; rm(particles.reference)
+rm(particles.reference.bm) ; rm(particles.reference)
 gc(reset=TRUE)
 memory.profile()
 list.memory()
@@ -423,8 +421,8 @@ list.memory()
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
 
-# save.image(file='../Environment.RData')
-# rm(list=(ls()[ls()!="v"])); gc(reset=TRUE); load('../Environment.RData')
+## save.image(file='../Environment.RData')
+## rm(list=(ls()[ls()!="v"])); gc(reset=TRUE); load('../Environment.RData')
 
 ## -------------------------------------------
 
@@ -597,7 +595,7 @@ for ( simulation.step in 1:10 ) {
   raw.data.u <- raw.data.u[complete.cases(raw.data.u),]
   raw.data.v <- raw.data.v[complete.cases(raw.data.v),]
   
-  # ggplot() + geom_sf(data=landmass) + geom_point(data = as.data.frame(raw.data.u[,c("Lon","Lat")]), aes(x = Lon, y = Lat), size = 1, shape = 1, fill = "darkred")
+  # ggplot() + geom_sf(data=worldmap) + geom_point(data = as.data.frame(raw.data.u[,c("Lon","Lat")]), aes(x = Lon, y = Lat), size = 1, shape = 1, fill = "darkred")
   
   # --------------------------------------------------
   
@@ -715,62 +713,52 @@ for ( simulation.step in 1:10 ) {
       # ---------------------------
       
       particles.reference.moving.old.pos <- points.to.interp
+      particles.reference.moving.old.pos[,id:= moving.particles.id]
       
       # ---------------------------
       
       setkey(particles.reference.moving.dt,id)
       particles.reference.moving.dt[,6] <- dLon
       particles.reference.moving.dt[,7] <- dLat
-      
-      # -----------------------------------------------
-      # Out of space (study region), if TRUE, place particles on hold
-      
-      out.of.space <- dLon > max.lon | dLon < min.lon | dLat > max.lat | dLat < min.lat
-      out.of.space.ids <- moving.particles.id[out.of.space]
-      
-      setkey(particles.reference.moving.dt,id)
-      particles.reference.moving.dt[ id %in% out.of.space.ids , state := 3  ]
-      
+
       # -----------------------------------------------
       # Test over Land
     
       setkey(particles.reference.moving.dt,id)
-      points.to.test <- particles.reference.moving.dt[, .(pos.lon,pos.lat)]
-      coordinates(points.to.test) = ~pos.lon+pos.lat
-      crs(points.to.test) <- dt.projection
+      points.to.test <- particles.reference.moving.dt[, .(pos.lat,pos.lon)]
       
-      seqListing <- round(seq(1,length(points.to.test),length.out = number.cores + 1))
-      parallelChunks <- data.frame(from = seqListing[-length(seqListing)], to = c(seqListing[-c(1,length(seqListing))] - 1 , length(points.to.test) ) )
+      seqListing <- round(seq(1,nrow(points.to.test),length.out = number.cores + 1))
+      parallelChunks <- data.frame(from = seqListing[-length(seqListing)], to = c(seqListing[-c(1,length(seqListing))] - 1 , nrow(points.to.test) ) )
       
       cl <- makeCluster(number.cores)
-      clusterExport(cl, c("points.to.test","landmass"))
-      
-      particles.on.land <- parApply(cl, parallelChunks, 1, function(x) { 
-        
-        require("sp")
-        require("sf")
-        points.to.test.i <- points.to.test[x[[1]]:x[[2]],]
-        points.to.test.i$ID <- 1:length(points.to.test.i)
-        points.to.test.i <- st_as_sf(points.to.test.i)
-        st_join(points.to.test.i,landmass , join = st_intersects)$ID.y
-        
-      })
-      
+      clusterExport(cl, c("points.to.test","geo_to_h3","sim.resolution"))
+      hexagons.address.test <- parApply(cl, parallelChunks, 1, function(x) { unique( geo_to_h3(points.to.test[x[[1]]:x[[2]],], sim.resolution) ) })
       stopCluster(cl)
       
-      particles.on.land <- c(particles.on.land)
-      particles.on.land <- which(!is.na(particles.on.land))
+      hexagons.address.test <- unique(c(hexagons.address.test))
+      
+      # which(hexagons.address.test %in% hexagons.address.land)
+      # which(hexagons.address.test %in% hexagons.address.shore)
+      
+      particles.on.sea <- which( ! hexagons.address.test %in% hexagons.address.land & ! hexagons.address.test %in% hexagons.address.shore )
+      particles.on.sea.id <- as.vector(moving.particles.id[particles.on.sea])
+      setkey(particles.reference.moving.dt,id)
+      particles.reference.moving.dt[ id %in% particles.on.sea.id , at.sea := 1  ]
+      
+      # -----------------------------------------------
+      # Particles over land hexagons
+      
+      particles.on.land <- which( hexagons.address.test %in% hexagons.address.land )
+      particles.on.land.id <- as.vector(moving.particles.id[particles.on.land])
       particles.on.land.condition <- length(particles.on.land) > 0
 
       if( particles.on.land.condition ) {    
         
-        who.at.land.id <- moving.particles.id[particles.on.land]
+        cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.land.id, "start.cell"]))
+        who.at.land.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.land.id, "t.start"]))
         
-        cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.land.id, "start.cell"]))
-        who.at.land.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.land.id, "t.start"]))
-        
-        points.on.land.t <- particles.reference.moving.dt[id %in% who.at.land.id , 6:7 ]
-        points.on.land.t.minus <- particles.reference.moving.old.pos[id %in% who.at.land.id , 1:2 ]
+        points.on.land.t <- particles.reference.moving.dt[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
+        points.on.land.t.minus <- particles.reference.moving.old.pos[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
         
         points.on.land.corrected <- points.on.land.t.minus
         
@@ -781,7 +769,7 @@ for ( simulation.step in 1:10 ) {
         
         # True Rafters [Distinct cell]
         
-        true.rafters.id <- who.at.land.id[ displacement != 0 ]
+        true.rafters.id <- particles.on.land.id[ displacement != 0 ]
         true.rafters.cell <- cells.rafted[ displacement != 0 ]
         
         setkey(particles.reference.moving.dt,id)
@@ -791,51 +779,77 @@ for ( simulation.step in 1:10 ) {
         
         # False Rafters [same cell of origin]
         
-        non.rafters.id <- who.at.land.id[ displacement == 0 ]
+        setkey(particles.reference.moving.dt,id)
+        non.rafters.id <- particles.on.land.id[ displacement == 0 ]
         non.rafters.cell <- cells.started[ displacement == 0 ]
+        
+        particles.reference.moving.dt[ id %in% non.rafters.id , state := 2 ]
+        particles.reference.moving.dt[ id %in% non.rafters.id , cell.rafted := as.numeric(non.rafters.cell) ]
+        particles.reference.moving.dt[ id %in% non.rafters.id , t.finish := as.numeric(t.step) ]
+        
+        # Allow for relocation when rafting at t.step == t.start
+        
         non.rafters.t <- who.at.land.t.start[ displacement == 0 ] == t.step
+        
+        if( TRUE %in% non.rafters.t & allow.back.to.origin ) {
 
-        if( TRUE %in% non.rafters.t & allow.retention ) {    
-          
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 2 ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(true.rafters.cell) ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(t.step) ]
-          
-        }
-        
-        if( TRUE %in% non.rafters.t & ! allow.retention & allow.back.to.origin ) {    
-          
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t] ,1] ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t]  ,2] ]
+          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t] , pos.lon] ]
+          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t] , pos.lat] ]
 
-        }
-        
-        if( TRUE %in% non.rafters.t & ! allow.retention & ! allow.back.to.origin ) {    
-          
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 2 ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(t.step) ]
+          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 1 ]
+          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(0) ]
+          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(0) ]
           
         }
         
-        # For non-Rafters Old Particles
+      }
+      
+      # -----------------------------------------------
+      # Particles over shore hexagons
+      
+      particles.on.shore <- which( hexagons.address.test %in% hexagons.address.shore )
+      particles.on.shore.id <- as.vector(moving.particles.id[particles.on.shore])
+      particles.on.shore.condition <- length(particles.on.shore) > 0
+
+      if( particles.on.shore.condition ) {    
         
-        non.rafters.t <- who.at.land.t.start[displacement == 0] < t.step
+        cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "start.cell"]))
+        who.at.shore.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "t.start"]))
         
-        if( TRUE %in% non.rafters.t & allow.retention ) {    
+        points.on.shore.t <- particles.reference.moving.dt[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
+        points.on.shore.t.minus <- particles.reference.moving.old.pos[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
+        
+        points.on.shore.corrected <- points.on.shore.t.minus
+        
+        cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.shore.corrected, k=1 , algorithm="kd_tree" )$nn.index
+        cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
+        
+        displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
+        
+        # True Rafters [Distinct cell]
+        
+        true.rafters.id <- particles.on.shore.id[ displacement != 0 ]
+        true.rafters.cell <- cells.rafted[ displacement != 0 ]
+        
+        setkey(particles.reference.moving.dt,id)
+        particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
+        particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
+        particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
+        
+        # False Rafters [same cell of origin]
+        
+        non.rafters.id <- particles.on.shore.id[ displacement == 0 ]
+        non.rafters.at.sea.once <- particles.reference.moving.dt[ id %in% non.rafters.id & at.sea == 1, id ]
+        non.rafters.cell <- cells.started[ displacement == 0 ][which(non.rafters.id %in% non.rafters.at.sea.once)]
+        
+        if( length(non.rafters.at.sea.once) > 0 ) {    
           
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 2 ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(non.rafters.cell[non.rafters.t] ) ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(t.step) ]
+          particles.reference.moving.dt[ id %in% non.rafters.at.sea.once , state := 2 ]
+          particles.reference.moving.dt[ id %in% non.rafters.at.sea.once, cell.rafted := as.numeric(non.rafters.cell) ]
+          particles.reference.moving.dt[ id %in% non.rafters.at.sea.once , t.finish := as.numeric(t.step) ]
           
         }
-        
-        if( TRUE %in% non.rafters.t & ! allow.retention ) {    
-          
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 2 ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(t.step) ]
-          
-        }
-        
+
       }
       
       # -----------------------------------------------
@@ -898,6 +912,15 @@ for ( simulation.step in 1:10 ) {
           }
       }
       
+      # -----------------------------------------------
+      # Out of space (study region), if TRUE, place particles on hold
+      
+      out.of.space <- dLon > max.lon | dLon < min.lon | dLat > max.lat | dLat < min.lat
+      out.of.space.ids <- moving.particles.id[out.of.space]
+      
+      setkey(particles.reference.moving.dt,id)
+      particles.reference.moving.dt[ id %in% out.of.space.ids , state := 3  ]
+      
     }
     
     # -----------------------------------------------
@@ -924,17 +947,16 @@ for ( simulation.step in 1:10 ) {
       ## --------------------------------------------------------
       
       setkey(particles.reference.moving.dt,id)
-      particles.to.sql.id.moving <- particles.reference.moving.dt[state == 1,id]
-      particles.to.sql.id.moving <- particles.to.sql.id.moving[particles.to.sql.id.moving %in% particles.to.sql.id]
-      particles.to.sql.id.moving.condition <- length(particles.to.sql.id.moving) > 0
+      particles.video.id.moving <- particles.reference.moving.dt[ state == 1 & id %in% particles.video.id,id]
+      particles.video.id.moving.condition <- length(particles.video.id.moving) > 0
       
-      if( particles.to.sql.id.moving.condition ) { 
+      if( particles.video.id.moving.condition ) { 
         
         t.step.movie <- ((as.numeric(which( which(as.numeric(simulation.parameters.step[,3]) == movie.year) == simulation.step))-1) * n.hours.per.day) + h
         
         setkey(particles.reference.moving.dt,id)
-        particles.video.location.x.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.to.sql.id.moving,pos.lon])
-        particles.video.location.y.bm.i[ which(particles.to.sql.id %in% particles.to.sql.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.to.sql.id.moving,pos.lat])
+        particles.video.location.x.bm.i[ which(particles.video.id %in% particles.video.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.video.id.moving,pos.lon])
+        particles.video.location.y.bm.i[ which(particles.video.id %in% particles.video.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.video.id.moving,pos.lat])
         
       }
     }
@@ -942,12 +964,9 @@ for ( simulation.step in 1:10 ) {
   }
   
   ## ---------------------------------------------------
-  
-  setkey(particles.reference.moving.dt,id)
-
-  ## -------------------------------------
   ## Inject particles to final object [ particles.reference.bm.all ] 
   
+  setkey(particles.reference.moving.dt,id)
   particles.reference.bm.all.inject <- attach.big.matrix(particles.reference.bm.desc)
   
   sect.loop <- particles.reference.moving.dt[ state != 0 , ]
@@ -961,6 +980,7 @@ for ( simulation.step in 1:10 ) {
   particles.reference.bm.all.inject[ sect.loop$id , 10 ] <- as.numeric(unlist(sect.loop[  , "t.start"] ))
   particles.reference.bm.all.inject[ sect.loop$id , 11 ] <- as.numeric(unlist(sect.loop[  , "t.finish"] ))
   particles.reference.bm.all.inject[ sect.loop$id , 12 ] <- as.numeric(unlist(sect.loop[  , "cell.rafted"] ))
+  particles.reference.bm.all.inject[ sect.loop$id , 13 ] <- as.numeric(unlist(sect.loop[  , "at.sea"] ))
   
   gc(reset=TRUE)
   

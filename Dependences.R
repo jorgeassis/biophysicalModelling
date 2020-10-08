@@ -5,8 +5,8 @@
 
 if( ! "Results" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Results"))) }
 if( ! "Data" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Data"))) }
-if( ! "SQL" %in% list.files(paste0(project.folder,"/Results")) ) { dir.create(file.path(paste0(project.folder,"/Results/SQL"))) }
-if( ! "InternalProc" %in% list.files(paste0(project.folder,"/Results")) ) { dir.create(file.path(paste0(project.folder,"/Results/InternalProc"))) }
+
+if( ! "InternalProc" %in% list.files(paste0(project.folder,"/Results/",project.name)) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/InternalProc"))) }
 
 sql.directory <<- paste0(project.folder,"/Results/SQL/")
 

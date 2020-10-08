@@ -56,8 +56,7 @@ from.year <- 2013 ; to.year <- 2013
 
 depth.range <- c(0)
 
-allow.retention <- TRUE
-allow.back.to.origin <- FALSE
+allow.back.to.origin <- FALSE                     # at t == t.start
 
 n.hours.per.day <- 12                             # Needs recoding for diferent than 12 # how many tracks for each particle during a day
 n.new.particles.per.day <- 1
