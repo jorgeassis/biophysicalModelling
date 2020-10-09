@@ -17,9 +17,10 @@ source("Dependences.R")
 
 ## Define region of interest
 
-options(warn=-1)
+if( is.null(landmass.shp)) { worldmap <- getMap(resolution = "high") }
+if( ! is.null(landmass.shp)) { worldmap <- shapefile(landmass.shp) }
 
-worldmap <- shapefile(landmass.shp)
+worldmap <- gBuffer(worldmap, byid=TRUE, width=0)
 worldmap <- crop(worldmap,extent(min.lon,max.lon,min.lat,max.lat))
 
 if( ! is.null(additional.landmass.shp) ) {
@@ -29,36 +30,48 @@ if( ! is.null(additional.landmass.shp) ) {
   
 }
 
-worldmap$id <- rep(1,nrow(worldmap))
-worldmap <- gUnaryUnion(worldmap, id = worldmap$id)
 worldmap <- st_as_sf(worldmap)
 
 ## --------------------------------------
 
 shape <- raster(extent(min.lon,max.lon,min.lat,max.lat))
-res(shape) <- c(0.01,0.01)
-shape <- rasterize(worldmap,shape)
-coords <- as.data.frame(shape,xy=TRUE,na.rm=T)[,c("y","x")]
-hexagons.address <- unique( geo_to_h3(coords, sim.resolution) )
+res(shape) <- c(sim.resolution.grid,sim.resolution.grid)
+crs(shape) <- crs(worldmap)
+worldmap.r <- fasterize(worldmap,shape)
 
-ggplot() + geom_sf(data = worldmap ) + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address), fill=NA, colour="red", size=0.1)
+coordsAll <- xyFromCell(shape,1:ncell(shape))
+coordsLand <- xyFromCell(worldmap.r, Which(!is.na(worldmap.r),cells=TRUE))
+coordsOcean <- xyFromCell(worldmap.r, Which(is.na(worldmap.r),cells=TRUE))
 
-## --------------------------------------
+hexagons.address <- unique( geo_to_h3(coordsAll[,c("y","x")], sim.resolution ) )
+hexagons.address.ocean <- unique( geo_to_h3(coordsOcean[,c("y","x")], sim.resolution ) )
+hexagons.address.land <- unique( hexagons.address[ ! hexagons.address %in% hexagons.address.ocean ] )
 
-# Get Land hexagons
+## --------------
 
-polygons <- h3_to_geo_boundary_sf(hexagons.address)
-nb <- poly2nb(polygons)
-hexagons.address.land <- hexagons.address[which(card(nb) == max(card(nb)))]
-hexagons.address.shore <- hexagons.address[which(card(nb) != max(card(nb)))]
+ggplot() + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address), fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address.land), fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address.ocean), fill=NA, colour="red", size=0.1)
 
-polygons.land <- polygons[hexagons.address %in% hexagons.address.land,]
-polygons.shore <- polygons[hexagons.address %in% hexagons.address.shore,]
+## --------------
 
-## ----------
+# Get shore hexagons
 
-ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons.land, fill=NA, colour="red", size=0.1)
-ggplot() + geom_sf(data = worldmap) + geom_sf(data = polygons.shore, fill="Black", colour="Black", size=0.1)
+shoreTest <- function(hexagon) {
+  neighbors <- k_ring(hexagon, radius = 1)
+  if(sum(hexagons.address.land %in% neighbors) > 0 & sum(hexagons.address.ocean %in% neighbors) > 0 ) { return(hexagon) } else { return(NULL) }
+}
+
+cl <- makeCluster(number.cores)
+clusterExport(cl, c("hexagons.address.land","shoreTest","hexagons.address.ocean"))
+hexagons.address.shore <- unique(unlist(sapply(hexagons.address.land,function(x) { shoreTest(x) })))
+stopCluster(cl)
+
+hexagons.address.land <- hexagons.address.land[! hexagons.address.land %in% hexagons.address.shore]
+
+polygons.ocean <- h3_to_geo_boundary_sf(hexagons.address.ocean)
+polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
+polygons.shore <- h3_to_geo_boundary_sf(hexagons.address.shore)
 
 ## ----------
 
@@ -82,7 +95,12 @@ hexagons.address.shore <- hexagons.address.shore[buffer.remover]
 polygons.shore <- polygons.shore[buffer.remover,]
 centroid.shore <- centroid.shore[buffer.remover,]
 
-options(warn=0)
+if( sum(hexagons.address.shore %in% hexagons.address.ocean) > 0 | sum(hexagons.address.land %in% hexagons.address.ocean) > 0 | sum(hexagons.address.ocean %in% hexagons.address.land) > 0 ) { stop("Error :: 001") }
+
+## ----------
+
+ggplot() + geom_sf(data = polygons.land, fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = polygons.shore, fill="Black", colour="Black", size=0.1)
 
 ## --------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------
@@ -91,8 +109,6 @@ coastline.pts <- st_coordinates(centroid.shore)
 
 if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),hexagons.address=hexagons.address.shore,x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
 if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),hexagons.address=hexagons.address.shore,x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
-
-plot(h3_to_geo_boundary_sf(source.sink.xy$hexagons.address))
 
 ## --------------
 
@@ -204,11 +220,6 @@ if( ! is.null(additional.source.sink.shp) ) {
 
 if( is.null(additional.source.sink.shp) ) { additional.shp <- NULL }
   
-## --------------
-
-head(source.sink.xy)
-tail(source.sink.xy)
-
 ## -----------------------------------------------------
 
 ## Remove unwanted release sites
@@ -221,23 +232,21 @@ if( ! is.null(unwanted.release.sites.shp) ) {
 
   unwanted <- shapefile(paste0(project.folder,unwanted.release.sites.shp))
   unwanted <- as(unwanted,"SpatialPolygons")
-  crs(source.sink.xy.t) <- crs(worldmap)
+  crs(unwanted) <- crs(worldmap)
   
   points.over.polygon <- as.vector(which( ! is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )) )
-  source.points <- as.vector(which( is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )))
-  
-  if( length(points.over.polygon) > 0 ) {
-    
-    source.sink.xy[points.over.polygon,"source"] <- 0
-    
-  }
- 
+
+  if( length(points.over.polygon) > 0 ) { source.sink.xy[points.over.polygon,"source"] <- 0 }
+
 }
  
 ## ------------------
 
 ggplot() + geom_sf(data=worldmap) + geom_point(data = source.sink.xy[source.sink.xy$source == 0,c("x","y")], aes(x = x, y = y), size = 1, shape = 1, fill = "darkred")
 ggplot() + geom_sf(data=worldmap) + geom_point(data = source.sink.xy[source.sink.xy$source == 1,c("x","y")], aes(x = x, y = y), size = 1, shape = 1, fill = "darkred")
+
+head(source.sink.xy)
+tail(source.sink.xy)
 
 ## ------------------
 
@@ -249,7 +258,7 @@ source.cells.address <- source.sink.xy[source.sink.xy$source == 1,2]
 
 ## Define Available raw data and Test if data is available
 
-raw.data.files <- list.files(currentsVel.data.folder,full.names = TRUE,pattern="nc")
+raw.data.files <- list.files(data.folder,full.names = TRUE,pattern="nc")
 simulation.parameters.step <- data.frame()
 
 for( file in 1:length(raw.data.files)) {
@@ -413,7 +422,7 @@ save(global.simulation.parameters, file = paste0(project.folder,"/Results/",proj
 
 ## -----------------------
 
-rm(particles.reference.bm) ; rm(particles.reference)
+rm(particles.reference.bm) ; rm(particles.reference) ; rm(coordsAll) ; rm(coordsOcean) ; rm(worldmap.r) ; rm(coordsLand)
 gc(reset=TRUE)
 memory.profile()
 list.memory()
@@ -427,23 +436,12 @@ list.memory()
 ## -------------------------------------------
 
 ## Start Simulation
-## 1:nrow(simulation.parameters.step)
-
-# Test Day 101!!
-
-# 10 days
-# 40 cores : 1.02 hour
-# 01 cores : 1.55 hour
-
-# 100 days
-# 40 cores : 3.66h
-# 01 cores : 1.59h
 
 start_time <- Sys.time()
 
 time.i <- character(nrow(simulation.parameters.step))
 
-for ( simulation.step in 1:10 ) {
+for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
   
   ## --------------------------------------------------------
   ## Progress
@@ -649,7 +647,6 @@ for ( simulation.step in 1:10 ) {
       particles.reference.new[ , 5 ] <- as.numeric(simulation.day)
       
       setkey(particles.reference.moving.dt,id)
-      
       particles.reference.moving.dt <-  rbindlist(list(particles.reference.moving.dt, particles.reference.new))
       
     }
@@ -666,10 +663,9 @@ for ( simulation.step in 1:10 ) {
       
       setkey(particles.reference.moving.dt,id)
       moving.particles.id <- as.vector(unlist(particles.reference.moving.dt[, "id"]))
+      points.to.interp <- particles.reference.moving.dt[, .(pos.lon,pos.lat,id)]
       
-      points.to.interp <- particles.reference.moving.dt[, .(pos.lon,pos.lat)]
-      
-      # plot(speed.u.sec.coords) ; points(points.to.interp,col="Red")
+      # plot(speed.u.sec.coords) ; points(points.to.interp[, .(pos.lon,pos.lat)],col="Red")
       
       source.points.to.interp.u <- data.frame(x=speed.u.sec.coords[,1],y=speed.u.sec.coords[,2],var=speed.u.sec[,h])
       source.points.to.interp.v <- data.frame(x=speed.v.sec.coords[,1],y=speed.v.sec.coords[,2],var=speed.v.sec[,h])
@@ -679,43 +675,32 @@ for ( simulation.step in 1:10 ) {
       idwPower <- 2
       idwN <- 3
       
-      idw.nearest.i <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.index
-      idw.nearest.d <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp, k=idwN , algorithm="kd_tree" )$nn.dist
+      idw.nearest.r <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp[,.(pos.lon,pos.lat)], k=idwN , algorithm="kd_tree" )
+      idw.nearest.i <- idw.nearest.r$nn.index
+      idw.nearest.d <- idw.nearest.r$nn.dist
       idw.nearest.d <- idw.nearest.d * 1e9
       
-      cl <- makeCluster(number.cores)
+      number.cores.opt <- ifelse(round(nrow(points.to.interp) / 2500) > number.cores , number.cores , round(nrow(points.to.interp) / 2500) )
       
+      cl <- makeCluster(number.cores.opt)
       clusterExport(cl, c("source.points.to.interp.u","source.points.to.interp.v","idw.nearest.i","idw.nearest.d","idwPower"))
       speed.u <- parSapply(cl,1:nrow(points.to.interp), function(pt.i) { (sum( source.points.to.interp.u[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower , na.rm=T)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower)) })
       speed.v <- parSapply(cl,1:nrow(points.to.interp), function(pt.i) { (sum( source.points.to.interp.v[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower , na.rm=T)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower)) })
-      
       stopCluster(cl)
-      
+
       if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { stop("Error [!]") }
-      
-      # coordinates(points.to.interp) = ~pos.lon+pos.lat
-      # coordinates(source.points.to.interp.u) = ~x+y
-      # coordinates(source.points.to.interp.v) = ~x+y
-      
-      # speed.u <- idw(formula = var ~ 1, source.points.to.interp.u, points.to.interp, nmax = idwN, idp=idwPower)$var1.pred
-      # speed.v <- idw(formula = var ~ 1, source.points.to.interp.v, points.to.interp, nmax = idwN, idp=idwPower)$var1.pred
       
       mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
       mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
       
       # Assign temporary positions
       
-      dLon <- mov.eastward / ( 6378137 * cos( pi * (  points.to.interp[,2]  / 180) ) )
+      dLon <- mov.eastward / ( 6378137 * cos( pi * (  points.to.interp[,.(pos.lat)]  / 180) ) )
       dLat <- mov.northward / 6378137
-      dLon <- points.to.interp[,1] + dLon * 180/pi 
-      dLat <- points.to.interp[,2] + dLat * 180/pi
+      dLon <- points.to.interp[,pos.lon] + dLon * 180/pi 
+      dLat <- points.to.interp[,pos.lat] + dLat * 180/pi
       
-      # ---------------------------
-      
-      particles.reference.moving.old.pos <- points.to.interp
-      particles.reference.moving.old.pos[,id:= moving.particles.id]
-      
-      # ---------------------------
+      # -----------------------------------------------
       
       setkey(particles.reference.moving.dt,id)
       particles.reference.moving.dt[,6] <- dLon
@@ -726,21 +711,14 @@ for ( simulation.step in 1:10 ) {
     
       setkey(particles.reference.moving.dt,id)
       points.to.test <- particles.reference.moving.dt[, .(pos.lat,pos.lon)]
-      
-      seqListing <- round(seq(1,nrow(points.to.test),length.out = number.cores + 1))
-      parallelChunks <- data.frame(from = seqListing[-length(seqListing)], to = c(seqListing[-c(1,length(seqListing))] - 1 , nrow(points.to.test) ) )
-      
+    
       cl <- makeCluster(number.cores)
       clusterExport(cl, c("points.to.test","geo_to_h3","sim.resolution"))
-      hexagons.address.test <- parApply(cl, parallelChunks, 1, function(x) { unique( geo_to_h3(points.to.test[x[[1]]:x[[2]],], sim.resolution) ) })
+      hexagons.address.test <- parSapply(cl,1:nrow(points.to.test), function(x) { unique( geo_to_h3(points.to.test[x,], sim.resolution) ) })
+      hexagons.address.test <- unlist(unique(c(hexagons.address.test)))
       stopCluster(cl)
-      
-      hexagons.address.test <- unique(c(hexagons.address.test))
-      
-      # which(hexagons.address.test %in% hexagons.address.land)
-      # which(hexagons.address.test %in% hexagons.address.shore)
-      
-      particles.on.sea <- which( ! hexagons.address.test %in% hexagons.address.land & ! hexagons.address.test %in% hexagons.address.shore )
+
+      particles.on.sea <- which( hexagons.address.test %in% hexagons.address.ocean )
       particles.on.sea.id <- as.vector(moving.particles.id[particles.on.sea])
       setkey(particles.reference.moving.dt,id)
       particles.reference.moving.dt[ id %in% particles.on.sea.id , at.sea := 1  ]
@@ -758,11 +736,10 @@ for ( simulation.step in 1:10 ) {
         who.at.land.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.land.id, "t.start"]))
         
         points.on.land.t <- particles.reference.moving.dt[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
-        points.on.land.t.minus <- particles.reference.moving.old.pos[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
-        
-        points.on.land.corrected <- points.on.land.t.minus
-        
-        cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.land.corrected, k=1 , algorithm="kd_tree" )$nn.index
+        setkey(points.to.interp,id)
+        points.on.land.t.minus <- points.to.interp[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
+
+        cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.land.t.minus, k=1 , algorithm="kd_tree" )$nn.index
         cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
         
         displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
@@ -793,8 +770,8 @@ for ( simulation.step in 1:10 ) {
         
         if( TRUE %in% non.rafters.t & allow.back.to.origin ) {
 
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t] , pos.lon] ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := particles.reference.moving.old.pos[ id %in% non.rafters.id[non.rafters.t] , pos.lat] ]
+          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := points.on.land.t.minus[ id %in% non.rafters.id[non.rafters.t] , pos.lon] ]
+          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := points.on.land.t.minus[ id %in% non.rafters.id[non.rafters.t] , pos.lat] ]
 
           particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 1 ]
           particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(0) ]
@@ -810,18 +787,17 @@ for ( simulation.step in 1:10 ) {
       particles.on.shore <- which( hexagons.address.test %in% hexagons.address.shore )
       particles.on.shore.id <- as.vector(moving.particles.id[particles.on.shore])
       particles.on.shore.condition <- length(particles.on.shore) > 0
-
+      
       if( particles.on.shore.condition ) {    
         
         cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "start.cell"]))
         who.at.shore.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "t.start"]))
         
         points.on.shore.t <- particles.reference.moving.dt[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
-        points.on.shore.t.minus <- particles.reference.moving.old.pos[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
+        setkey(points.to.interp,id)
+        points.on.land.t.minus <- points.to.interp[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
         
-        points.on.shore.corrected <- points.on.shore.t.minus
-        
-        cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.shore.corrected, k=1 , algorithm="kd_tree" )$nn.index
+        cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.land.t.minus, k=1 , algorithm="kd_tree" )$nn.index
         cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
         
         displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
@@ -839,14 +815,14 @@ for ( simulation.step in 1:10 ) {
         # False Rafters [same cell of origin]
         
         non.rafters.id <- particles.on.shore.id[ displacement == 0 ]
-        non.rafters.at.sea.once <- particles.reference.moving.dt[ id %in% non.rafters.id & at.sea == 1, id ]
-        non.rafters.cell <- cells.started[ displacement == 0 ][which(non.rafters.id %in% non.rafters.at.sea.once)]
+        non.rafters.id.at.sea.once <- particles.reference.moving.dt[ id %in% non.rafters.id & at.sea == 1, id ]
+        non.rafters.cell <- as.vector(unlist(particles.reference.moving.dt[id %in% non.rafters.id.at.sea.once, "start.cell"]))
         
-        if( length(non.rafters.at.sea.once) > 0 ) {    
+        if( length(non.rafters.id.at.sea.once) > 0 ) {    
           
-          particles.reference.moving.dt[ id %in% non.rafters.at.sea.once , state := 2 ]
-          particles.reference.moving.dt[ id %in% non.rafters.at.sea.once, cell.rafted := as.numeric(non.rafters.cell) ]
-          particles.reference.moving.dt[ id %in% non.rafters.at.sea.once , t.finish := as.numeric(t.step) ]
+          particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , state := 2 ]
+          particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once, cell.rafted := as.numeric(non.rafters.cell) ]
+          particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , t.finish := as.numeric(t.step) ]
           
         }
 
@@ -855,7 +831,7 @@ for ( simulation.step in 1:10 ) {
       # -----------------------------------------------
       # Test over additional shapefile
       
-      if( ! is.null(additional.shp) ) { 
+      if( ! is.null(additional.source.sink.shp) ) { 
 
         stop("Revise Code")
         
@@ -968,7 +944,6 @@ for ( simulation.step in 1:10 ) {
   
   setkey(particles.reference.moving.dt,id)
   particles.reference.bm.all.inject <- attach.big.matrix(particles.reference.bm.desc)
-  
   sect.loop <- particles.reference.moving.dt[ state != 0 , ]
 
   particles.reference.bm.all.inject[ sect.loop$id , 3 ] <- as.numeric(unlist(sect.loop[  , "start.year"] ))
@@ -981,6 +956,9 @@ for ( simulation.step in 1:10 ) {
   particles.reference.bm.all.inject[ sect.loop$id , 11 ] <- as.numeric(unlist(sect.loop[  , "t.finish"] ))
   particles.reference.bm.all.inject[ sect.loop$id , 12 ] <- as.numeric(unlist(sect.loop[  , "cell.rafted"] ))
   particles.reference.bm.all.inject[ sect.loop$id , 13 ] <- as.numeric(unlist(sect.loop[  , "at.sea"] ))
+  
+  rm(particles.reference.moving.dt)
+  rm(sect.loop)
   
   gc(reset=TRUE)
   

@@ -15,7 +15,7 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco", "geosphere","httr",
                      "gstat",
                      
-                     
+                     "fasterize",
                      "spdep",
                      
                      
