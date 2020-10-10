@@ -36,7 +36,7 @@ worldmap <- st_as_sf(worldmap)
 
 shape <- raster(extent(min.lon,max.lon,min.lat,max.lat))
 res(shape) <- c(sim.resolution.grid,sim.resolution.grid)
-crs(shape) <- crs(worldmap)
+crs(shape) <- st_crs(worldmap)$input
 worldmap.r <- fasterize(worldmap,shape)
 
 coordsAll <- xyFromCell(shape,1:ncell(shape))
@@ -49,13 +49,16 @@ hexagons.address.land <- unique( hexagons.address[ ! hexagons.address %in% hexag
 
 ## --------------
 
+polygons.ocean <- h3_to_geo_boundary_sf(hexagons.address.ocean)
+polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
+
 ggplot() + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address), fill=NA, colour="red", size=0.1)
-ggplot() + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address.land), fill=NA, colour="red", size=0.1)
-ggplot() + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address.ocean), fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = polygons.land, fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = polygons.ocean, fill=NA, colour="red", size=0.1)
 
 ## --------------
 
-# Get shore hexagons
+## Get shore hexagons
 
 shoreTest <- function(hexagon) {
   neighbors <- k_ring(hexagon, radius = 1)
@@ -69,7 +72,6 @@ stopCluster(cl)
 
 hexagons.address.land <- hexagons.address.land[! hexagons.address.land %in% hexagons.address.shore]
 
-polygons.ocean <- h3_to_geo_boundary_sf(hexagons.address.ocean)
 polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
 polygons.shore <- h3_to_geo_boundary_sf(hexagons.address.shore)
 
@@ -105,7 +107,11 @@ ggplot() + geom_sf(data = polygons.shore, fill="Black", colour="Black", size=0.1
 ## --------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------
 
+## save.image(file='../Environment.RData')
+## rm(list=(ls()[ls()!="v"])); gc(reset=TRUE); load('../Environment.RData')
+
 coastline.pts <- st_coordinates(centroid.shore)
+coastline.pts <- coastline.pts[!duplicated(coastline.pts[,1:2]),]
 
 if(   unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),hexagons.address=hexagons.address.shore,x=coastline.pts[,1],y=coastline.pts[,2],source=0,stringsAsFactors = FALSE) }
 if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow(coastline.pts),hexagons.address=hexagons.address.shore,x=coastline.pts[,1],y=coastline.pts[,2],source=1,stringsAsFactors = FALSE) }
@@ -114,112 +120,70 @@ if( ! unwanted.release.coastline ){ source.sink.xy <- data.frame(cells.id=1:nrow
 
 if( ! is.null(additional.source.sink.shp) ) {
   
-  stop("Revise as above")
-  
   additional.pts <- data.frame()
   
   for(i in 1:length(additional.source.sink.shp)){
     
-    additional.shp <- shapefile(paste0(project.folder,additional.source.sink.shp[i]))
+    additional.shp <- shapefile(additional.source.sink.shp[i])
     crs(additional.shp) <- dt.projection
     additional.shp <- gBuffer(additional.shp, byid=TRUE, width=0.001)
+    additional.shp <- st_as_sf(additional.shp)
     
-    if( source.sink.generation.type == "peripherical" ) { # peripherical
+    additional.shp.r <- fasterize(additional.shp,shape)
+    coords.additional <- xyFromCell(additional.shp.r, Which(!is.na(additional.shp.r),cells=TRUE))
+    hexagons.address.additional <- unique( geo_to_h3(coords.additional[,c("y","x")], sim.resolution ) )
+    
+    if( additional.source.sink.shp.force.shore ) {
       
-      # Remove parts over land
-      additional.shp <- gDifference(additional.shp,landmass,byid=TRUE)
-      # writeOGR(as(additional.shp, "SpatialPolygonsDataFrame"), "../Data/Spatial", gsub("Data/Spatial/","Final",additional.source.sink.shp[i]) , driver="ESRI Shapefile",overwrite_layer=TRUE)
+      hexagons.address.additional.i <- character(0)
+      
+      for( x in hexagons.address.additional ) {
         
-        for( t in 1:length(additional.shp) ){
+        dist <- h3_distance(origin = x, hexagons.address.shore)
+        hexagons.address.shore.i <- hexagons.address.shore
         
-          error <- FALSE  
-          
-          additional.shp.i <- additional.shp[t,]
-          additional.shp.i <- remove.holes(additional.shp.i)
-          additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
-        
-          tryCatch({ additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)  }, error=function(e){ error <<- TRUE})
-          
-          if(error) {
-            
-            additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))
-            coordinates(additional.shp.i) <- ~x+y
-            additional.shp.i <- lapply(split(additional.shp.i, additional.shp.i$id), function(x) Lines(list(Line(coordinates(x))), x$id[1L]))
-            additional.shp.i <- SpatialLines(additional.shp.i)
-            data <- data.frame(id = 1:length(additional.shp.i))
-            rownames(data) <- data$id
-            additional.shp.i <- SpatialLinesDataFrame(additional.shp.i, data)
-            additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "regular",longlat = TRUE)
-            
-          }
-          
-          crs(additional.shp.i) <- dt.projection
-          
-          toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
-          additional.shp.i <- additional.shp.i[toKeep,] 
-          toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
-          additional.shp.i <- additional.shp.i[toKeep,] 
-          
-          tester <- 0
-          
-          while( length(additional.shp.i) == 0 ) {
-            
-            additional.shp.i <- additional.shp[t,]
-            additional.shp.i <- remove.holes(additional.shp.i)
-            additional.shp.i <- SpatialLinesDataFrame(as(additional.shp.i,"SpatialLines"), data = data.frame(id=1:length(additional.shp.i)), match.ID = F)
-            
-            additional.shp.i <- sample.line(additional.shp.i,d = source.sink.dist,type = "random",longlat = TRUE)
-            
-            toKeep <- which(is.na(over(additional.shp.i,landmassBuffered)))
-            additional.shp.i <- additional.shp.i[toKeep,] 
-            toKeep <- which(!is.na(over(additional.shp.i, gBuffer(additional.shp[t,], byid=TRUE, width=0.001) )))
-            additional.shp.i <- additional.shp.i[toKeep,] 
-            
-            tester <- tester + 1
-            if(tester == 100) { break("Error :: CODE0909")}
-            
-          }
-          
-          plot(additional.shp[t,])
-          plot(landmassBuffered,col="gray",add=TRUE)
-          points(additional.shp.i)
-          
-          additional.shp.i <- as.data.frame(as(additional.shp.i, "SpatialPointsDataFrame"))[,c("x","y")]
-          additional.pts <- rbind(additional.pts,additional.shp.i)
-          
-        }
-       
+        if(-1 %in% dist) { 
+          hexagons.address.shore.i <- hexagons.address.shore[-which(dist == -1)]
+          dist <- dist[-which(dist == -1)] }
+
+        dist <- dist[which(!hexagons.address.shore.i %in% hexagons.address.additional.i)]
+        hexagons.address.shore.i <- hexagons.address.shore.i[which(!hexagons.address.shore.i %in% hexagons.address.additional.i)]
+        hexagons.address.additional.i <- c(hexagons.address.additional.i,hexagons.address.shore.i[ which.min(dist) ])
+
+      }
+      
+      if(length(hexagons.address.additional.i) != length(hexagons.address.additional)) { stop("Error :: 009")}
+      if( sum(! hexagons.address.additional.i %in% hexagons.address.shore ) > 0) { stop("Error :: 010")}
+      
+      hexagons.address.additional <- hexagons.address.additional.i
+
+      polygons.additional <- h3_to_geo_boundary_sf(hexagons.address.additional)
+      polygons.pts <- st_coordinates(st_centroid(polygons.additional))
+      polygons.pts <- polygons.pts[!duplicated(polygons.pts[,1:2]),]
+      
+      source.sink.xy <- source.sink.xy[ ! source.sink.xy$hexagons.address %in% hexagons.address.additional,]
+      hexagons.address.shore <- source.sink.xy$hexagons.address
+      polygons.shore <- h3_to_geo_boundary_sf(hexagons.address.shore)
+    
     }
     
-    if( source.sink.generation.type == "centroid" ) { 
-      
-      additional.pts.i <- centroid(additional.shp)
-      additional.pts <- rbind(additional.pts,additional.pts.i)
-      
-    }
+    if( sum(hexagons.address.land %in% hexagons.address.additional) > 0) { stop("Error :: 002")}
+    if( sum(hexagons.address.shore %in% hexagons.address.additional) > 0) { stop("Error :: 003")}
+    if( sum(hexagons.address.additional %in% hexagons.address.land) > 0) { stop("Error :: 004")}
+    if( sum(hexagons.address.additional %in% hexagons.address.shore) > 0) { stop("Error :: 005")}
+    
+    ## ----------
+
+    additional.pts <- rbind(additional.pts,data.frame(hexagons=hexagons.address.additional,polygons.pts[,c("X","Y")]))
     
   }
 
-  additional.source.sink.xy <- data.frame(cells.id=(nrow(coastline.pts)+1):(nrow(additional.pts)+nrow(coastline.pts)),x=additional.pts[,1],y=additional.pts[,2],source=1,stringsAsFactors = FALSE) ; head(additional.source.sink.xy)
+  additional.source.sink.xy <- data.frame(cells.id=(max(source.sink.xy$cells.id)+1):(max(source.sink.xy$cells.id)+nrow(additional.pts)),hexagons.address=additional.pts$hexagons,x=additional.pts[,"X"],y=additional.pts[,"Y"],source=1,stringsAsFactors = FALSE) ; head(additional.source.sink.xy)
   source.sink.xy <- rbind(source.sink.xy,additional.source.sink.xy)
+  source.sink.xy$cells.id <- 1:nrow(source.sink.xy)
 
-  # ---------------------
-  
-  if( length(additional.source.sink.shp) > 1 ) { stop("Code to have multiple shapefiles") }
-  
-  additional.shp <- shapefile(paste0(project.folder,additional.source.sink.shp))
-  crs(additional.shp) <- dt.projection
-  
-  additional.shp <- gBuffer(additional.shp, byid=TRUE, width=0)
-  additional.shp <- gIntersection(additional.shp, clipper, byid=TRUE)
-  additional.shp <- gUnaryUnion(additional.shp, id = rep(1,length(additional.shp)))
-  
 }
 
-## --------------
-
-if( is.null(additional.source.sink.shp) ) { additional.shp <- NULL }
-  
 ## -----------------------------------------------------
 
 ## Remove unwanted release sites
@@ -240,6 +204,8 @@ if( ! is.null(unwanted.release.sites.shp) ) {
 
 }
  
+if(sum(duplicated(source.sink.xy[,c("x","y")])) > 0) { stop("Error :: 007") }
+
 ## ------------------
 
 ggplot() + geom_sf(data=worldmap) + geom_point(data = source.sink.xy[source.sink.xy$source == 0,c("x","y")], aes(x = x, y = y), size = 1, shape = 1, fill = "darkred")
@@ -280,7 +246,7 @@ if(sum( ! from.year:to.year %in% as.numeric(simulation.parameters.step[,"year"])
 
 if( ! is.null(movie.sites.xy) ) {
   
-  if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
+  if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(movie.sites.xy))[,2:3] }
   
   movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
   movie.sites.id <- unique(sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy[,"source"] == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) ))
@@ -422,7 +388,7 @@ save(global.simulation.parameters, file = paste0(project.folder,"/Results/",proj
 
 ## -----------------------
 
-rm(particles.reference.bm) ; rm(particles.reference) ; rm(coordsAll) ; rm(coordsOcean) ; rm(worldmap.r) ; rm(coordsLand)
+rm(particles.reference.bm) ; rm(particles.reference) ; rm(coordsAll) ; rm(coordsOcean) ; rm(worldmap.r) ; rm(coordsLand) ; rm(additional.shp.r)
 gc(reset=TRUE)
 memory.profile()
 list.memory()
@@ -681,6 +647,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
       idw.nearest.d <- idw.nearest.d * 1e9
       
       number.cores.opt <- ifelse(round(nrow(points.to.interp) / 2500) > number.cores , number.cores , round(nrow(points.to.interp) / 2500) )
+      number.cores.opt <- ifelse(number.cores.opt == 0, 1, number.cores.opt)
       
       cl <- makeCluster(number.cores.opt)
       clusterExport(cl, c("source.points.to.interp.u","source.points.to.interp.v","idw.nearest.i","idw.nearest.d","idwPower"))
@@ -829,63 +796,52 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) {
       }
       
       # -----------------------------------------------
-      # Test over additional shapefile
+      # Test over additional shapefile hexagons
       
       if( ! is.null(additional.source.sink.shp) ) { 
 
-        stop("Revise Code")
+        particles.on.additional <- which( hexagons.address.test %in% hexagons.address.additional )
+        particles.on.additional.id <- as.vector(moving.particles.id[particles.on.additional])
+        particles.on.additional.condition <- length(particles.on.additional) > 0
         
-        seqListing <- round(seq(1,length(points.to.test),length.out = number.cores))
-        parallelChunks <- data.frame(from = seqListing[-length(seqListing)], to = c(seqListing[-c(1,length(seqListing))] - 1 , length(points.to.test) ) )
-        
-        cl <- makeCluster(number.cores)
-        clusterExport(cl, c("points.to.test","additional.shp.sect"))
-        
-        particles.on.additional.shp <- parApply(cl, parallelChunks, 1, function(x) { 
+        if( particles.on.additional.condition ) {    
           
-          require("sp")
-          require("sf")
-          points.to.test.i <- points.to.test[x[[1]]:x[[2]],]
-          points.to.test.i$ID <- 1:length(points.to.test.i)
-          points.to.test.i <- st_as_sf(points.to.test.i)
-          st_join(points.to.test.i,additional.shp.sect , join = st_intersects)$ID.y
+          cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.additional.id, "start.cell"]))
+          who.at.shore.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.additional.id, "t.start"]))
           
-        })
-        
-        stopCluster(cl)
-        
-        particles.on.additional.shp <- do.call("c",particles.on.additional.shp)
-        particles.on.additional.shp <- which(!is.na(particles.on.additional.shp))
-        particles.on.additional.shp.condition <- length(particles.on.additional.shp) > 0
+          points.on.additional.t <- particles.reference.moving.dt[ id %in% particles.on.additional.id , .(pos.lon,pos.lat) ]
+          setkey(points.to.interp,id)
+          points.on.additional.t.minus <- points.to.interp[ id %in% particles.on.additional.id , .(pos.lon,pos.lat) ]
           
-          if( particles.on.additional.shp.condition ) {    
+          cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.additional.t.minus, k=1 , algorithm="kd_tree" )$nn.index
+          cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
+          
+          displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
+          
+          # True Rafters [Distinct cell]
+          
+          true.rafters.id <- particles.on.additional.id[ displacement != 0 ]
+          true.rafters.cell <- cells.rafted[ displacement != 0 ]
+          
+          setkey(particles.reference.moving.dt,id)
+          particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
+          particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
+          particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
+          
+          # False Rafters [same cell of origin]
+          
+          non.rafters.id <- particles.on.additional.id[ displacement == 0 ]
+          non.rafters.id.at.sea.once <- particles.reference.moving.dt[ id %in% non.rafters.id & at.sea == 1, id ]
+          non.rafters.cell <- as.vector(unlist(particles.reference.moving.dt[id %in% non.rafters.id.at.sea.once, "start.cell"]))
+          
+          if( length(non.rafters.id.at.sea.once) > 0 ) {    
             
-            who.at.shp.id <- moving.particles.id[particles.on.additional.shp]
-            
-            cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.shp.id, "start.cell"]))
-            who.at.shp.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% who.at.shp.id, "t.start"]))
-            
-            points.on.shp.t <- particles.reference.moving.dt[id %in% who.at.shp.id , 6:7 ]
-            points.on.shp.t.minus <- particles.reference.moving.old.pos[id %in% who.at.shp.id , 1:2 ]
-            
-            points.on.shp.corrected <- points.on.shp.t.minus
-            
-            cells.rafted <- get.knnx( source.sink.xy.s, points.on.shp.corrected, k=1 , algorithm="kd_tree" )$nn.index
-            cells.rafted <- source.sink.xy.id.s[cells.rafted]
-            
-            displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
-            
-            # True Rafters [Distinct cell]
-            
-            true.rafters.id <- who.at.shp.id[ displacement != 0 ]
-            true.rafters.cell <- cells.rafted[ displacement != 0 ]
-            
-            setkey(particles.reference.moving.dt,id)
-            particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
-            particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
-            particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
+            particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , state := 2 ]
+            particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once, cell.rafted := as.numeric(non.rafters.cell) ]
+            particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , t.finish := as.numeric(t.step) ]
             
           }
+        }
       }
       
       # -----------------------------------------------
@@ -995,14 +951,9 @@ nrow(particles.reference.bm)
 particles.reference.bm <- particles.reference.bm[particles.reference.bm[,"cell.rafted"] != 0,]
 ReferenceTable <- data.frame( particles.reference.bm , travel.time= ( 1 + particles.reference.bm[,11] - particles.reference.bm[,10] ) / n.hours.per.day )
 head(ReferenceTable)
-
 nrow(ReferenceTable)
 
-## -----------------------
-
-# sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-# dbWriteTable(sql, "ReferenceTable", ReferenceTable , append=FALSE, overwrite=TRUE )
-# dbDisconnect(sql)
+save(ReferenceTable, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","ReferenceTable.RData"))
 
 ## ------------------------------------------------------------------------------------------------------------------
 # Time taken

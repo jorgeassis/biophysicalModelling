@@ -296,7 +296,7 @@ for (y in unique(fullDates$year) ){ #
   
   if(final.dimensions == 2) {
     
-    setfileoption("nc","format","netcdf4") 
+    # setfileoption("nc","format","netcdf4") 
     
     var4d <- ncvar_def( "UComponent", "m", list(dimX,dimY,dimT), mv, prec="double")
     var5d <- ncvar_def( "VComponent", "m", list(dimX,dimY,dimT), mv,  prec="double")
