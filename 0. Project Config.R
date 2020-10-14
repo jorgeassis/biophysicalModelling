@@ -47,7 +47,7 @@ sim.resolution.grid <- 0.005 # 6::0.01 https://www.usna.edu/Users/oceano/pguth/m
 
 months.all <- 1:12 # c(9,10,11,12,1,2,3,4) 
 from.day <- 1 ; to.day <- 31
-from.year <- 2013 ; to.year <- 2013
+from.year <- 2008 ; to.year <- 2017
 
 depth.range <- c(0)
 
@@ -70,7 +70,7 @@ final.dimensions <- 2
 # -----------------------------------
 # Ilustration (movie)
 
-movie.year <- 2013
+movie.year <- 2017
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
 movie.sites.xy <- "../Data/Shapefiles/movie.shp" 

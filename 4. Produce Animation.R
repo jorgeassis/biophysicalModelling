@@ -17,34 +17,30 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
+mainTitle <- "Laminaria pallida :: SW Africa"
 simulation.name <- project.name
 
-particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.x.desc"))
-particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/InternalProc/particles.video.location.y.desc"))
+particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.x.desc"))
+particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.y.desc"))
 
 particles.lon <- attach.big.matrix(particles.video.location.x.bm.desc)
 particles.lat <- attach.big.matrix(particles.video.location.y.bm.desc)
 
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
-dbDisconnect(sql)
+load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
+load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
 
-if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(paste0(project.folder,movie.sites.xy)))[,2:3] }
+# if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(movie.sites.xy))[,2:3] }
+# 
+# movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
+# movie.sites.id <- sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy$source == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
+# movie.sites.id <-  source.sink.xy[ source.sink.xy$source == 1, "cells.id" ][movie.sites.id]
 
-movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
-movie.sites.id <- sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy[,4] == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
-movie.sites.id <-  source.sink.xy[ source.sink.xy[,4] == 1, "cells.id" ][movie.sites.id]
-
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-sim.extent <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$extent, split=","))))
-movie.year <- unique(dbReadTable(sql, "Parameters")$movie.year)
-months <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$sim.months , split=","))))
-#particles.to.sql.id <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$particles.to.sql.id , split=","))) )
-movie.sites.id <- unique(as.numeric(unlist(strsplit(dbReadTable(sql, "Parameters")$movie.sites.id , split=","))))
-n.hours.per.day <- unique(dbReadTable(sql, "Parameters")$n.hours.per.day)
-n.particles.per.cell <- unique(dbReadTable(sql, "Parameters")$n.particles.per.cell)
-source.sink.xy <- unique(dbReadTable(sql, "SourceSinkSites"))
-dbDisconnect(sql)
+sim.extent <-unique(as.numeric(unlist(strsplit(global.simulation.parameters$extent, split=","))))
+movie.year <- global.simulation.parameters$movie.year
+months <- unique(as.numeric(unlist(strsplit(global.simulation.parameters$sim.months , split=","))))
+movie.sites.id <- unique(as.numeric(unlist(strsplit(global.simulation.parameters$movie.sites.id , split=","))))
+n.hours.per.day <- global.simulation.parameters$n.hours.per.day
+n.particles.per.cell <- global.simulation.parameters$n.particles.per.cell
 
 # --------------------------------------
 
@@ -54,23 +50,26 @@ sim.every.hours <- 24 / n.hours.per.day
 min.lon <- sim.extent[1] ; max.lon <- sim.extent[2] ; min.lat <- sim.extent[3] ; max.lat <- sim.extent[4]
 ratio <- abs(sim.extent[1]) +  abs(sim.extent[2]) : abs(sim.extent[4]) - abs(sim.extent[3])
 
-source.sink.id <- 1:nrow(source.sink.xy)
-particles.reference <- data.table( id = 1:(n.particles.per.cell * nrow(source.sink.xy) ) )
-particles.reference[ , start.cell := as.numeric( sapply( source.sink.id ,function(x) { rep(x,n.particles.per.cell) })) ]
-particles.to.sql.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
+particles.reference.bm.desc <- dget( paste0(project.folder,"Results/",project.name,"/InternalProc/particles.reference.desc"))
+particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
+particles.reference.bm <- data.frame(particles.reference.bm[,])
+colnames(particles.reference.bm) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted","ocean")
+
+movie.sites.ids <- particles.reference.bm[particles.reference.bm$start.cell %in% movie.sites.id, "id" ]
 
 # ---------------------------------------------------------------------------------------------------------
 
-land.polygon <- shapefile("Data/Shapefiles/Global Landmass.shp")
-crs(land.polygon) <- "+proj=longlat +ellps=WGS84"
-land.polygon <- gBuffer(land.polygon, byid=TRUE, width=0)
+if( is.null(landmass.shp)) { land.polygon <- getMap(resolution = "high") }
+if( ! is.null(landmass.shp)) { land.polygon <- shapefile(landmass.shp) }
+crs(land.polygon) <- dt.projection 
+land.polygon <- crop(land.polygon,shape)
+land.polygon@bbox <- as.matrix(extent(c(min.lon-3, max.lon+3,  min.lat+3,max.lat+3)))
 
-land.polygon <- crop(land.polygon, extent(sim.extent + c(-2,+2,-2,+2)) )
 plot(land.polygon, col="grey")
 
 # ------------------
 
-if( ! "Video" %in% list.files(paste0(project.folder,"/Results")) ) { dir.create(file.path(paste0(project.folder,"/Results/Video"))) }
+if( ! "Video" %in% list.files(paste0(project.folder,"/Results/",project.name,"/")) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/Video"))) }
 
 # ------------------------------------------------------
 
@@ -89,7 +88,7 @@ days.months <- data.frame(
 
 # ------------------------------------------------------------------------------------------------------
 
-t.steps <- nrow(particles.lat)
+t.steps <- ncol(particles.lat)
 change.day.vect <- rep(1:unique(n.hours.per.day),length.out=t.steps+unique(sim.every.hours))[1:t.steps]
 change.day <- rep(FALSE,length(change.day.vect))
 change.day[change.day.vect == 1] <- TRUE
@@ -104,13 +103,14 @@ distinctColors <- function(n) {
 }
 
 cells.colors <- movie.sites.id
-#cells.colors <- unique(particles.reference[ id %in% movie.sites.id , start.cell ])
 cells.colors <- data.frame(cell=cells.colors,color=distinctColors(length(cells.colors)), stringsAsFactors = FALSE)
 
 # ---------------------------------
 # Aggregate colors
 
-dist <- spDists( as.matrix( source.sink.xy[source.sink.xy$cells.id %in% cells.colors$cell , c(2,3) ] ) , as.matrix( source.sink.xy[source.sink.xy$cells.id %in% cells.colors$cell , c(2,3)  ] ) )
+coords.cell <- do.call("rbind",apply(data.frame(cells.colors$cell),1,function(x) source.sink.xy[source.sink.xy$cells.id %in% x , c("cells.id","x","y") ]))
+
+dist <- spDists( as.matrix( coords.cell[,2:3] ) , as.matrix(coords.cell[,2:3] ) )
 dist <- as.dist(dist)
 mds.coor <- cmdscale(dist)
 plot(mds.coor)
@@ -120,7 +120,7 @@ k <- length(unique(cells.colors$cell))
 hc <- hclust(dist, "single")
 
 cells.colors.i <- distinctColors( k )
-cells.colors <- data.frame(cell=cells.colors$cell,color=sapply(cutree(hc, k = k),function(x) cells.colors.i[x]))
+cells.colors <- data.frame(cell=coords.cell$cells.id,color=sapply(cutree(hc, k = k),function(x) cells.colors.i[x]))
 
 # ---------------------------------
 
@@ -132,24 +132,7 @@ polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[4] , sim.extent[4] 
 
 # ---------------------------------
 
-if( extent(land.polygon)[1] < min.lon | extent(land.polygon)[2] < max.lon | extent(land.polygon)[3] < min.lat | extent(land.polygon)[4] < max.lat ) {
-  
-  fakePoint <- as.matrix(data.frame( Lon=c(min.lon-2,min.lon-2.0001,min.lon-2,min.lon-2.0001),Lat= c(min.lat-2,min.lat-2,min.lat-2.0001,min.lat-2.0001)))
-  fakePoint <- spPolygons(as.matrix(fakePoint))
-  crs(fakePoint) <- dt.projection 
-  
-  land.polygon <- as(land.polygon,"SpatialPolygons")
-  crs(land.polygon) <- dt.projection 
-  land.polygon <- gUnion(fakePoint,land.polygon)
-  plot(land.polygon, col="grey")
-  
-}
-
-# ---------------------------------
-
-show.polygon.region.interest <- TRUE
 show.additional.landmass.shp <- FALSE
-print.day <- 0
 
 if(show.additional.landmass.shp) {
   
@@ -157,8 +140,38 @@ if(show.additional.landmass.shp) {
   
 }
 
-png(file=paste0(project.folder,"/Results/Video/Video map_%02d.png"), width=1280, height=720)
-par( mar=c(0,0,3,0) , bg="#ffffff")
+theme_map <- 
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Helvetica", color = "#22211d"),
+    axis.line = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
+    panel.grid.major = element_line(color = "#979797", size = 0.05),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+    panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+    legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    panel.border = element_blank()
+  )
+
+boxes <- data.frame(maxlat = max.lat+2,minlat = min.lat-2,maxlong = max.lon+2,minlong = min.lon-2, id="1")
+boxes <- transform(boxes, laby=(min.lat + min.lat )/2, labx=(max.lon+min.lon )/2)
+
+boxesSim <- data.frame(maxlat = max.lat,minlat = min.lat,maxlong = max.lon,minlong = min.lon, id="1")
+boxesSim <- transform(boxesSim, laby=(min.lat + min.lat )/2, labx=(max.lon+min.lon )/2)
+
+map <- ggplot() +
+  geom_polygon(data = land.polygon , fill = "#C4C4C4", colour = "#ffffff" , size=0.15 ,  aes(long, lat, group = group)) +
+  geom_rect(data=boxes, aes(xmin=min.lon-2 , xmax=max.lon+2, ymin=min.lat-2, ymax=max.lat+2 ), color="transparent", fill="transparent") +
+  geom_rect(data=boxesSim, aes(xmin=min.lon , xmax=max.lon, ymin=min.lat, ymax=max.lat ), color="Black", fill="transparent", linetype = "dashed",size=0.12) +
+  coord_equal() + theme_map # coord_map(projection = "mercator")
+
+print.day <- 0
 
 for( t in 1:t.steps) {
   
@@ -166,9 +179,9 @@ for( t in 1:t.steps) {
   
   print.date.sim <- format(as.Date(  paste(movie.year,"-",days.months[print.day,2],"-",days.months[print.day,1],sep="")  , "%Y-%m-%d"), "%d %b %Y")
 
-  moving.ids <- particles.to.sql.id[which(particles.lon[,t] != 0)]
-  moving.cell.ids <- particles.reference[ id %in% moving.ids , start.cell]
-  moving.colors <- as.character( sapply(moving.cell.ids, function(x) { cells.colors[ cells.colors$cell %in% x , "color"] } ) )
+  moving.ids <- movie.sites.ids[which(particles.lon[,t] != 0)]
+  moving.cell.ids <- particles.reference.bm[ particles.reference.bm$id %in% moving.ids , "start.cell"]
+  moving.colors <- as.character( sapply(moving.cell.ids, function(x) { cells.colors[ cells.colors$cell %in% x , "color"][1] } ) )
   
   moving.lons <- particles.lon[,t] ; moving.lons <- moving.lons[moving.lons != 0]
   moving.lats <- particles.lat[,t] ; moving.lats <- moving.lats[moving.lats != 0]
@@ -176,53 +189,18 @@ for( t in 1:t.steps) {
   points.plot <- data.frame(Lon = moving.lons , Lat = moving.lats , color=moving.colors )
   points.plot <- points.plot[complete.cases(points.plot),]
 
-  print(  plot(land.polygon , col="grey" , border="grey") )
+  map.t <- map + geom_point(data = points.plot ,  aes(x = Lon, y = Lat) , shape = 21, colour = points.plot$color, fill = points.plot$color, size = 1.5, stroke = 0.35, alpha = 0.9) +
+    annotate(geom="text", x=min.lon, y=max.lat + 2.1, label=mainTitle,size=5.5,family="Helvetica", color = "#000000",hjust = 0) +
+    annotate(geom="text", x=min.lon, y=max.lat + 1, label=paste0("Simulation: ",print.date.sim),size=4.5,family="Helvetica", color = "#000000",hjust = 0)
   
-  if(show.additional.landmass.shp) {
-    
-    print(  plot(additional.landmass.shp , col="#8D1111" , border="#8D1111",add=TRUE) )
-    
-  }
-  
-  print(  title(paste0("Simulation of Potential Connectivity: ",print.date.sim), cex = 0.5, col="black") )
-  print(  points(points.plot[,1], points.plot[,2], pch=19 , col=as.character(points.plot[,3]),cex=0.8) )
-  
-  if(show.polygon.region.interest) {
-    
-    polygon(polygon.region.interest.xx,polygon.region.interest.yy, lty =2)
-    
-  }
+  png(file=paste0(project.folder,"/Results/",project.name,"/Video/Video map_",t,".png"), width=1280, height=720, bg = "#f5f5f2")
+  print(map.t)
+  dev.off()
   
 }
 
-dev.off()
-
-# ------------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------------
-
-paste0(project.folder,"/Results/Video/Video map_%02d.png")
-
-system( 'ffmpeg -s 1280x720 -i "/Volumes/Jellyfish/Dropbox/Manuscripts/Halodule connectivity patterns throughout West Africa//Results/Video/Video map_%02d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
+system( 'ffmpeg -s 1280x720 -i "/Volumes/Jellyfish/Dropbox/Manuscripts/Halodule connectivity patterns throughout West Africa//Results/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
 file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
-
-library(magick)
-library(av)
-
-imagesFiles <- list.files(paste0(project.folder,"/Results/Video/") , full.names = T)
-images <-  image_scale(image_read(imagesFiles[1]), "1280")
-
-for(i in 2:length(imagesFiles)) {
-  
-  images.i <- image_read(imagesFiles[i])
-  images.i <- image_scale(images.i, "1280")
-  images <- c(images,images.i)
-  
-}
-
-image_write_video(images, path = "test", framerate = 10)
-
-video <- image_animate(images, fps = 1)
-image_write(video, "MapIsolatedMPA.gif",quality=100)
 
 # ------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------

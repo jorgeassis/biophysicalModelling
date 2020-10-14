@@ -10,22 +10,18 @@ gc(reset=TRUE)
 source("0. Project Config.R")
 source("Dependences.R")
 
-number.cores <- 4
+number.cores <- 10
 
 ## ------------------------------------------------------------------------------------------------------------------
 
-resultsFolder <- "Results2017" # Results
-
-Connectivity <- read.big.matrix(paste0(project.folder,"/",resultsFolder,"/Connectivity.bm"))
+Connectivity <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm"))
 Connectivity <- data.table(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
 Connectivity
 
-source.sink.xy <- read.big.matrix(paste0(project.folder,"/",resultsFolder,"/source.sink.bm"))
+source.sink.xy <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm"))
 source.sink.xy <- data.table(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
-
-# source.sink.xy <- source.sink.xy[Source == 1 & Pair %in% unique(c(Connectivity$Pair.from,Connectivity$Pair.to)),]
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Marine Distances
@@ -48,8 +44,8 @@ raster_tr <- transition(cost.surface, mean, directions=8)
 raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 
 plot(cost.surface,col=c("#737373","#A0CCF2"),box=FALSE,legend=FALSE)
-lines( shortestPath(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 4,2:3]) , as.matrix(source.sink.xy[Pair == 147,2:3]) , output="SpatialLines") )
-costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == 4,2:3]) , as.matrix(source.sink.xy[Pair == 1296,2:3]) )
+lines( shortestPath(raster_tr_corrected, as.matrix(source.sink.xy[Pair == source.sink.xy$Pair[1],2:3]) , as.matrix(source.sink.xy[Pair == source.sink.xy$Pair[100],2:3]) , output="SpatialLines") )
+costDistance(raster_tr_corrected, as.matrix(source.sink.xy[Pair == source.sink.xy$Pair[1],2:3]) , as.matrix(source.sink.xy[Pair == source.sink.xy$Pair[100],2:3]) )
 
 # ----------------------------------
 
@@ -62,22 +58,9 @@ marine.distances <- foreach(x=n.cells, .combine='rbind', .verbose=FALSE, .packag
   x.to <- Connectivity[ Pair.from == x , Pair.to ]
   x.to <- x.to[x.to != 0]
 
-  partial.distances <- costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ source.sink.xy$Pair == x , 2:3 ]) , as.matrix(source.sink.xy[ source.sink.xy$Pair %in% x.to , 2:3 ]) )
-  partial.distances <- data.frame(Pair.from=rep(x,length(partial.distances)),Pair.to=source.sink.xy$Pair[source.sink.xy$Pair %in% x.to],Distance=c(partial.distances)/1000)
-  
-  zeros <- which(partial.distances$Distance == 0 & partial.distances$Pair.from != partial.distances$Pair.to)
-  
-  if( length(zeros) > 0 ) {
-    
-    for(z in 1:length(zeros)){
-      
-            partial.distances[zeros[z],3] <- spDistsN1( as.matrix(source.sink.xy[ Pair == partial.distances[zeros[z],1] , 2:3 ]), as.matrix(source.sink.xy[ Pair == partial.distances[zeros[z],2] , 2:3 ]), longlat=TRUE)
-      
-    }
-    
-  }
-  
-  
+  partial.distances <- sapply(x.to,function(x.i) { costDistance(raster_tr_corrected, as.matrix(source.sink.xy[ source.sink.xy$Pair == x , 2:3 ][1,]) , as.matrix( source.sink.xy[ source.sink.xy$Pair %in% x.i , 2:3 ][1,])) } )
+  partial.distances <- data.frame(Pair.from=rep(x,length(x.to)),Pair.to=x.to,Distance=c(partial.distances)/1000)
+
   return( partial.distances )
   
 }
@@ -90,12 +73,12 @@ head(marine.distances)
 
 distance.probability <- merge(Connectivity, marine.distances, by=c("Pair.from","Pair.to"))
 distance.probability <- as.big.matrix(as.matrix(distance.probability))
-write.big.matrix(distance.probability, paste0(project.folder,"/",resultsFolder,"/Connectivity.Distance.bm"))
+write.big.matrix(distance.probability, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedDistances.bm"))
 
 # ----------------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------
 
-distance.probability <- read.big.matrix(paste0(project.folder,"/",resultsFolder,"/Connectivity.Distance.bm"))
+distance.probability <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedDistances.bm"))
 distance.probability <- data.table(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
 
@@ -107,14 +90,24 @@ distance.probability.t <- distance.probability[Time.max <= extract.simulation.da
 x <- distance.probability.t$Distance
 y <- distance.probability.t$Probability
 
-pdf( file=paste0(project.folder,"Results/Probability vs Distance ",extract.simulation.days," days.pdf") , width = 10, height = 8 )
+y <- y[x!=0 & x != Inf]
+x <- x[x!=0 & x != Inf]
 
-par(mar = c(4.5, 5.5, 4.5, 4.5))
-plot(x,y,ylim=c(min(y),max(y)),col="#A6A6A6", pch=16,ylab="Mean probability of connectivity",xlab="Distance (km)",axes=FALSE)
-axis(2,las=2,col="White",col.ticks="Black")
-axis(1,las=0,col="White",col.ticks="Black")
-box()
+plotData <- data.frame(x=x,y=y)
 
+mainTheme <- theme(panel.grid.major = element_blank() ,
+                   text = element_text(size=12) ,
+                   axis.title.y = element_text(margin = margin(t = 0, r = 12, b = 0, l = 0)) ,
+                   axis.title.x = element_text(margin = margin(t = 12, r = 0, b = 0, l = 0)) )
+
+p3 <- ggplot() +
+  geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.2) +
+  theme_minimal() + mainTheme + xlab("Distance (km)") + ylab("Mean probability of connectivity") + 
+  geom_vline(xintercept = quantile(x,probs=0.95), linetype="dashed",  color = "gray", size=0.5) +
+  annotate(geom="text", x=quantile(x,probs=0.95)+10, y=max(plotData$y), label=paste0(round(quantile(x,probs=0.95)),"km [95% of particles]"),size=4,family="Helvetica", color = "#7F7F7F",hjust = 0)
+
+pdf( file=paste0(project.folder,"/Results/",project.name,"/Probability vs Distance ",extract.simulation.days," days.pdf"), width = 10, height = 8 )
+print(p3)
 dev.off()
 
 # ----------------------------------
@@ -128,8 +121,8 @@ for( t in 1:30){
   x <- distance.probability.t$Distance
   y <- distance.probability.t$Probability
   
-  x[x == Inf] <- NA
-  y[y == Inf] <- NA
+  y <- y[x!=0 & x != Inf]
+  x <- x[x!=0 & x != Inf]
 
     resultsTime <- rbind(resultsTime,data.frame(time=t,
                                               meandistance=mean(x,na.rm=T),
@@ -138,36 +131,22 @@ for( t in 1:30){
                                               maxprobability=max(y,na.rm=T) ))
 }
   
-pdf( file=paste0(project.folder,"Results/Time vs Mean Distance.pdf") , width = 10, height = 8 )
-par(mar = c(4.5, 5.5, 4.5, 4.5))
-plot(resultsTime$time,resultsTime$meandistance,ylim=c(min(resultsTime$meandistance),max(resultsTime$meandistance)),col="#A6A6A6", pch=16,ylab="Mean travelled distance (km)",xlab="Dispersal period (day)",axes=FALSE)
-axis(2,las=2,col="White",col.ticks="Black")
-axis(1,las=0,col="White",col.ticks="Black")
-box()
+plotData <- data.frame(x=resultsTime$time,y=resultsTime$maxdistance)
+p3 <- ggplot() +
+  geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.5) +
+  theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab("Maximum travelled distance (km)")
+
+pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Max Distance.pdf"), width = 10, height = 8 )
+print(p3)
 dev.off()
 
-pdf( file=paste0(project.folder,"Results/Time vs Max Distance.pdf") , width = 10, height = 8 )
-par(mar = c(4.5, 5.5, 4.5, 4.5))
-plot(resultsTime$time,resultsTime$maxdistance,ylim=c(min(resultsTime$maxdistance),max(resultsTime$maxdistance)),col="#A6A6A6", pch=16,ylab="Maximum travelled distance (km)",xlab="Dispersal period (day)",axes=FALSE)
-axis(2,las=2,col="White",col.ticks="Black")
-axis(1,las=0,col="White",col.ticks="Black")
-box()
-dev.off()
+plotData <- data.frame(x=resultsTime$time,y=resultsTime$meanprobability)
+p3 <- ggplot() +
+  geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.5) +
+  theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab("Mean probability of connectivity")
 
-pdf( file=paste0(project.folder,"Results/Time vs Mean Probability.pdf") , width = 10, height = 8 )
-par(mar = c(4.5, 5.5, 4.5, 4.5))
-plot(resultsTime$time,resultsTime$meanprobability,ylim=c(min(resultsTime$meanprobability),max(resultsTime$meanprobability)),col="#A6A6A6", pch=16,ylab="Mean probability of connectivity",xlab="Dispersal period (day)",axes=FALSE)
-axis(2,las=2,col="White",col.ticks="Black")
-axis(1,las=0,col="White",col.ticks="Black")
-box()
-dev.off()
-
-pdf( file=paste0(project.folder,"Results/Time vs Max Probability.pdf") , width = 10, height = 8 )
-par(mar = c(4.5, 5.5, 4.5, 4.5))
-plot(resultsTime$time,resultsTime$maxprobability,ylim=c(min(resultsTime$maxprobability),max(resultsTime$maxprobability)),col="#A6A6A6", pch=16,ylab="Maximum probability of connectivity",xlab="Dispersal period (day)",axes=FALSE)
-axis(2,las=2,col="White",col.ticks="Black")
-axis(1,las=0,col="White",col.ticks="Black")
-box()
+pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Mean Probability.pdf"), width = 10, height = 8 )
+print(p3)
 dev.off()
 
 # ----------------------------------

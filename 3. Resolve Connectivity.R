@@ -5,9 +5,9 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-rm(list=(ls()[ls()!="v"]))
+rm(list=(ls()[ls()!="v"])) 
 gc(reset=TRUE)
-source("../Project Config 0.R")
+source("0. Project Config.R")
 
 ## --------------------------------------------------------------------------------------------------------------
 ##
@@ -17,23 +17,24 @@ source("../Project Config 0.R")
 
 ## Test if connectivity exists
 
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-dbGetQuery(sql, "SELECT * FROM 'Connectivity' LIMIT 5 ")
-dbDisconnect(sql)
+file.exists(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates.RData"))
 
 ## ------------------------------------
 ## Resolve connectivity
 
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-cell.to.process <- 1:nrow(dbReadTable(sql, "SourceSinkSites"))
-n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell[1]
-n.new.particles.per.day <- dbReadTable(sql, "Parameters")$n.new.particles.per.day[1]
-n.steps.per.day <- dbReadTable(sql, "Parameters")$n.hours.per.day[1]
-dbDisconnect(sql)
+load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
+load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
 
+cell.to.process <- unique(source.sink.xy$cells.id[source.sink.xy$source == 1])
+n.particles.per.cell <- global.simulation.parameters$n.particles.per.cell
+n.new.particles.per.day <- global.simulation.parameters$n.new.particles.per.day
+n.steps.per.day <- global.simulation.parameters$n.hours.per.day
+
+length(cell.to.process) * n.particles.per.cell
+  
 ## ------------------
 
-particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/InternalProc/particles.reference.desc"))
+particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.reference.desc"))
 
 ## ------------------
 
@@ -46,7 +47,7 @@ all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose
   
   connectivity.temp.m <- particles.reference.bm.i[ mwhich(particles.reference.bm.i,2,list(cell.id.ref.f), list('eq')) , ]
   connectivity.temp.m <- data.frame(connectivity.temp.m)
-  colnames(connectivity.temp.m) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted")
+  colnames(connectivity.temp.m) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted","ocean")
   
   connectivity.temp.m <- connectivity.temp.m[connectivity.temp.m$cell.rafted != 0 & connectivity.temp.m$state == 2,]
   connectivity.temp.m <- data.frame(connectivity.temp.m,travel.time= (1 + connectivity.temp.m$t.finish - connectivity.temp.m$t.start) / n.steps.per.day)
@@ -68,7 +69,7 @@ all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose
                                                       Time.min = min(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
                                                       Time.max = max(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
                                                       Time.sd = sd(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                      Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / round( n.particles.per.cell / length(unique(connectivity.temp.m$start.year)) ),
+                                                      Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / round( sum(source.sink.xy$cells.id == cell.id.ref.f) * n.particles.per.cell / length(unique(connectivity.temp.m$start.year)) ),
                                                       Year = y ) )
     }
     
@@ -83,31 +84,19 @@ stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 
 # -----------------------------------------
 
-# Save pairs to SQL 
+# Save pairs
 
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-dbWriteTable(sql, "Connectivity", all.connectivity.pairs.to.sql , overwrite=TRUE, append=FALSE)
-dbDisconnect(sql)
-
-rm(all.connectivity.pairs.to.sql) ; gc()
+save(all.connectivity.pairs.to.sql,file=paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates.RData"))
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
 
 # Direct Overall Connectivity matrix (mean of all years)
 
-resultsFolder <- "Results" # Results
-
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-Connectivity <- data.table(dbReadTable(sql, "Connectivity"))
-source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
-plot(source.sink.xy[,2:3] )
-dbDisconnect(sql)
-Connectivity
-
 # Subset Years
 # Connectivity <- Connectivity[ Year == 2017, ]
 
+Connectivity <- data.table(all.connectivity.pairs.to.sql)
 Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , sd(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , sd(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) , sd(Number.events, na.rm = TRUE) , max(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Max.Time" , "Mean.events" , "SD.events" , "Max.events" )
 Connectivity[is.na(Connectivity)] <- 0
@@ -120,11 +109,11 @@ plot(source.sink.xy[which(source.sink.xy$source == 1),2:3] )
 
 source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% source.sink.id,]
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
-write.big.matrix(source.sink.bm, paste0(project.folder,"/",resultsFolder,"/source.sink.bm"))
+write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm"))
 
 Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/",resultsFolder,"/Connectivity.bm")) 
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm")) 
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------
