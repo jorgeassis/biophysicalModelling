@@ -63,6 +63,15 @@ for(package in packages.to.use) {
 ## ---------------------------------------------------------------------------------------------------------------------
 ## Functions
 
+distinctColors <- function(n) {
+  library(RColorBrewer)
+  qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+  col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+  return(sample(col_vector, n))
+}
+
+## -------------------
+
 numberOfDays <- function(date) {
   m <- format(date, format="%m")
   

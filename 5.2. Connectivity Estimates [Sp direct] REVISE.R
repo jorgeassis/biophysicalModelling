@@ -5,14 +5,14 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-rm(list=(ls()[ls()!="v"]))
+rm(list=(ls()[ls()!="v"])) 
 gc(reset=TRUE)
-source("../0. Project Config [SS Connectivity].R")
+source("0. Project Config.R")
 source("Dependences.R")
 
 number.cores <- 10
 
-distance.probability <- read.big.matrix(paste0(project.folder,"/Results/Connectivity.Distance.bm"))
+distance.probability <- read.big.matrix(paste0(project.folder,"/Results/connectivityEstimatesAveraged.bm"))
 distance.probability <- data.table(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
 
