@@ -152,6 +152,18 @@ pdf( file=paste0(connectivityExportDir,"sitesNetworkClustering.pdf") , width = 1
 plot(graph.obj,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,edge.curved = F , color=cols.to.use , layout=l )
 dev.off()
 
+# To implete Yet !
+
+weights <- (((-log(comb[,3]) - (max(-log(comb[,3])))) * (-1)) / 100)
+weights <- comb[,3]
+weights.reclass <- weights / max(weights)
+weights.reclass[weights.reclass >= 0.75] <- 8
+weights.reclass[weights.reclass >= 0.5 & weights.reclass < 0.75] <- 4
+weights.reclass[weights.reclass >= 0.25 & weights.reclass < 0.5] <- 1
+weights.reclass[weights.reclass < 0.25 ] <- 0.25
+plot(get(clustering.method)(graph.obj),graph.obj,vertex.label.color="Black",vertex.label.family="Helvetica",edge.width=weights.reclass,edge.color="Black") 
+
+
 # Simplify
 
 graph.obj.simp <- graph.obj
