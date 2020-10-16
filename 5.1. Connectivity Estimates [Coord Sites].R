@@ -55,9 +55,9 @@ network <- produce.network("Prob",distance.probability,n.days,FALSE,10,source.si
 matrixConnectivityP <- matrix(NA,ncol=nrow(sampling.sites),nrow=nrow(sampling.sites))
 matrixConnectivityT <- matrix(NA,ncol=nrow(sampling.sites),nrow=nrow(sampling.sites))
 
-for( i in 1:nrow(matrixConnectivity) ) {
+for( i in 1:nrow(sampling.sites) ) {
   
-  for( j in 1:nrow(matrixConnectivity) ) {
+  for( j in 1:nrow(sampling.sites) ) {
     
     i.pair <- sampling.sites$pair[i]
     j.pair <- sampling.sites$pair[j]
@@ -68,6 +68,14 @@ for( i in 1:nrow(matrixConnectivity) ) {
     }
   }
 }
+
+colnames(matrixConnectivityP) <- sampling.sites$pair
+rownames(matrixConnectivityP) <- sampling.sites$pair
+colnames(matrixConnectivityT) <- sampling.sites$pair
+rownames(matrixConnectivityT) <- sampling.sites$pair
+
+matrixConnectivityP <- melt(matrixConnectivityP)
+matrixConnectivityT <- melt(matrixConnectivityT)
 
 ## -------------------------
 ## Stepping-stone Connectivity
@@ -105,7 +113,6 @@ potential.connectivity <- foreach(from=sampling.sites$pair, .verbose=FALSE, .pac
 stopCluster(cl.3) ; rm(cl.3) ; gc()
 
 connectivity <- do.call(rbind,potential.connectivity)
-connectivityMatrix <- acast(connectivity, pair.from ~ pair.to , value.var='connectivity', fun.aggregate=mean, margins=TRUE)
 
 ## -------------------------
 ## Export Connectivity
@@ -114,7 +121,7 @@ connectivityMatrix <- acast(connectivity, pair.from ~ pair.to , value.var='conne
 
 write.table(file=paste0(connectivityExportDir,"matrixDirectConnectivityP.csv"),x=matrixConnectivityP,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
 write.table(file=paste0(connectivityExportDir,"matrixDirectConnectivityT.csv"),x=matrixConnectivityT,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
-write.table(file=paste0(connectivityExportDir,"matrixSSConnectivityP.csv"),x=connectivityMatrix,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
+write.table(file=paste0(connectivityExportDir,"matrixSSConnectivityP.csv"),x=connectivity,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
 
 ## Graph
 
