@@ -5,6 +5,8 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
+Get no data polygons and get closest one - polygons without hexagon assigned!
+  
 rm( list=(ls()[ls()!="v"]) )
 gc(reset=TRUE)
 

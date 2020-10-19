@@ -40,7 +40,6 @@ buffer <- TRUE
 buffer.val <- 0.1
 
 sim.resolution <- 6 # https://github.com/uber/h3/blob/master/docs/core-library/restable.md
-sim.resolution.grid <- 0.005 # 6::0.01 https://www.usna.edu/Users/oceano/pguth/md_help/html/approx_equivalents.htm
 
 # -----------------------------------
 # Traits
