@@ -39,6 +39,7 @@ packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco",
                      "ggplot2",
                      "bigmemory",
                      "devtools",
+                     "spatstat",
                      "dismo",
                      "h3js",
                      "h3r",
@@ -62,6 +63,53 @@ for(package in packages.to.use) {
 ## ---------------------------------------------------------------------------------------------------------------------
 ## ---------------------------------------------------------------------------------------------------------------------
 ## Functions
+
+assignIDs <- function(coords) {
+  
+  coordinates(coords) <- ~Lon+Lat
+  crs(coords) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+  
+  assignments <- data.frame(Name=rep("",length(coords)))
+  loopNonInt <- TRUE
+  colors.plot <- character(length(assignments$Name))
+  colors.plot[which( assignments$Name == "")] <- "black"
+  
+  while(loopNonInt) {
+    
+    if(sum(assignments$Name != "") > 0) { 
+      
+      colors.names <- unique(assignments$Name)
+      colors.names <- colors.names[colors.names != ""]
+      colors.n <- length(colors.names)
+      colors.n.val <- distinctColors(colors.n)
+      
+      for( i in 1:colors.n) {
+        
+        colors.plot[which( assignments$Name == colors.names[i])] <- colors.n.val[i]
+        
+    } }
+    
+    plot(coords,pch=20,col=colors.plot)
+    poly <- spatstat::clickpoly(add=TRUE)
+    p = Polygon(cbind(poly$bdry[[1]]$x,poly$bdry[[1]]$y))
+    ps = Polygons(list(p),1)
+    sps = SpatialPolygons(list(ps))
+    crs(sps) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+    sps <- as(sps, "SpatialPolygons")
+    
+    assigned <- which(!is.na(over(coords,sps)))
+    name <- readline("Name? > ")
+    assignments[assigned,1] <- name
+    break.i <- readline("Assign more? [y/n] > ")
+    if( break.i != "y" ) { loopNonInt <- FALSE }
+    
+  }
+    
+  return( assignments )
+  
+}
+
+## -------------------
 
 distinctColors <- function(n) {
   library(RColorBrewer)

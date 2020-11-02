@@ -7,7 +7,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../Project Config 0.R")
 source("Dependences.R")
 
 number.cores <- 10
@@ -84,7 +84,7 @@ colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Prob
 
 # ----------------------------------
 
-extract.simulation.days <- 30
+extract.simulation.days <- 120
 distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
 
 x <- distance.probability.t$Distance
@@ -102,9 +102,10 @@ mainTheme <- theme(panel.grid.major = element_blank() ,
 
 p3 <- ggplot() +
   geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.2) +
-  theme_minimal() + mainTheme + xlab("Distance (km)") + ylab("Mean probability of connectivity") + 
+  theme_minimal() + mainTheme + xlab("Distance (km)") + ylab("Probability of connectivity") + 
   geom_vline(xintercept = quantile(x,probs=0.95), linetype="dashed",  color = "gray", size=0.5) +
   annotate(geom="text", x=quantile(x,probs=0.95)+10, y=max(plotData$y), label=paste0(round(quantile(x,probs=0.95)),"km [95% of particles]"),size=4,family="Helvetica", color = "#7F7F7F",hjust = 0)
+p3
 
 pdf( file=paste0(project.folder,"/Results/",project.name,"/Probability vs Distance ",extract.simulation.days," days.pdf"), width = 10, height = 8 )
 print(p3)
@@ -112,9 +113,10 @@ dev.off()
 
 # ----------------------------------
 
+tMax <- 120
 resultsTime <- data.frame()
 
-for( t in 1:30){
+for( t in 1:tMax){
   
   distance.probability.t <- distance.probability[Time.max <= t,]
   
@@ -135,15 +137,18 @@ plotData <- data.frame(x=resultsTime$time,y=resultsTime$maxdistance)
 p3 <- ggplot() +
   geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.5) +
   theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab("Maximum travelled distance (km)")
+p3
 
 pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Max Distance.pdf"), width = 10, height = 8 )
 print(p3)
 dev.off()
 
 plotData <- data.frame(x=resultsTime$time,y=resultsTime$meanprobability)
+plotData[1,2] <- plotData[2,2] + (plotData[2,2] - plotData[3,2])
 p3 <- ggplot() +
   geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.5) +
   theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab("Mean probability of connectivity")
+p3
 
 pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Mean Probability.pdf"), width = 10, height = 8 )
 print(p3)
@@ -153,7 +158,7 @@ dev.off()
 
 # Summary 1
 
-extract.simulation.days <- 30
+extract.simulation.days <- 120
 distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
 distance.probability.t[distance.probability.t >= 9e99999] <- NA
 

@@ -5,7 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../Project Config 0 Video.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -17,7 +17,7 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
-mainTitle <- "Laminaria pallida :: SW Africa"
+mainTitle <- "Potential connectivity :: Azores archipelago [Year 2017]"
 simulation.name <- project.name
 
 particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.x.desc"))
@@ -59,12 +59,13 @@ movie.sites.ids <- particles.reference.bm[particles.reference.bm$start.cell %in%
 
 # ---------------------------------------------------------------------------------------------------------
 
+videoBuffer <- 1
+
 if( is.null(landmass.shp)) { land.polygon <- getMap(resolution = "high") }
 if( ! is.null(landmass.shp)) { land.polygon <- shapefile(landmass.shp) }
 crs(land.polygon) <- dt.projection 
 land.polygon <- crop(land.polygon,shape)
-land.polygon@bbox <- as.matrix(extent(c(min.lon-3, max.lon+3,  min.lat+3,max.lat+3)))
-
+land.polygon@bbox <- as.matrix(extent(c(min.lon-videoBuffer, max.lon+videoBuffer,  min.lat+videoBuffer,max.lat+videoBuffer)))
 plot(land.polygon, col="grey")
 
 # ------------------
@@ -166,10 +167,11 @@ boxesSim <- data.frame(maxlat = max.lat,minlat = min.lat,maxlong = max.lon,minlo
 boxesSim <- transform(boxesSim, laby=(min.lat + min.lat )/2, labx=(max.lon+min.lon )/2)
 
 map <- ggplot() +
-  geom_polygon(data = land.polygon , fill = "#C4C4C4", colour = "#ffffff" , size=0.15 ,  aes(long, lat, group = group)) +
+  geom_polygon(data = land.polygon , fill = "#A6A6A6", colour = "#ffffff" , size=0.15 ,  aes(long, lat, group = group)) +
   geom_rect(data=boxes, aes(xmin=min.lon-2 , xmax=max.lon+2, ymin=min.lat-2, ymax=max.lat+2 ), color="transparent", fill="transparent") +
   geom_rect(data=boxesSim, aes(xmin=min.lon , xmax=max.lon, ymin=min.lat, ymax=max.lat ), color="Black", fill="transparent", linetype = "dashed",size=0.12) +
   coord_equal() + theme_map # coord_map(projection = "mercator")
+map
 
 print.day <- 0
 
@@ -198,9 +200,9 @@ for( t in 1:t.steps) {
   dev.off()
   
 }
-
-system( 'ffmpeg -s 1280x720 -i "/Volumes/Jellyfish/Dropbox/Manuscripts/Halodule connectivity patterns throughout West Africa//Results/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
-file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
+ 
+system( 'ffmpeg -s 1280x720 -i "/media/Bathyscaphe/Transport Simulation in the Azores/Results/Azores_D0/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Azores.mp4 -y' )
+# file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
 
 # ------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------

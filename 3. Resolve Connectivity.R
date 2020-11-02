@@ -7,7 +7,8 @@
 
 rm(list=(ls()[ls()!="v"])) 
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../Project Config 0.R")
+source("Dependences.R")
 
 ## --------------------------------------------------------------------------------------------------------------
 ##

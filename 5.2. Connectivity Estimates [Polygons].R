@@ -5,7 +5,271 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
+rm(list=(ls()[ls()!="v"]))
+gc(reset=TRUE)
+source("../Project Config 0.R")
+source("Dependences.R")
+
+## --------------------------------------------------------------------------------------------------------------
+##
+##
+## 
+## --------------------------------------------------------------------------------------------------------------
+
+if( ! "connectivityExport" %in% file.path(paste0(project.folder,"/Results/",project.name)) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport"))) }
+connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))
+
+## -------------------------
+
+additional.source.sink <- shapefile(additional.source.sink.shp)
+additional.source.sink <- additional.source.sink[,"ID"]
+writeOGR(obj=additional.source.sink, dsn=paste0(project.folder,"/Results/",project.name,"/"), layer="sourceSinkPolyg", driver="ESRI Shapefile") 
+
+## -------------------------
+
+distance.probability <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm") )
+distance.probability <- as.data.frame(distance.probability[,])
+colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
+distance.probability
+
+source.sink.xy <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm") )
+source.sink.xy <- as.data.frame(source.sink.xy[,])
+colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
+source.sink.xy
+
+## -------------------------
+
+## Sort connectivity estimates by polygon order
+
+sorted.ids <- data.frame(polygons.id=additional.source.sink$ID,pair=NA)
+
+for( i in 1:nrow(additional.source.sink)) {
+  
+  polygon.i <- additional.source.sink[i,]
+  polygon.i.centroid <- coordinates(polygon.i)
+  closest.match <- which.min(spDistsN1(as.matrix(source.sink.xy[,c("Lon","Lat")]),polygon.i.centroid))
+  sorted.ids[i,2] <- source.sink.xy[closest.match,"Pair"]
+  
+}
+
+head(sorted.ids)
+
+## -------------------------
+## Force all vectors
+
+missing.Pair.from <- sorted.ids$pair[which( ! sorted.ids$pair %in% distance.probability$Pair.from)]
+if( length(missing.Pair.from) > 0 ) {
+  for( i in 1:length(missing.Pair.from)) {
+    distance.probability <- rbind(distance.probability,distance.probability[1,])
+    distance.probability[nrow(distance.probability),"Pair.from"] <- missing.Pair.from[i]
+    distance.probability[nrow(distance.probability),3:11] <- 0
+  }
+}
+
+missing.Pair.to <- sorted.ids$pair[which( ! sorted.ids$pair %in% distance.probability$Pair.to)]
+if( length(missing.Pair.to) > 0 ) {
+  for( i in 1:length(missing.Pair.to)) {
+    distance.probability <- rbind(distance.probability,distance.probability[1,])
+    distance.probability[nrow(distance.probability),"Pair.to"] <- missing.Pair.to[i]
+    distance.probability[nrow(distance.probability),3:11] <- 0
+  }
+}
+
+## --------------------------------------------------------------------
+## --------------------------------------------------------------------
+
+## Assign IDs [e.g., region of interest] to sink.source sites
+
+source.sink.xy.ids <- assignIDs(source.sink.xy[,c("Lon","Lat")])
+sum(is.na(source.sink.xy.ids[,1]))
+save(source.sink.xy.ids, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.ids.RData"))
+
+source.sink.xy <- cbind(source.sink.xy,source.sink.xy.ids)
+
+unique(source.sink.xy.ids$Name)
+coords.centroid.ids <- data.frame(Name=unique(source.sink.xy.ids$Name),
+                                  Lon=c(-31.203339, -31.105835, -28.701468, -28.329306, -28.058767, -28.012076, -25.477667, -25.102516, -27.222877),
+                                  Lat=c(39.440657, 39.696841, 38.573669, 38.467299, 38.654148, 39.054118, 37.772072, 36.975784, 38.723658))
+
+save(coords.centroid.ids, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","coords.centroid.ids.RData"))
+
+## --------------------------------------------------------------------
+## --------------------------------------------------------------------
+
+## Attribute pairwise connectivity estimates for each polygon 
+
+n.days <- 30
+
+new.extent <- c(min(source.sink.xy[,2]),max(source.sink.xy[,2]),min(source.sink.xy[,3]),max(source.sink.xy[,3]))
+network <- produce.network("Prob",distance.probability,n.days,FALSE,10,source.sink.xy,new.extent)
+
+## -------------------------
+## Direct Connectivity
+
+library(reshape2)
+matrixConnectivityP.square <- acast(distance.probability[,c("Pair.from","Pair.to","Probability")], formula=Pair.from~Pair.to, fun.aggregate= mean , value.var="Probability",drop = FALSE)
+matrixConnectivityT.square <- acast(distance.probability[,c("Pair.from","Pair.to","Mean.Time")], formula=Pair.from~Pair.to,  fun.aggregate=mean, value.var="Mean.Time",drop = FALSE)
+
+dim(matrixConnectivityP)
+dim(matrixConnectivityT)
+
+matrixConnectivityP <- melt(matrixConnectivityP.square)
+matrixConnectivityT <- melt(matrixConnectivityT.square)
+
+## -------------------------
+## Stepping-stone Connectivity
+
+cl.3 <- makeCluster(number.cores) ; registerDoParallel(cl.3)
+
+matrixConnectivitySSP <- foreach(from=sorted.ids$pair, .verbose=FALSE, .packages=c("data.table","sp","gdistance","igraph")) %dopar% { 
+  
+  network.x <- network[[2]]
+  connectivity.x <- network[[1]]
+  res.connectivity.to <- numeric(0)
+  
+  for( to in sorted.ids$pair ) {
+    
+    possible.paths.y <- get.shortest.paths(network.x,as.character( from ) , as.character( to ),mode="out")$vpath
+    stones.t <- as.numeric(names(possible.paths.y[[1]]))
+    stones.t.interm <- cbind(stones.t[-length(stones.t)],stones.t[-1])
+    path.values <- apply( stones.t.interm , 1 , function(z) { connectivity.x[ connectivity.x[,1] == z[1] & connectivity.x[,2] == z[2] , 3 ][1] }   )
+    
+    if( length(path.values) > 0 ) { path.values <- apply( t(path.values) , 1 , prod ) }
+    if( length(path.values) == 0) { path.values <- 0 }
+    if( from == to ) { path.values <- connectivity.x[ connectivity.x[,1] == from & connectivity.x[,2] == to , 3 ][1]  }
+    
+    res.connectivity.to <- c(res.connectivity.to,path.values)
+    
+  }
+  
+  temp.res <- data.frame( pair.from = from,
+                          pair.to = sorted.ids$pair , 
+                          connectivity = res.connectivity.to)
+  return(temp.res)
+  
+}
+
+stopCluster(cl.3) ; rm(cl.3) ; gc()
+
+matrixConnectivitySSP <- do.call(rbind,matrixConnectivitySSP)
+matrixConnectivitySSP.square <- acast(matrixConnectivitySSP, formula=pair.from~pair.to, fun.aggregate= mean , value.var="connectivity",drop = FALSE)
+
+## -----------------------------------------
+## Export Connectivity
+
+# Square Matrix
+
+dim(matrixConnectivityP.square)
+dim(matrixConnectivityT.square)
+dim(matrixConnectivitySSP.square)
+
+matrixConnectivityP.square[is.na(matrixConnectivityP.square)] <- 0
+matrixConnectivityT.square[is.na(matrixConnectivityT.square)] <- 0
+matrixConnectivitySSP.square[is.na(matrixConnectivitySSP.square)] <- 0
+
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.square.csv"),x=matrixConnectivityP.square,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.square.csv"),x=matrixConnectivityT.square,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
+write.table(file=paste0(connectivityExportDir,"matrixConnectivitySSP.square.csv"),x=matrixConnectivitySSP.square,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
+
+# Pairs
+
+matrixConnectivityP[is.na(matrixConnectivityP)] <- 0
+matrixConnectivityT[is.na(matrixConnectivityT)] <- 0
+matrixConnectivitySSP[is.na(matrixConnectivitySSP)] <- 0
+
+colnames(matrixConnectivityP) <- c("From","To","Probability")
+colnames(matrixConnectivityT) <- c("From","To","Time")
+colnames(matrixConnectivitySSP) <- c("From","To","Probability")
+
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.csv"),x=matrixConnectivityP,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.csv"),x=matrixConnectivityT,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
+write.table(file=paste0(connectivityExportDir,"matrixConnectivitySSP.csv"),x=matrixConnectivitySSP,row.names=FALSE,col.names=FALSE,sep=";",dec=".")
+
+## -----------------------------------------
+## Plot connectivity [networks]
+
+graph.i <- network[[2]]
+
+## -----------------------------------------
+## Aggregate and plot network assignments
+
+matrixConnectivityP.agg <- data.frame(expand.grid(from=unique(source.sink.xy$Name),to=unique(source.sink.xy$Name)),val=NA)
+matrixConnectivityPSS.agg <- data.frame(expand.grid(from=unique(source.sink.xy$Name),to=unique(source.sink.xy$Name)),val=NA)
+matrixConnectivityT.agg <- data.frame(expand.grid(from=unique(source.sink.xy$Name),to=unique(source.sink.xy$Name)),val=NA)
+
+for ( i in 1:nrow(matrixConnectivityP.agg)) {
+  
+  from <- matrixConnectivityP.agg[i,1]
+  from <- source.sink.xy[source.sink.xy$Name == from,"Pair"]
+  to <- matrixConnectivityP.agg[i,2]
+  to <- source.sink.xy[source.sink.xy$Name == to,"Pair"]
+  
+  matrixConnectivityP.agg[i,3] <- mean(matrixConnectivityP[ matrixConnectivityP$From %in% from & matrixConnectivityP$To %in% to , "Probability" ])
+  matrixConnectivityPSS.agg[i,3] <- mean(matrixConnectivitySSP[ matrixConnectivitySSP$From %in% from & matrixConnectivitySSP$To %in% to , "Probability" ])
+  
+  timeVal <- matrixConnectivityT[ matrixConnectivityT$From %in% from & matrixConnectivityT$To %in% to , "Time" ]
+  timeVal <- mean(timeVal[timeVal != 0])
+  matrixConnectivityT.agg[i,3] <- timeVal
+
+}
+
+matrixConnectivityP.agg <- matrixConnectivityP.agg[ sort( matrixConnectivityP.agg$val , decreasing = TRUE, index.return =TRUE)$ix , ]
+matrixConnectivityPSS.agg <- matrixConnectivityPSS.agg[ sort( matrixConnectivityPSS.agg$val , decreasing = TRUE, index.return =TRUE)$ix , ]
+matrixConnectivityT.agg <- matrixConnectivityT.agg[ sort( matrixConnectivityT.agg$val , decreasing = TRUE, index.return =TRUE)$ix , ]
+
+# ----------
+
+comb <- matrixConnectivityP.agg
+graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
+E(graph.obj)$weight <- comb[,3]
+E(graph.obj)$weight = ifelse(-log(comb[,3]) == Inf,0,1/-log(comb[,3])) # Hock, Karlo Mumby, Peter J 2015
+
+graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
+graph.obj <- as.undirected(graph.obj, mode = "collapse", edge.attr.comb = "min") # min / mean / max
+graph.obj <- simplify(graph.obj)
+
+clustering.graph <- cluster_leading_eigen(graph.obj,options=list(maxiter=1000000))
+membership.graph <- clustering.graph$membership
+
+cols.to.use <- distinctColors(length(unique(membership.graph)))
+cols.to.use <- cols.to.use[membership.graph]
+V(graph.obj)$color <- cols.to.use
+l <- layout.fruchterman.reingold(graph.obj)
+
+lineThinkness <- E(graph.obj)$weight
+lineThinkness <- lineThinkness / max(lineThinkness)
+
+lineThinkness[ lineThinkness >= 0.5 ] <- 1
+lineThinkness[ lineThinkness < 0.5 & lineThinkness >= 0.1 ] <- 0.5
+lineThinkness[ lineThinkness < 0.1 & lineThinkness >= 0.01 ] <- 0.25
+lineThinkness[ lineThinkness < 0.01 & lineThinkness >= 0.001 ] <- 0.1
+lineThinkness[ lineThinkness < 0.001 & lineThinkness >= 0.0001 ] <- 0.05
+lineThinkness[ lineThinkness < 0.0001 ] <- 0.01
+
+pdf( file=paste0(connectivityExportDir,"idsNetworkClustering.pdf") , width = 10 )
+plot(graph.obj,edge.width=lineThinkness,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.size=10,edge.curved = F , color=cols.to.use , layout=l )
+dev.off()
+
+## -----------------------------------------
+## Map network assignments
+
+coords.centroid.ids
+
+get.vertex.attribute(graph.obj)
+
+## -----------------------------------------
+## Map connectivity [clusters]
+
+
+
+
+
+## -------------------------
+## -------------------------
+
 Get no data polygons and get closest one - polygons without hexagon assigned!
+  
+  
   
 rm( list=(ls()[ls()!="v"]) )
 gc(reset=TRUE)
@@ -14,7 +278,7 @@ library(rnaturalearth)
 library(geosphere)
 library(rgeos)
 
-source("0. Project Config.R")
+source("../Project Config 0.R")
 
 sql.project.name <- "MPA"
 number.cores <- 8
@@ -29,70 +293,6 @@ coordRef <- crs(shapefile(notakeMPA))
 ## ------------------------------------------------------------------------------------------------------------
 ## Read main sources
 
-sql <- dbConnect(RSQLite::SQLite(), sql.file)
-n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell[1]
-n.new.particles.per.day <- dbReadTable(sql, "Parameters")$n.new.particles.per.day[1]
-n.steps.per.day <- dbReadTable(sql, "Parameters")$n.hours.per.day[1]
-dbDisconnect(sql)
-
-source.sink.xy <- read.big.matrix("../Results/source.sink.bm")
-source.sink.xy <- data.table(source.sink.xy[,])
-colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
-source.sink.xy
-
-source.sink.xy.sp <- source.sink.xy[,2:3]
-coordinates(source.sink.xy.sp) <- ~Lon+Lat
-crs(source.sink.xy.sp) <- coordRef
-
-## ---------------------
-
-notakeMPA <- shapefile(notakeMPA)
-notakeMPA <- gBuffer(notakeMPA, byid=TRUE, width=0)
-worldMap <- ne_countries(scale = 10, returnclass = "sp")
-
-## --------------------------------------------------------------------
-## --------------------------------------------------------------------
-# Temporary Subset
-
-subseter <- c(-11.25,37.85,29.75,46.25)
-
-## ------------
-
-source.sink.xy <- source.sink.xy[source.sink.xy$Lon >= subseter[1] & source.sink.xy$Lon <= subseter[2] & source.sink.xy$Lat >= subseter[3] & source.sink.xy$Lat <= subseter[4], ]
-plot(source.sink.xy[,2:3])
-
-source.sink.xy.sp <- crop(source.sink.xy.sp,extent(subseter))
-notakeMPA <- crop(notakeMPA,extent(subseter))
-notakeMPA$ID <- 1:nrow(notakeMPA)
-worldMap <- crop(worldMap,extent(subseter + c(-20,20,-20,20))  ) 
-
-## -----------------
-
-plot(worldMap , col="Black",border="Black")
-plot(notakeMPA , col="Black",border="Black")
-
-## ------------------------------------------------------------------------------------------------------------------------------
-## Identify MPA id in source sink sites
-
-cl.2 <- makeCluster(6 , type="FORK")
-registerDoParallel(cl.2)
-
-source.sink.xy.mpa <- foreach( source.sink.xy.i = 1:nrow(source.sink.xy) , .verbose=FALSE, .combine = rbind ,  .packages=c("rgeos","raster","geosphere","FNN","bigmemory")) %dopar% { # 
-  
-  distances <- gDistance(source.sink.xy.sp[source.sink.xy.i], notakeMPA,byid=TRUE)
-  notakeMPAi <- notakeMPA[which.min(distances),]$ID
-  
-  return( data.frame( notakeMPAID = notakeMPAi  ) )
-  
-}
-
-stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
-
-source.sink.xy <- cbind(source.sink.xy[,.(Pair,Lon,Lat)],source.sink.xy.mpa)
-head(source.sink.xy)
-save(source.sink.xy,file="../Results/source.sink.xy.Rdata")
-
-load("../Results/source.sink.xy.Rdata")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
