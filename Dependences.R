@@ -77,6 +77,7 @@ reclassVals <- function(vals,valsMin,valsMax) {
   vals[ vals < 0.01 & vals >= 0.001 ] <- 0.1
   vals[ vals < 0.001 & vals >= 0.0001 ] <- 0.05
   vals[ vals < 0.0001 ] <- 0.01
+  return(vals)
 
 }
 

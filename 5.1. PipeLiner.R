@@ -25,16 +25,6 @@ n.days.max
 
 ## ----------------------------------------------------------------
 
-isolatedAll <- data.frame()
-betweennessAll <- data.frame()
-higherBetweennessAll <- data.frame()
-eighenCentralityAll <- data.frame()
-highereighenCentralityAll <- data.frame()
-closenessAll <- data.frame()
-higherclosenessAll <- data.frame()
-clusterAssignmentAll <- data.frame()
-resistanceAll <- data.frame()
-higherresistanceAll <- data.frame()
 
 if( type == "polygons") {
   
@@ -51,8 +41,9 @@ if( type == "polygons") {
   
 }
 
+n.repetitions <- c(1,5,30,60,120)
 
-for( n.days in (1,5,30,60,120)) {
+for( n.days in n.repetitions ) {
   
   if( type == "polygons" ) { source("5.1. Connectivity Estimates [Polygons].R") }
   if( type == "coordinates" ) { stop("Revise") ; source("5.1. Connectivity Estimates [Coord Sites].R") }
