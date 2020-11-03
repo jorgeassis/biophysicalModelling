@@ -35,6 +35,21 @@ length(cell.to.process) * n.particles.per.cell
   
 ## ------------------
 
+simulationDetails <- data.frame(sites=length(cell.to.process),
+                                particles.per.site=n.particles.per.cell,
+                                n.particles=length(cell.to.process) * n.particles.per.cell,
+                                n.steps.per.day=24 ,
+                                n.days=n.particles.per.cell,
+                                particles.longevity=global.simulation.parameters$longevity,
+                                particles.max.duration=global.simulation.parameters$particle.max.duration,
+                                particles.behaviour=global.simulation.parameters$behaviour,
+                                extent_minLonMaxLonminLatMaxLat=global.simulation.parameters$extent
+)
+
+write.table(t(simulationDetails),file=paste0(project.folder,"/Results/",project.name,"/","simulationDetails.csv"),col.names=FALSE,sep=";")
+
+## ------------------
+
 particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.reference.desc"))
 
 ## ------------------

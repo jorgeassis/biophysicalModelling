@@ -81,35 +81,46 @@ write.big.matrix(distance.probability, paste0(project.folder,"/Results/",project
 distance.probability <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedDistances.bm"))
 distance.probability <- data.table(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
+head(distance.probability)
 
 # ----------------------------------
 
-extract.simulation.days <- 120
-distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
+n.repetitions <- c(1,3,5,10,20,30,45,60,90,120)
 
-x <- distance.probability.t$Distance
-y <- distance.probability.t$Probability
+for( extract.simulation.days in n.repetitions) {
+    
+  n.days <- extract.simulation.days
 
-y <- y[x!=0 & x != Inf]
-x <- x[x!=0 & x != Inf]
+  if( ! paste0("connectivityExport") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) }
+  if( ! paste0("Sim",str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days"))) }
+  connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days/"))
 
-plotData <- data.frame(x=x,y=y)
-
-mainTheme <- theme(panel.grid.major = element_blank() ,
-                   text = element_text(size=12) ,
-                   axis.title.y = element_text(margin = margin(t = 0, r = 12, b = 0, l = 0)) ,
-                   axis.title.x = element_text(margin = margin(t = 12, r = 0, b = 0, l = 0)) )
-
-p3 <- ggplot() +
-  geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.2) +
-  theme_minimal() + mainTheme + xlab("Distance (km)") + ylab("Probability of connectivity") + 
-  geom_vline(xintercept = quantile(x,probs=0.95), linetype="dashed",  color = "gray", size=0.5) +
-  annotate(geom="text", x=quantile(x,probs=0.95)+10, y=max(plotData$y), label=paste0(round(quantile(x,probs=0.95)),"km [95% of particles]"),size=4,family="Helvetica", color = "#7F7F7F",hjust = 0)
-p3
-
-pdf( file=paste0(project.folder,"/Results/",project.name,"/Probability vs Distance ",extract.simulation.days," days.pdf"), width = 10, height = 8 )
-print(p3)
-dev.off()
+  distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
+  
+  x <- distance.probability.t$Distance
+  y <- distance.probability.t$Probability
+  
+  y <- y[x!=0 & x != Inf]
+  x <- x[x!=0 & x != Inf]
+  
+  plotData <- data.frame(x=x,y=y)
+  
+  mainTheme <- theme(panel.grid.major = element_blank() ,
+                     text = element_text(size=12) ,
+                     axis.title.y = element_text(margin = margin(t = 0, r = 12, b = 0, l = 0)) ,
+                     axis.title.x = element_text(margin = margin(t = 12, r = 0, b = 0, l = 0)) )
+  
+  p3 <- ggplot() +
+    geom_point(data = plotData, aes(x=x, y=y), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.2) +
+    theme_minimal() + mainTheme + xlab("Distance (km)") + ylab("Probability of connectivity") + 
+    geom_vline(xintercept = quantile(x,probs=0.95), linetype="dashed",  color = "gray", size=0.5) +
+    annotate(geom="text", x=quantile(x,probs=0.95)+10, y=max(plotData$y), label=paste0(round(quantile(x,probs=0.95)),"km [95% of particles]"),size=4,family="Helvetica", color = "#7F7F7F",hjust = 0)
+  
+  pdf( file=paste0(connectivityExportDir,"/Probability vs Distance ",extract.simulation.days," days.pdf"), width = 10, height = 8 )
+  print(p3)
+  dev.off()
+  
+}
 
 # ----------------------------------
 
@@ -156,28 +167,40 @@ dev.off()
 
 # ----------------------------------
 
-# Summary 1
+n.repetitions <- c(1,3,5,10,20,30,45,60,90,120)
 
-extract.simulation.days <- 120
-distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
-distance.probability.t[distance.probability.t >= 9e99999] <- NA
+for( extract.simulation.days in n.repetitions) {
+  
+    n.days <- extract.simulation.days
+  
+    if( ! paste0("connectivityExport") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) }
+    if( ! paste0("Sim",str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days"))) }
+    connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days/"))
+  
+    distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
+    distance.probability.t[distance.probability.t >= 9e99999] <- NA
+    
+    summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance,na.rm=T),3) , round(max(distance.probability.t$Probability,na.rm=T),3) , round(max(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
+                                   Mean    = c( round(mean(distance.probability.t$Distance,na.rm=T),3) , round(mean(distance.probability.t$Probability,na.rm=T),3) , round(mean(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
+                                   SD      = c( round(sd(distance.probability.t$Distance,na.rm=T),3) , round(sd(distance.probability.t$Probability,na.rm=T),3) , round(sd(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
+                                   Median  = c( round(median(distance.probability.t$Distance,na.rm=T),3) , round(median(distance.probability.t$Probability,na.rm=T),3) , round(median(distance.probability.t$Mean.Time,na.rm=T),3) ) )
+    row.names(summary.results) <- c("Distance","Probability","Time")
+    
+    write.csv(summary.results,file=paste0(connectivityExportDir,"summaryAverage.csv"))
+    
+    qt  <- quantile(distance.probability.t$Probability, probs = 0.95)
+    distance.probability.t <- distance.probability.t[ Probability >= qt , ]
+    
+    summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance,na.rm=T),3) , round(max(distance.probability.t$Probability),3) , round(max(distance.probability.t$Mean.Time),3) ) ,
+                                   Mean    = c( round(mean(distance.probability.t$Distance,na.rm=T),3) , round(mean(distance.probability.t$Probability),3) , round(mean(distance.probability.t$Mean.Time),3) ) ,
+                                   SD      = c( round(sd(distance.probability.t$Distance,na.rm=T),3) , round(sd(distance.probability.t$Probability),3) , round(sd(distance.probability.t$Mean.Time),3) ) ,
+                                   Median  = c( round(median(distance.probability.t$Distance,na.rm=T),3) , round(median(distance.probability.t$Probability),3) , round(median(distance.probability.t$Mean.Time),3) ) )
+    row.names(summary.results) <- c("Distance","Probability","Time")
+    write.csv(summary.results,file=paste0(connectivityExportDir,"summary95Percentile.csv"))
+  
+}
 
-summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance,na.rm=T),3) , round(max(distance.probability.t$Probability,na.rm=T),3) , round(max(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
-                               Mean    = c( round(mean(distance.probability.t$Distance,na.rm=T),3) , round(mean(distance.probability.t$Probability,na.rm=T),3) , round(mean(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
-                               SD      = c( round(sd(distance.probability.t$Distance,na.rm=T),3) , round(sd(distance.probability.t$Probability,na.rm=T),3) , round(sd(distance.probability.t$Mean.Time,na.rm=T),3) ) ,
-                               Median  = c( round(median(distance.probability.t$Distance,na.rm=T),3) , round(median(distance.probability.t$Probability,na.rm=T),3) , round(median(distance.probability.t$Mean.Time,na.rm=T),3) ) )
-row.names(summary.results) <- c("Distance","Probability","Time")
-summary.results
-
-qt  <- quantile(distance.probability.t$Probability, probs = 0.95)
-distance.probability.t <- distance.probability.t[ Probability >= qt , ]
-
-summary.results <- data.frame( Max     = c( round(max(distance.probability.t$Distance,na.rm=T),3) , round(max(distance.probability.t$Probability),3) , round(max(distance.probability.t$Mean.Time),3) ) ,
-                               Mean    = c( round(mean(distance.probability.t$Distance,na.rm=T),3) , round(mean(distance.probability.t$Probability),3) , round(mean(distance.probability.t$Mean.Time),3) ) ,
-                               SD      = c( round(sd(distance.probability.t$Distance,na.rm=T),3) , round(sd(distance.probability.t$Probability),3) , round(sd(distance.probability.t$Mean.Time),3) ) ,
-                               Median  = c( round(median(distance.probability.t$Distance,na.rm=T),3) , round(median(distance.probability.t$Probability),3) , round(median(distance.probability.t$Mean.Time),3) ) )
-row.names(summary.results) <- c("Distance","Probability","Time")
-summary.results
+# ----------------------------------
 
 # Identify which have a high threshold
 

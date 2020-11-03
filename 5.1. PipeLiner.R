@@ -20,28 +20,12 @@ pipeLiner <- TRUE
 type <- "polygons" # coordinates polygons
 
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
-n.days.max <- global.simulation.parameters
+n.days.max <- global.simulation.parameters$particle.max.duration
 n.days.max
 
 ## ----------------------------------------------------------------
 
-
-if( type == "polygons") {
-  
-  isolatedAgg <- data.frame()
-  betweennessAgg <- data.frame()
-  higherBetweennessAgg <- data.frame()
-  eighenCentralityAgg <- data.frame()
-  highereighenCentralityAgg <- data.frame()
-  closenessAgg <- data.frame()
-  higherclosenessAgg <- data.frame()
-  clusterAssignmentAgg <- data.frame()
-  resistanceAgg <- data.frame()
-  higherresistanceAgg <- data.frame()
-  
-}
-
-n.repetitions <- c(1,5,30,60,120)
+n.repetitions <- c(1,3,5,10,20,30,45,60,90,120)
 
 for( n.days in n.repetitions ) {
   
@@ -50,3 +34,5 @@ for( n.days in n.repetitions ) {
   
 }
 
+## --------------------------------------------------------------------------------------------------------------
+## --------------------------------------------------------------------------------------------------------------
