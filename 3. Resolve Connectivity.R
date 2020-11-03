@@ -5,7 +5,7 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-rm(list=(ls()[ls()!="v"])) 
+rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 source("../Project Config 0.R")
 source("Dependences.R")
@@ -116,67 +116,70 @@ Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connec
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
 write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm")) 
 
+
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------
-## Square matrices : Maybe limited in terms of memory
+## Assign connectivity estimates [source.sink site] to polygons [if the case]
 
-matrix.size <- length(unique(c(Connectivity$Pair.from,Connectivity$Pair.to)))
-Connectivity.matrix.probability <- matrix(NA,ncol=matrix.size,nrow=matrix.size)
+Connectivity <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm") )
+Connectivity <- as.data.frame(Connectivity[,])
+colnames(Connectivity) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
+Connectivity
 
-for(i in 1:matrix.size){
+source.sink.xy <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm") )
+source.sink.xy <- as.data.frame(source.sink.xy[,])
+colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
+source.sink.xy
+
+additional.source.sink <- shapefile(additional.source.sink.shp)
+additional.source.sink <- additional.source.sink[,"ID"]
+
+Connectivity.Poly <- expand.grid(From=additional.source.sink$ID,To=additional.source.sink$ID)
+nrow(Connectivity.Poly)
+
+cl.3 <- makeCluster(number.cores) ; registerDoParallel(cl.3)
+
+Connectivity.Poly.Vals <- foreach(i=1:nrow(Connectivity.Poly), .verbose=FALSE, .packages=c("sp","gdistance")) %dopar% { 
   
-  cell.from <- source.sink.xy$cells.id[i]
-  cells.to <- Connectivity[Connectivity$Pair.from %in% cell.from,Pair.to]
-  if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
+  From <- Connectivity.Poly[i,"From"]
+  To <- Connectivity.Poly[i,"To"]
   
-  Connectivity.matrix.probability[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Mean.Probability]
+  polygon.from <- coordinates(additional.source.sink[additional.source.sink$ID == From,])
+  polygon.to <- coordinates(additional.source.sink[additional.source.sink$ID == To,])
   
+  distances.from <- spDistsN1(as.matrix(source.sink.xy[,c("Lon","Lat")]),polygon.from)
+  distances.to <- spDistsN1(as.matrix(source.sink.xy[,c("Lon","Lat")]),polygon.to)
+  
+  distance.probability.i <- Connectivity[Connectivity$Pair.from %in% source.sink.xy[which(distances.from == min(distances.from)),"Pair"] & Connectivity$Pair.to %in% source.sink.xy[which(distances.to == min(distances.to)),"Pair"],]
+  
+  if(nrow(distance.probability.i) == 0 ) {
+    return(NULL)
+  }
+  
+  if(nrow(distance.probability.i) > 0 ) {
+    distance.probability.i <- t(data.frame(apply(distance.probability.i,2,mean)))
+    rownames(distance.probability.i) <- NULL
+    distance.probability.i <- data.frame(Pair.from.old=distance.probability.i[1,1],Pair.to.old=distance.probability.i[1,2],distance.probability.i)
+    distance.probability.i[1,3] <- From
+    distance.probability.i[1,4] <- To
+    rownames(distance.probability.i) <- NULL
+    return(distance.probability.i)
+  }
+
 }
 
-Connectivity.matrix.probability.bm <- as.big.matrix(as.matrix(Connectivity.matrix.probability))
-write.big.matrix(Connectivity.matrix.probability.bm, paste0(project.folder,"/Results/Connectivity.matrix.probability.bm"))
+stopCluster(cl.3) ; rm(cl.3) ; gc()
 
-rm(Connectivity.matrix.probability) ; rm(Connectivity.matrix.probability.bm) ; gc()
+Connectivity.Poly <- do.call(rbind,Connectivity.Poly.Vals)
 
-## --------------------------------
+## ---------------------
 
-Connectivity.matrix.time <- matrix(NA,ncol=matrix.size,nrow=matrix.size)
+source.sink.xy <- data.frame(Pair=additional.source.sink[,"ID"],Lon=as.data.frame(gCentroid(additional.source.sink,byid=TRUE))[,1],Lat=as.data.frame(gCentroid(additional.source.sink,byid=TRUE))[,2],Source=1)
+source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
+write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.Polys.bm"))
 
-for(i in 1:matrix.size){
-  
-  cell.from <- source.sink.xy$cells.id[i]
-  cells.to <- Connectivity[Connectivity$Pair.from %in% cell.from,Pair.to]
-  
-  if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
-  
-  Connectivity.matrix.time[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Mean.Time]
-  
-}
-
-Connectivity.matrix.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.time))
-write.big.matrix(Connectivity.matrix.time.bm, paste0(project.folder,"/Results/Connectivity.matrix.time.bm"))
-
-rm(Connectivity.matrix.time) ; rm(Connectivity.matrix.time.bm) ; gc()
-
-## --------------------------------
-
-Connectivity.matrix.max.time <- matrix(NA,ncol=matrix.size,nrow=matrix.size)
-
-for(i in 1:matrix.size){
-  
-  cell.from <- source.sink.xy$cells.id[i]
-  cells.to <- Connectivity[Connectivity$Pair.from %in% cell.from,Pair.to]
-  
-  if( length(cell.from) == 0 | length(cells.to) == 0 ) { next }
-  
-  Connectivity.matrix.max.time[cell.from,cells.to] <- Connectivity[Connectivity$Pair.from %in% cell.from,Max.Time]
-  
-}
-
-Connectivity.matrix.max.time.bm <- as.big.matrix(as.matrix(Connectivity.matrix.max.time))
-write.big.matrix(Connectivity.matrix.max.time.bm, paste0(project.folder,"/Results/Connectivity.matrix.max.time.bm"))
-
-rm(Connectivity.matrix.max.time) ; rm(Connectivity.matrix.max.time.bm) ; gc()
+Connectivity.bm <- as.big.matrix(as.matrix(Connectivity.Poly[,-c(1,2)]))
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys.bm")) 
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------

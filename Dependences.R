@@ -15,11 +15,8 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco", "geosphere","httr",
                      "gstat",
-                     
                      "fasterize",
                      "spdep",
-                     
-                     
                      "rworldxtra",
                      "rworldmap",
                      "cleangeo",
@@ -43,7 +40,10 @@ packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco",
                      "dismo",
                      "h3js",
                      "h3r",
-                     "h3")
+                     "h3",
+                     "reshape2",
+                    "stringr"
+                     )
 
 for(package in packages.to.use) {
   sink("/dev/null") 
@@ -63,6 +63,24 @@ for(package in packages.to.use) {
 ## ---------------------------------------------------------------------------------------------------------------------
 ## ---------------------------------------------------------------------------------------------------------------------
 ## Functions
+
+## -------------------
+
+reclassVals <- function(vals,valsMin,valsMax) {
+  
+  vals <- vals - valsMin
+  vals <- vals / valsMax
+  
+  vals[ vals >= 0.5 ] <- 2.25
+  vals[ vals < 0.5 & vals >= 0.1 ] <- 0.5
+  vals[ vals < 0.1 & vals >= 0.01 ] <- 0.25
+  vals[ vals < 0.01 & vals >= 0.001 ] <- 0.1
+  vals[ vals < 0.001 & vals >= 0.0001 ] <- 0.05
+  vals[ vals < 0.0001 ] <- 0.01
+
+}
+
+## -------------------
 
 assignIDs <- function(coords) {
   

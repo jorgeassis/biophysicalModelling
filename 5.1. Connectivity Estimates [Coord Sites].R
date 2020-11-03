@@ -16,8 +16,16 @@ source("Dependences.R")
 ## 
 ## --------------------------------------------------------------------------------------------------------------
 
-if( ! "connectivityExport" %in% file.path(paste0(project.folder,"/Results/",project.name)) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport"))) }
-connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))
+if( ! exists("pipeLiner") ) { 
+  
+  n.days <- 30
+  
+}
+
+## -------------------------
+
+if( ! paste0("connectivityExport","_",n.days,"Days") %in% file.path(paste0(project.folder,"/Results/",project.name)) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport","_",n.days,"Days/"))) }
+connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport","_",n.days,"Days/"))
 
 ## -------------------------
 
@@ -26,9 +34,10 @@ colnames(sampling.sites) <- c("Code","Lon","Lat")
 
 ## -------------------------
 
-distance.probability <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm") )
-distance.probability <- as.data.frame(distance.probability[,])
-colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
+Connectivity <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys.bm") )
+Connectivity <- as.data.frame(distance.probability[,])
+colnames(Connectivity) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
+Connectivity[ which(Connectivity[,"Time.max"] > n.days) , "Probability" ] <- 0
 
 source.sink.xy <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm") )
 source.sink.xy <- as.data.frame(source.sink.xy[,])
@@ -43,8 +52,6 @@ sampling.sites <- data.frame(h3Address=sampling.sites.address,pair=sampling.site
 write.table(file=paste0(connectivityExportDir,"samplingSites.csv"),x=sampling.sites,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
 
 ## -------------------------
-
-n.days <- 30
 
 new.extent <- c(min(source.sink.xy[,2]),max(source.sink.xy[,2]),min(source.sink.xy[,3]),max(source.sink.xy[,3]))
 network <- produce.network("Prob",distance.probability,n.days,FALSE,10,source.sink.xy,new.extent)
