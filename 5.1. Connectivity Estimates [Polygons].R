@@ -261,7 +261,8 @@ l <- source.sink.xy[sapply(get.vertex.attribute(network)$name,function(x) { whic
 l <- as.matrix(l)
 
 pdf( file=paste0(connectivityExportDir,"networkClusteringCoords.pdf") , width = 10 )
-plot(network,edge.width=lineThinkness,vertex.label=NA,vertex.size=2,edge.curved = F , color=cols.to.use , layout=l,pch=20 , main="Network linkage and clustering")
+plot(network,edge.width=lineThinkness,vertex.label=NA,vertex.size=2,edge.curved = F , color=cols.to.use , layout=l,pch=20)
+title("Network linkage and clustering",cex.main=0.75)
 dev.off()
 
 additional.source.sink$Membership <- sapply(additional.source.sink$ID,function(x) { network.membership[which(get.vertex.attribute(network)$name == x)] })
@@ -493,7 +494,8 @@ l <- layout_nicely(network)
 lineThinkness <- reclassVals(E(network)$weight,min(E(network)$weight),max(E(network)$weight))
   
 pdf( file=paste0(connectivityExportDir,"networkClusteringRegions.pdf") , width = 10 )
-plot(network,main="Network linkage and clustering" , edge.width=lineThinkness,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.size=10,edge.curved = F , color=cols.to.use , layout=l )
+plot(network,edge.width=lineThinkness,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.size=10,edge.curved = F , color=cols.to.use , layout=l )
+title("Network linkage and clustering",cex.main=0.75)
 dev.off()
 
 # ----------
@@ -502,7 +504,8 @@ l <- coords.centroid.ids[sapply(get.vertex.attribute(network)$name,function(x) {
 l <- as.matrix(l)
 
 pdf( file=paste0(connectivityExportDir,"networkClusteringRegionsCoords.pdf") , width = 10 )
-plot(network,main="Network linkage and clustering" ,edge.width=lineThinkness,vertex.label.dist=2,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.size=10,edge.curved = F , color=cols.to.use , layout=l )
+plot(network,edge.width=lineThinkness,vertex.label.dist=2,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.size=10,edge.curved = F , color=cols.to.use , layout=l )
+title("Network linkage and clustering",cex.main=0.75)
 dev.off()
 
 ## -------------------------------------------------------------
@@ -567,14 +570,14 @@ mainTheme <- theme(panel.grid.major = element_blank() ,
                    axis.title.x = element_text(margin = margin(t = 12, r = 0, b = 0, l = 0)) )
 
 p3 <- ggplot(data=data.frame(links=unique(linkage.export),sum=sapply(unique(linkage.export),function(x) { sum( linkage.export == x)  })), aes(x=links, y=sum)) +
-      geom_bar(stat="identity", fill="#236292") + ylab("Number of sites") + xlab("Number of connections between sites [export]") + mainTheme
+      geom_bar(stat="identity", fill="#236292") + ylab("Number of sites") + xlab("Number of connections between regions [export]") + mainTheme
 
 pdf( file=paste0(connectivityExportDir,"networkAverageConnectionsRegionsExport.pdf") , width = 10 )
 print(p3)
 dev.off()
 
 p3 <- ggplot(data=data.frame(links=unique(linkage.import),sum=sapply(unique(linkage.import),function(x) { sum( linkage.import == x)  })), aes(x=links, y=sum)) +
-      geom_bar(stat="identity", fill="#236292") + ylab("Number of sites") + xlab("Number of connections between sites [import]") + mainTheme
+      geom_bar(stat="identity", fill="#236292") + ylab("Number of sites") + xlab("Number of connections between regions [import]") + mainTheme
 
 pdf( file=paste0(connectivityExportDir,"networkAverageConnectionsRegionsImport.pdf") , width = 10 )
 print(p3)
