@@ -6,7 +6,7 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("../Project Config 4.R") 
+source("../Project Config 1.R") # source("0. Project Config.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -141,12 +141,19 @@ ggplot() + geom_sf(data = polygons.shore, fill="Black", colour="Black", size=0.1
 ## --------------------------------------
 ## Get source sink locations
 
-cl <- makeCluster(number.cores)
-clusterExport(cl, c("hexagons.address.shore","h3_to_geo_boundary"))
-source.sink.hexagons <- parApply(cl,data.frame(hexagons.address.shore),1, function(x) { data.frame(address=x,h3_to_geo_boundary(x[[1]])[[1]][,c("lng","lat")]) })
-stopCluster(cl) 
+if(source.sink.loc.type == "peripheral") {
+    cl <- makeCluster(number.cores)
+    clusterExport(cl, c("hexagons.address.shore","h3_to_geo_boundary"))
+    source.sink.hexagons <- parApply(cl,data.frame(hexagons.address.shore),1, function(x) { data.frame(address=x,h3_to_geo_boundary(x[[1]])[[1]][,c("lng","lat")]) })
+    stopCluster(cl) 
+    source.sink.hexagons <- do.call(rbind, source.sink.hexagons)
+}
 
-source.sink.hexagons <- do.call(rbind, source.sink.hexagons)
+if(source.sink.loc.type == "centroid") {
+  source.sink.hexagons <- st_centroid(polygons.shore)
+  source.sink.hexagons <- data.frame(lng=st_coordinates(source.sink.hexagons)[,1],lat=st_coordinates(source.sink.hexagons)[,2],address=hexagons.address.shore)
+}
+
 source.sink.hexagons <- source.sink.hexagons[!duplicated(source.sink.hexagons[,c("lng","lat")]),]
 coordinates( source.sink.hexagons) = ~lng+lat
 crs(source.sink.hexagons) <- dt.projection
@@ -179,62 +186,23 @@ if( ! is.null(additional.source.sink.shp) ) {
     crs(additional.shp) <- dt.projection
     additional.shp <- st_as_sf(additional.shp)
 
-    hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  polyfill(additional.shp[x,"ID"], sim.resolution + 1), sim.resolution + 1) }))
+    hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  polyfill(additional.shp[x,"ID"], sim.resolution + 1), sim.resolution  ) })) # ?? h3_to_parent :: sim.resolution + 1 
     # plot(h3_to_geo_boundary_sf(hexagons.address.additional))
-    
-    if( ! additional.source.sink.shp.force.shore ) {
-        
+  
+    if(source.sink.loc.type == "peripheral") {
       source.sink.hexagons.additional <- lapply(hexagons.address.additional ,function(x) { data.frame(address=x,h3_to_geo_boundary(x)[[1]][,c("lng","lat")]) })
       source.sink.hexagons.additional <- do.call(rbind, source.sink.hexagons.additional)
       source.sink.hexagons.additional <- source.sink.hexagons.additional[!duplicated(source.sink.hexagons.additional[,c("lng","lat")]),]
-      
-      # Correct for parent assignment
-      
-      to.correct <- unlist(apply( source.sink.xy[c("x","y")] , 1 , function(x) {  which(source.sink.hexagons.additional$lng == x[[1]] & source.sink.hexagons.additional$lat == x[[2]] ) } ))
-      
-      if(length(to.correct) > 0) {
-        for(j in 1:length(to.correct)) {
-          index.i <- which(source.sink.xy$x == source.sink.hexagons.additional[to.correct[j],"lng"] & source.sink.xy$y == source.sink.hexagons.additional[to.correct[j],"lat"])
-          source.sink.hexagons.additional[to.correct[j],"address"] <- source.sink.xy[index.i,"cells.id"]
-        }
-      }
-
-      additional.pts.i <- data.frame(cells.id=source.sink.hexagons.additional$address,x=source.sink.hexagons.additional$lng,y=source.sink.hexagons.additional$lat,source=1,stringsAsFactors = FALSE)
-      source.sink.xy <- source.sink.xy[ ! source.sink.xy$cells.id %in% additional.pts.i$cells.id,]
-      
     }
     
-    if( additional.source.sink.shp.force.shore ) {
-      
-      stop("REVIEW!!!!")
-      
-      hexagons.address.additional.i <- character(0)
-      
-      for( x in hexagons.address.additional ) {
-        
-        dist <- h3_distance(origin = x, hexagons.address.shore)
-        hexagons.address.shore.i <- hexagons.address.shore
-        
-        if(-1 %in% dist) { 
-          hexagons.address.shore.i <- hexagons.address.shore[-which(dist == -1)]
-          dist <- dist[-which(dist == -1)] }
-
-        dist <- dist[which(!hexagons.address.shore.i %in% hexagons.address.additional.i)]
-        hexagons.address.shore.i <- hexagons.address.shore.i[which(!hexagons.address.shore.i %in% hexagons.address.additional.i)]
-        hexagons.address.additional.i <- c(hexagons.address.additional.i,hexagons.address.shore.i[ which.min(dist) ])
-
-      }
-      
-      if(length(hexagons.address.additional.i) != length(hexagons.address.additional)) { stop("Error :: 009")}
-      if( sum(! hexagons.address.additional.i %in% hexagons.address.shore ) > 0) { stop("Error :: 010")}
-      
-      hexagons.address.additional <- hexagons.address.additional.i
-
-      additional.pts.i <- source.sink.xy[ source.sink.xy$cells.id %in% hexagons.address.additional,]
-      additional.pts.i$source <- 1
-      source.sink.xy <- source.sink.xy[ ! source.sink.xy$cells.id %in% additional.pts.i$cells.id,]
-      
+    if(source.sink.loc.type == "centroid") {
+      source.sink.hexagons.additional <- h3_to_geo_boundary_sf(hexagons.address.additional)
+      source.sink.hexagons.additional <- st_centroid(source.sink.hexagons.additional)
+      source.sink.hexagons.additional <- data.frame(lng=st_coordinates(source.sink.hexagons.additional)[,1],lat=st_coordinates(source.sink.hexagons.additional)[,2],address=hexagons.address.additional)
     }
+
+    additional.pts.i <- data.frame(cells.id=source.sink.hexagons.additional$address,x=source.sink.hexagons.additional$lng,y=source.sink.hexagons.additional$lat,source=1,stringsAsFactors = FALSE)
+    source.sink.xy <- source.sink.xy[ ! source.sink.xy$cells.id %in% additional.pts.i$cells.id,]
     
     ## ----------
 
@@ -273,6 +241,7 @@ if( ! is.null(unwanted.release.sites.shp) ) {
 ## ---------------
 
 if(sum(duplicated(source.sink.xy[,c("x","y")])) > 0) { stop("Error :: 007") }
+if(sum(duplicated(source.sink.xy[,"cells.id"])) > 0) { stop("Error :: 008") }
 
 ## -----------------------------------------------------
 ## Give new ids
@@ -331,7 +300,6 @@ if( ! is.null(movie.sites.xy) ) {
   
 }
 
-
 ## ------------------------------------------------------------------------------------------------------------------------------
 ##
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -385,6 +353,7 @@ particles.reference[ , cell.rafted := 0 ]
 particles.reference[ , at.sea := 0 ]
 
 particles.reference.names <- colnames(particles.reference)
+unique.start.cells <- unique(unlist(particles.reference[,2]))
 
 setkey(particles.reference, id )
 head(particles.reference)
@@ -392,15 +361,18 @@ nrow(particles.reference)
 
 ## --------------------------------------------------------
 
+save.image(file='../Environment.RData')
+## rm(list=(ls()[ls()!="v"])); gc(reset=TRUE); load('../Environment.RData')
+
+## -------------------------------------------------------- 
+
 ## Out of memory objects
 
 if(! dir.exists(paste0(project.folder,"/Results/",project.name))) { dir.create(paste0(project.folder,"/Results/",project.name)) }
 if(! dir.exists(paste0(project.folder,"/Results/",project.name,"/InternalProc"))) { dir.create(paste0(project.folder,"/Results/",project.name,"/InternalProc")) }
-if(! dir.exists(paste0(project.folder,"/Results/",project.name,"/SQL"))) { dir.create(paste0(project.folder,"/Results/",project.name,"/SQL")) }
 
 clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
 clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
-clean.dump.files(clean.dump.files=TRUE,files="particles.video.location.",dump.folder=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
 
 particles.reference.bm <- big.matrix(nrow=nrow(particles.reference),ncol=ncol(particles.reference) , backingpath=paste0(project.folder,"Results/",project.name,"/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
 particles.reference.bm.desc <- dget( paste0(project.folder,"Results/",project.name,"/InternalProc/particles.reference.desc"))
@@ -418,21 +390,7 @@ particles.reference.bm[,7] <- unlist(particles.reference[,7])
 if( ! is.null(movie.sites.xy) ) {
   
   particles.video.id <- particles.reference[ start.cell %in% movie.sites.id , id ]
-  
-  particles.video.location.x.bm <- filebacked.big.matrix( nrow = length(particles.video.id), 
-                                                          ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
-                                                          backingfile = "particles.video.location.x.bin",
-                                                          descriptorfile = "particles.video.location.x.desc",
-                                                          backingpath=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
-                                    
-  particles.video.location.y.bm <- filebacked.big.matrix( nrow = length(particles.video.id), 
-                                                          ncol = ( sum(simulation.parameters.step[,3] == movie.year) * n.hours.per.day ), 
-                                                          backingfile = "particles.video.location.y.bin",
-                                                          descriptorfile = "particles.video.location.y.desc",
-                                                          backingpath=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
-
-  particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.x.desc"))
-  particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.y.desc"))
+  particles.video.location.dt <- data.table()
   
 }
 
@@ -462,7 +420,7 @@ save(global.simulation.parameters, file = paste0(project.folder,"/Results/",proj
 
 ## -----------------------
 
-rm(particles.reference.bm) ; rm(particles.reference) ; rm(coordsAll) ; rm(coordsOcean) ; rm(worldmap.r) ; rm(coordsLand) ; rm(additional.shp.r) ; rm(polygons.all) ; rm(polygons.ocean) ; rm(hexagons.land); rm(centroid.all)
+rm(particles.reference.bm) ; rm(particles.reference) ; rm(polygons.all) ; rm(polygons.ocean) ; rm(hexagons.land); rm(centroid.all)
 gc(reset=TRUE)
 memory.profile()
 head(list.memory())
@@ -470,13 +428,8 @@ head(list.memory())
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
 
-## save.image(file='../Environment.RData')
-## rm(list=(ls()[ls()!="v"])); gc(reset=TRUE); load('../Environment.RData')
-
-## -------------------------------------------
-
 ## Start Simulation
-
+ 
 start_time <- Sys.time()
 
 time.i <- character(nrow(simulation.parameters.step))
@@ -493,7 +446,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   progress.percent <- round((simulation.step / nrow(simulation.parameters.step)) * 100)
   time.take.step.all <- round(as.numeric(difftime(time.i[simulation.step], time.i[1], units = "mins")))
   time.take.step.min <- round(as.numeric(difftime(time.i[simulation.step], time.i[simulation.step.previous], units = "mins")))
-  
+   
   cat('\014')
   cat('\n')
   cat('\n Running step #',simulation.step,'| Time taken',time.take.step.min," (total: ",time.take.step.all,")",' mins.')
@@ -581,6 +534,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   
   ## --------------------------------------------------------
   
+  # Environmental data [Can be subsetd in dopar ]
+  
   nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
   time.start.day <- ncvar_get( nc.file, "Date" )
   time.start.day <- as.Date(time.start.day, origin = "1970-01-01") 
@@ -648,302 +603,322 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   speed.u.sec.coords <- raw.data.u[,1:2]
   speed.v.sec.coords <- raw.data.v[,1:2]
   
-  ## --------------------------------------------------------
-  ## --------------------------------------------------------
+  ## --------------------------------------------------------------------------------
+  ## --------------------------------------------------------------------------------
   
-  particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
+  parallelChunk <- data.frame(chunk=sapply(1:number.cores,function(x) { rep(x,round(length(unique.start.cells) / number.cores)) } )[1:length(unique.start.cells)],
+                              sounce.sink.ids=unique.start.cells)
   
-  # -----------------------------------------------
+  if( FALSE %in% (unique.start.cells %in% parallelChunk$sounce.sink.ids ) ) { stop("Error :: 1999") }
   
-  particles.reference.moving.i <- mwhich(particles.reference.bm.all,c(9),list(1), list('eq') )
-  particles.reference.moving.dt <- data.table(matrix(particles.reference.bm.all[particles.reference.moving.i, ],ncol=length(particles.reference.names)))
-  colnames(particles.reference.moving.dt) <- particles.reference.names
+  Cluster <- makeCluster( number.cores ) 
+  registerDoParallel(number.cores) 
   
-  ## --------------------------------------------------------
-  ## Move particles (per day)
-  
-  for( h in 1:n.hours.per.day ) {
+  parallelProcess <- foreach(chunk=1:number.cores, .verbose=FALSE, .packages=c("raster","rgeos","dismo","SDMTools")) %dopar% {
     
-    t.step <- ((as.numeric(simulation.step)-1) * n.hours.per.day) + h
+    start.cell.i <- parallelChunk[parallelChunk$chunk == chunk,2]
+    
+    particles.reference.bm.all <- attach.big.matrix(particles.reference.bm.desc)
+    particles.reference.dt.video <- data.table()
     
     # -----------------------------------------------
-    # Release new particles, if that is the case
     
-    if( norm.time[t.step,release.particles] ) {   
-    
-      # [ !! Slow Process !! ]
-      
-      particles.reference.new.i <- mwhich(particles.reference.bm.all,c(9),list(0), list('eq') )
-      particles.reference.new.i <- data.table(matrix(particles.reference.bm.all[particles.reference.new.i,c(1,2,6)],ncol=3))        
-      particles.reference.new.i <- particles.reference.new.i[ , .SD[1] , by=V3][,V1]
-      
-      # particles.reference.names
-      
-      particles.reference.new <- data.table(matrix(particles.reference.bm.all[particles.reference.new.i, ],ncol=length(particles.reference.names)))
-      colnames(particles.reference.new) <- particles.reference.names
-      
-      particles.reference.new[ , 9 ] <- 1
-      particles.reference.new[ , 10 ] <- t.step
-      particles.reference.new[ , 3 ] <- as.numeric(simulation.year)
-      particles.reference.new[ , 4 ] <- as.numeric(simulation.month)
-      particles.reference.new[ , 5 ] <- as.numeric(simulation.day)
-      
-      setkey(particles.reference.moving.dt,id)
-      particles.reference.moving.dt <-  rbindlist(list(particles.reference.moving.dt, particles.reference.new))
-      
-    }
+    particles.reference.moving.i <- unlist(sapply(start.cell.i,function(x) { mwhich(particles.reference.bm.all,c(2,9),list(x,1), list('eq','eq') , op = "AND") } ))
+    particles.reference.moving.dt <- data.table(matrix(particles.reference.bm.all[particles.reference.moving.i, ],ncol=length(particles.reference.names)))
+    colnames(particles.reference.moving.dt) <- particles.reference.names
     
     ## --------------------------------------------------------
+    ## Move particles (per day)
     
-    moving.particles.condition <- nrow(particles.reference.moving.dt) > 0
-    
-    # --------
-    
-    if( ! moving.particles.condition ) { next }
-    
-    if(   moving.particles.condition ) {
+    for( h in 1:n.hours.per.day ) {
       
-      setkey(particles.reference.moving.dt,id)
-      moving.particles.id <- as.vector(unlist(particles.reference.moving.dt[, "id"]))
-      points.to.interp <- particles.reference.moving.dt[, .(pos.lon,pos.lat,id)]
-      
-      # plot(speed.u.sec.coords) ; points(points.to.interp[, .(pos.lon,pos.lat)],col="Red")
-      
-      source.points.to.interp.u <- data.frame(x=speed.u.sec.coords[,1],y=speed.u.sec.coords[,2],var=speed.u.sec[,h])
-      source.points.to.interp.v <- data.frame(x=speed.v.sec.coords[,1],y=speed.v.sec.coords[,2],var=speed.v.sec[,h])
-      
-      # Interpolate speed
-      
-      idwPower <- 2
-      idwN <- 3
-      
-      idw.nearest.r <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp[,.(pos.lon,pos.lat)], k=idwN , algorithm="kd_tree" )
-      idw.nearest.i <- idw.nearest.r$nn.index
-      idw.nearest.d <- idw.nearest.r$nn.dist
-      idw.nearest.d <- idw.nearest.d * 1e9
-      
-      number.cores.opt <- ifelse(round(nrow(points.to.interp) / 2500) > number.cores , number.cores , round(nrow(points.to.interp) / 2500) )
-      number.cores.opt <- ifelse(number.cores.opt == 0, 1, number.cores.opt)
-      
-      cl <- makeCluster(number.cores.opt)
-      clusterExport(cl, c("source.points.to.interp.u","source.points.to.interp.v","idw.nearest.i","idw.nearest.d","idwPower"))
-      speed.u <- parSapply(cl,1:nrow(points.to.interp), function(pt.i) { (sum( source.points.to.interp.u[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower , na.rm=T)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower)) })
-      speed.v <- parSapply(cl,1:nrow(points.to.interp), function(pt.i) { (sum( source.points.to.interp.v[idw.nearest.i[pt.i,],3] / idw.nearest.d[pt.i,]^idwPower , na.rm=T)) / (sum( 1 / idw.nearest.d[pt.i,]^idwPower)) })
-      stopCluster(cl)
-
-      if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { stop("Error [!]") }
-      
-      mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
-      mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
-      
-      # Assign temporary positions
-      
-      dLon <- mov.eastward / ( 6378137 * cos( pi * (  points.to.interp[,.(pos.lat)]  / 180) ) )
-      dLat <- mov.northward / 6378137
-      dLon <- points.to.interp[,pos.lon] + dLon * 180/pi 
-      dLat <- points.to.interp[,pos.lat] + dLat * 180/pi
+      t.step <- ((as.numeric(simulation.step)-1) * n.hours.per.day) + h
       
       # -----------------------------------------------
+      # Release new particles, if that is the case
       
-      setkey(particles.reference.moving.dt,id)
-      particles.reference.moving.dt[,6] <- dLon
-      particles.reference.moving.dt[,7] <- dLat
-
-      # -----------------------------------------------
-      # Test over sea hexagons
-    
-      setkey(particles.reference.moving.dt,id)
-      points.to.test <- particles.reference.moving.dt[, .(pos.lat,pos.lon)]
-    
-      cl <- makeCluster(number.cores)
-      clusterExport(cl, c("points.to.test","geo_to_h3","sim.resolution"))
-      hexagons.address.test <- parSapply(cl,1:nrow(points.to.test), function(x) { unique( geo_to_h3(points.to.test[x,], sim.resolution) ) })
-      stopCluster(cl)
-
-      particles.on.sea <- which( hexagons.address.test %in% hexagons.address.ocean )
-      particles.on.sea.id <- as.vector(moving.particles.id[particles.on.sea])
-      setkey(particles.reference.moving.dt,id)
-      particles.reference.moving.dt[ id %in% particles.on.sea.id , at.sea := 1  ]
-      
-      # -----------------------------------------------
-      # Particles over land hexagons
-      
-      particles.on.land <- which( hexagons.address.test %in% hexagons.address.land )
-      particles.on.land.id <- as.vector(moving.particles.id[particles.on.land])
-      particles.on.land.condition <- length(particles.on.land) > 0
-
-      if( particles.on.land.condition ) {    
+      if( norm.time[t.step,release.particles] ) {   
         
-        cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.land.id, "start.cell"]))
-        who.at.land.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.land.id, "t.start"]))
+        particles.reference.new.i <- unlist(sapply(start.cell.i,function(x) { mwhich(particles.reference.bm.all,c(2,9),list(x,0), list('eq','eq') , op = "AND") } ))
+        particles.reference.new.i <- data.table(matrix(particles.reference.bm.all[particles.reference.new.i,c(1,2,6)],ncol=3))        
+        particles.reference.new.i <- particles.reference.new.i[ , .SD[1] , by=V3][,V1]
         
-        points.on.land.t <- particles.reference.moving.dt[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
-        setkey(points.to.interp,id)
-        points.on.land.t.minus <- points.to.interp[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
-
-        cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.land.t.minus, k=1 , algorithm="kd_tree" )$nn.index
-        cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
+        # particles.reference.names
         
-        displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
+        particles.reference.new <- data.table(matrix(particles.reference.bm.all[particles.reference.new.i, ],ncol=length(particles.reference.names)))
+        colnames(particles.reference.new) <- particles.reference.names
         
-        # True Rafters [Distinct cell]
-        
-        true.rafters.id <- particles.on.land.id[ displacement != 0 ]
-        true.rafters.cell <- cells.rafted[ displacement != 0 ]
+        particles.reference.new[ , 9 ] <- 1
+        particles.reference.new[ , 10 ] <- t.step
+        particles.reference.new[ , 3 ] <- as.numeric(simulation.year)
+        particles.reference.new[ , 4 ] <- as.numeric(simulation.month)
+        particles.reference.new[ , 5 ] <- as.numeric(simulation.day)
         
         setkey(particles.reference.moving.dt,id)
-        particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
-        particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
-        particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
-        
-        # False Rafters [same cell of origin]
-        
-        setkey(particles.reference.moving.dt,id)
-        non.rafters.id <- particles.on.land.id[ displacement == 0 ]
-        non.rafters.cell <- cells.started[ displacement == 0 ]
-        
-        particles.reference.moving.dt[ id %in% non.rafters.id , state := 2 ]
-        particles.reference.moving.dt[ id %in% non.rafters.id , cell.rafted := as.numeric(non.rafters.cell) ]
-        particles.reference.moving.dt[ id %in% non.rafters.id , t.finish := as.numeric(t.step) ]
-        
-        # Allow for relocation when rafting at t.step == t.start
-        
-        non.rafters.t <- who.at.land.t.start[ displacement == 0 ] == t.step
-        
-        if( TRUE %in% non.rafters.t & allow.back.to.origin ) {
-
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := points.on.land.t.minus[ id %in% non.rafters.id[non.rafters.t] , pos.lon] ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := points.on.land.t.minus[ id %in% non.rafters.id[non.rafters.t] , pos.lat] ]
-
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 1 ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(0) ]
-          particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(0) ]
-          
-        }
+        particles.reference.moving.dt <-  rbindlist(list(particles.reference.moving.dt, particles.reference.new))
         
       }
-      
-      # -----------------------------------------------
-      # Particles over shore hexagons [ includes additional shapefile hexagons, if the case]
-      
-      particles.on.shore <- which( hexagons.address.test %in% hexagons.address.shore )
-      particles.on.shore.id <- as.vector(moving.particles.id[particles.on.shore])
-      particles.on.shore.condition <- length(particles.on.shore) > 0
-      
-      if( particles.on.shore.condition ) {    
-        
-        cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "start.cell"]))
-        who.at.shore.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "t.start"]))
-        
-        points.on.shore.t <- particles.reference.moving.dt[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
-        setkey(points.to.interp,id)
-        points.on.land.t.minus <- points.to.interp[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
-        
-        cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.land.t.minus, k=1 , algorithm="kd_tree" )$nn.index
-        cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
-        
-        displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
-        
-        # True Rafters [Distinct cell]
-        
-        true.rafters.id <- particles.on.shore.id[ displacement != 0 ]
-        true.rafters.cell <- cells.rafted[ displacement != 0 ]
-        
-        setkey(particles.reference.moving.dt,id)
-        particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
-        particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
-        particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
-        
-        # False Rafters [same cell of origin]
-        
-        non.rafters.id <- particles.on.shore.id[ displacement == 0 ]
-        non.rafters.id.at.sea.once <- particles.reference.moving.dt[ id %in% non.rafters.id & at.sea == 1, id ]
-        non.rafters.cell <- as.vector(unlist(particles.reference.moving.dt[id %in% non.rafters.id.at.sea.once, "start.cell"]))
-        
-        if( length(non.rafters.id.at.sea.once) > 0 ) {    
-          
-          particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , state := 2 ]
-          particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once, cell.rafted := as.numeric(non.rafters.cell) ]
-          particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , t.finish := as.numeric(t.step) ]
-          
-        }
-
-      }
-
-      # -----------------------------------------------
-      # Out of space (study region), if TRUE, place particles on hold
-      
-      out.of.space <- dLon > max.lon | dLon < min.lon | dLat > max.lat | dLat < min.lat
-      out.of.space.ids.1 <- moving.particles.id[out.of.space]
-      out.of.space.ids.2 <- moving.particles.id[which(! moving.particles.id %in% particles.on.land.id & ! moving.particles.id %in% particles.on.shore.id & ! moving.particles.id %in% particles.on.sea.id)]
-      out.of.space.ids <- unique(c(out.of.space.ids.1,out.of.space.ids.2))
-      
-      setkey(particles.reference.moving.dt,id)
-      particles.reference.moving.dt[ id %in% out.of.space.ids , state := 3  ]
-      
-    }
-    
-    # -----------------------------------------------
-    # End of day, Kill by Longevity
-    
-    if ( longevity ) {   
-      
-      max.duration.id <- particles.reference.moving.dt[ ( t.step - t.start ) > ( n.hours.per.day * particle.max.duration ) , id ]
-      setkey(particles.reference.moving.dt, id )
-      particles.reference.moving.dt[ id %in% max.duration.id , state := 4 ]
-      
-    }
-    
-    ## ---------------------------------------------------------------
-    ## Save positions to Video matrix (if condition matched) 
-    
-    if( ! is.null(movie.sites.xy) & movie.year == as.numeric(simulation.year) ) {
       
       ## --------------------------------------------------------
       
-      particles.video.location.x.bm.i <- attach.big.matrix(particles.video.location.x.bm.desc)
-      particles.video.location.y.bm.i <- attach.big.matrix(particles.video.location.y.bm.desc)
+      moving.particles.condition <- nrow(particles.reference.moving.dt) > 0
       
-      ## --------------------------------------------------------
+      # --------
       
-      setkey(particles.reference.moving.dt,id)
-      particles.video.id.moving <- particles.reference.moving.dt[ state == 1 & id %in% particles.video.id,id]
-      particles.video.id.moving.condition <- length(particles.video.id.moving) > 0
+      if( ! moving.particles.condition ) { stop("!") }
       
-      if( particles.video.id.moving.condition ) { 
-        
-        t.step.movie <- ((as.numeric(which( which(as.numeric(simulation.parameters.step[,3]) == movie.year) == simulation.step))-1) * n.hours.per.day) + h
+      if(   moving.particles.condition ) {
         
         setkey(particles.reference.moving.dt,id)
-        particles.video.location.x.bm.i[ which(particles.video.id %in% particles.video.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.video.id.moving,pos.lon])
-        particles.video.location.y.bm.i[ which(particles.video.id %in% particles.video.id.moving) , t.step.movie ] <- unlist(particles.reference.moving.dt[ id %in% particles.video.id.moving,pos.lat])
+        moving.particles.id <- as.vector(unlist(particles.reference.moving.dt[, "id"]))
+        points.to.interp <- particles.reference.moving.dt[, .(pos.lon,pos.lat,id)]
+        
+        # plot(speed.u.sec.coords) ; points(points.to.interp[, .(pos.lon,pos.lat)],col="Red")
+        
+        speed.subseter <- which(speed.u.sec.coords[,1] >= points.to.interp$pos.lon - 2.5 & speed.u.sec.coords[,1] <= points.to.interp$pos.lon + 2.5 & speed.u.sec.coords[,2] >= points.to.interp$pos.lat - 2.5 & speed.u.sec.coords[,2] <= points.to.interp$pos.lat + 2.5)
+        
+        source.points.to.interp.u <- data.frame(x=speed.u.sec.coords[speed.subseter,1],y=speed.u.sec.coords[speed.subseter,2],var=speed.u.sec[speed.subseter,h])
+        source.points.to.interp.v <- data.frame(x=speed.v.sec.coords[speed.subseter,1],y=speed.v.sec.coords[speed.subseter,2],var=speed.v.sec[speed.subseter,h])
+        
+        # plot(source.points.to.interp.u[,1:2]) ; points(points.to.interp[, .(pos.lon,pos.lat)],col="Red")
+        
+        # Interpolate speed
+        
+        idwPower <- 2
+        idwN <- 3
+        
+        idw.nearest.r <- get.knnx( source.points.to.interp.v[,1:2] , points.to.interp[,.(pos.lon,pos.lat)], k=idwN , algorithm="kd_tree" )
+        idw.nearest.i <- idw.nearest.r$nn.index
+        idw.nearest.d <- idw.nearest.r$nn.dist
+        idw.nearest.d <- idw.nearest.d * 1e9
+        
+        speed.u <- apply(matrix(source.points.to.interp.u[idw.nearest.i,3],ncol=3) / idw.nearest.d^idwPower,1,sum) / apply(1 / idw.nearest.d^idwPower,1,sum)
+        speed.v <- apply(matrix(source.points.to.interp.v[idw.nearest.i,3],ncol=3) / idw.nearest.d^idwPower,1,sum) / apply(1 / idw.nearest.d^idwPower,1,sum)
+        
+        if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { stop("Error [!]") }
+        
+        mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
+        mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
+        
+        # Assign temporary positions
+        
+        dLon <- mov.eastward / ( 6378137 * cos( pi * (  points.to.interp[,.(pos.lat)]  / 180) ) )
+        dLat <- mov.northward / 6378137
+        dLon <- points.to.interp[,pos.lon] + dLon * 180/pi 
+        dLat <- points.to.interp[,pos.lat] + dLat * 180/pi
+        
+        # -----------------------------------------------
+        
+        setkey(particles.reference.moving.dt,id)
+        particles.reference.moving.dt[,6] <- dLon
+        particles.reference.moving.dt[,7] <- dLat
+        
+        # -----------------------------------------------
+        # Test over sea hexagons
+        
+        setkey(particles.reference.moving.dt,id)
+        points.to.test <- particles.reference.moving.dt[, .(pos.lat,pos.lon)]
+        
+        hexagons.address.test <- sapply(1:nrow(points.to.test), function(x) { unique( geo_to_h3(points.to.test[x,], sim.resolution) ) })
+        
+        particles.on.sea <- which( hexagons.address.test %in% hexagons.address.ocean )
+        particles.on.sea.id <- as.vector(moving.particles.id[particles.on.sea])
+        setkey(particles.reference.moving.dt,id)
+        particles.reference.moving.dt[ id %in% particles.on.sea.id , at.sea := 1  ]
+        
+        # -----------------------------------------------
+        # Particles over land hexagons
+        
+        particles.on.land <- which( hexagons.address.test %in% hexagons.address.land )
+        particles.on.land.id <- as.vector(moving.particles.id[particles.on.land])
+        particles.on.land.condition <- length(particles.on.land) > 0
+        
+        if( particles.on.land.condition ) {    
+          
+          cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.land.id, "start.cell"]))
+          who.at.land.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.land.id, "t.start"]))
+          
+          points.on.land.t <- particles.reference.moving.dt[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
+          setkey(points.to.interp,id)
+          points.on.land.t.minus <- points.to.interp[ id %in% particles.on.land.id , .(pos.lon,pos.lat) ]
+          
+          cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.land.t.minus, k=1 , algorithm="kd_tree" )$nn.index
+          cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
+          
+          displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
+          
+          # True Rafters [Distinct cell]
+          
+          true.rafters.id <- particles.on.land.id[ displacement != 0 ]
+          true.rafters.cell <- cells.rafted[ displacement != 0 ]
+          
+          setkey(particles.reference.moving.dt,id)
+          particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
+          particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
+          particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
+          
+          # False Rafters [same cell of origin]
+          
+          setkey(particles.reference.moving.dt,id)
+          non.rafters.id <- particles.on.land.id[ displacement == 0 ]
+          non.rafters.cell <- cells.started[ displacement == 0 ]
+          
+          particles.reference.moving.dt[ id %in% non.rafters.id , state := 2 ]
+          particles.reference.moving.dt[ id %in% non.rafters.id , cell.rafted := as.numeric(non.rafters.cell) ]
+          particles.reference.moving.dt[ id %in% non.rafters.id , t.finish := as.numeric(t.step) ]
+          
+          # Allow for relocation when rafting at t.step == t.start
+          
+          non.rafters.t <- who.at.land.t.start[ displacement == 0 ] == t.step
+          
+          if( TRUE %in% non.rafters.t & allow.back.to.origin ) {
+            
+            particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lon := points.on.land.t.minus[ id %in% non.rafters.id[non.rafters.t] , pos.lon] ]
+            particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , pos.lat := points.on.land.t.minus[ id %in% non.rafters.id[non.rafters.t] , pos.lat] ]
+            
+            particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , state := 1 ]
+            particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , cell.rafted := as.numeric(0) ]
+            particles.reference.moving.dt[ id %in% non.rafters.id[non.rafters.t] , t.finish := as.numeric(0) ]
+            
+          }
+          
+        }
+        
+        # -----------------------------------------------
+        # Particles over shore hexagons [ includes additional shapefile hexagons, if the case]
+        
+        particles.on.shore <- which( hexagons.address.test %in% hexagons.address.shore )
+        particles.on.shore.id <- as.vector(moving.particles.id[particles.on.shore])
+        particles.on.shore.condition <- length(particles.on.shore) > 0
+        
+        if( particles.on.shore.condition ) {    
+          
+          cells.started <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "start.cell"]))
+          who.at.shore.t.start <- as.vector(unlist(particles.reference.moving.dt[id %in% particles.on.shore.id, "t.start"]))
+          
+          points.on.shore.t <- particles.reference.moving.dt[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
+          setkey(points.to.interp,id)
+          points.on.shore.t.minus <- points.to.interp[ id %in% particles.on.shore.id , .(pos.lon,pos.lat) ]
+          
+          cells.rafted <- get.knnx( source.sink.xy[,c("x","y")], points.on.shore.t.minus, k=1 , algorithm="kd_tree" )$nn.index
+          cells.rafted <- source.sink.xy[cells.rafted,"cells.id"]
+          
+          displacement <- apply( cbind( cells.started, cells.rafted) , 1 , function(x) { x[2] - x[1]} )
+          
+          # True Rafters [Distinct cell]
+          
+          true.rafters.id <- particles.on.shore.id[ displacement != 0 ]
+          true.rafters.cell <- cells.rafted[ displacement != 0 ]
+          
+          setkey(particles.reference.moving.dt,id)
+          particles.reference.moving.dt[ id %in% true.rafters.id , state := 2 ]
+          particles.reference.moving.dt[ id %in% true.rafters.id , cell.rafted := as.numeric(true.rafters.cell) ]
+          particles.reference.moving.dt[ id %in% true.rafters.id , t.finish := as.numeric(t.step) ]
+          
+          # False Rafters [same cell of origin]
+          
+          non.rafters.id <- particles.on.shore.id[ displacement == 0 ]
+          non.rafters.id.at.sea.once <- particles.reference.moving.dt[ id %in% non.rafters.id & at.sea == 1, id ]
+          non.rafters.cell <- as.vector(unlist(particles.reference.moving.dt[id %in% non.rafters.id.at.sea.once, "start.cell"]))
+          
+          if( length(non.rafters.id.at.sea.once) > 0 ) {    
+            
+            # Retention if off and then in cell
+            
+            particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , state := 2 ]
+            particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once, cell.rafted := as.numeric(non.rafters.cell) ]
+            particles.reference.moving.dt[ id %in% non.rafters.id.at.sea.once , t.finish := as.numeric(t.step) ]
+            
+          }
+          
+        }
+        
+        # -----------------------------------------------
+        # Out of space (study region), if TRUE, place particles on hold
+        
+        out.of.space <- dLon > max.lon | dLon < min.lon | dLat > max.lat | dLat < min.lat
+        out.of.space.ids.1 <- moving.particles.id[out.of.space]
+        out.of.space.ids.2 <- moving.particles.id[which(! moving.particles.id %in% particles.on.land.id & ! moving.particles.id %in% particles.on.shore.id & ! moving.particles.id %in% particles.on.sea.id)]
+        out.of.space.ids <- unique(c(out.of.space.ids.1,out.of.space.ids.2))
+        
+        setkey(particles.reference.moving.dt,id)
+        particles.reference.moving.dt[ id %in% out.of.space.ids , state := 3  ]
         
       }
+      
+      # -----------------------------------------------
+      # End of day, Kill by Longevity
+      
+      if ( longevity ) {   
+        
+        max.duration.id <- particles.reference.moving.dt[ ( t.step - t.start ) > ( n.hours.per.day * particle.max.duration ) , id ]
+        setkey(particles.reference.moving.dt, id )
+        particles.reference.moving.dt[ id %in% max.duration.id , state := 4 ]
+        
+      }
+      
+      ## ---------------------------------------------------------------
+      ## Save positions to video DT (if condition matched) 
+      
+      if( ! is.null(movie.sites.xy) & movie.year == as.numeric(simulation.year) ) {
+        
+        setkey(particles.reference.moving.dt,id)
+        particles.video.id.moving <- particles.reference.moving.dt[ state == 1 & id %in% particles.video.id,id]
+        particles.video.id.moving.condition <- length(particles.video.id.moving) > 0
+        
+        if( particles.video.id.moving.condition ) { 
+          
+          t.step.movie <- ((as.numeric(which( which(as.numeric(simulation.parameters.step[,3]) == movie.year) == simulation.step))-1) * n.hours.per.day) + h
+          setkey(particles.reference.moving.dt,id)
+          particles.reference.dt.video <- rbindlist(list(particles.reference.dt.video,data.table(t.step.movie=t.step.movie,year=simulation.year,month=simulation.month,day=simulation.day,particle.id=particles.video.id.moving,pos.lon=particles.reference.moving.dt[ id %in% particles.video.id.moving,pos.lon],pos.lat=particles.reference.moving.dt[ id %in% particles.video.id.moving,pos.lat])))
+          
+        }
+      }
+      
     }
+    
+    return( list(moving.dt=as.data.frame(particles.reference.moving.dt), video.dt=as.data.frame(particles.reference.dt.video)) )
     
   }
+  
+  stopCluster(Cluster) ; rm(Cluster)
   
   ## ---------------------------------------------------
   ## Inject particles to final object [ particles.reference.bm.all ] 
   
-  setkey(particles.reference.moving.dt,id)
-  particles.reference.bm.all.inject <- attach.big.matrix(particles.reference.bm.desc)
-  sect.loop <- particles.reference.moving.dt[ state != 0 , ]
+  moving.dt <- data.frame()
+  video.dt <- data.frame()
+  
+  for(i in 1:length(parallelProcess)) {
+    
+    if(is.null(parallelProcess[[i]]$moving.dt)) { stop("Error :: 100019")}
+    moving.dt <- rbindlist(list(moving.dt,parallelProcess[[i]]$moving.dt)) 
+    video.dt <- rbindlist(list(video.dt,parallelProcess[[i]]$video.dt)) 
+    
+  }
 
-  particles.reference.bm.all.inject[ sect.loop$id , 3 ] <- as.numeric(unlist(sect.loop[  , "start.year"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 4 ] <- as.numeric(unlist(sect.loop[  , "start.month"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 5 ] <- as.numeric(unlist(sect.loop[  , "start.day"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 6 ] <- as.numeric(unlist(sect.loop[  , "pos.lon"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 7 ] <- as.numeric(unlist(sect.loop[  , "pos.lat"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 9 ] <- as.numeric(unlist(sect.loop[  , "state"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 10 ] <- as.numeric(unlist(sect.loop[  , "t.start"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 11 ] <- as.numeric(unlist(sect.loop[  , "t.finish"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 12 ] <- as.numeric(unlist(sect.loop[  , "cell.rafted"] ))
-  particles.reference.bm.all.inject[ sect.loop$id , 13 ] <- as.numeric(unlist(sect.loop[  , "at.sea"] ))
+  moving.dt <- moving.dt[ state != 0 , ]
+
+  particles.reference.bm.all.inject <- attach.big.matrix(particles.reference.bm.desc)
   
-  rm(particles.reference.moving.dt)
-  rm(sect.loop)
+  particles.reference.bm.all.inject[ moving.dt$id , 3 ] <- as.numeric(unlist(moving.dt[  , "start.year"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 4 ] <- as.numeric(unlist(moving.dt[  , "start.month"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 5 ] <- as.numeric(unlist(moving.dt[  , "start.day"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 6 ] <- as.numeric(unlist(moving.dt[  , "pos.lon"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 7 ] <- as.numeric(unlist(moving.dt[  , "pos.lat"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 9 ] <- as.numeric(unlist(moving.dt[  , "state"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 10 ] <- as.numeric(unlist(moving.dt[  , "t.start"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 11 ] <- as.numeric(unlist(moving.dt[  , "t.finish"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 12 ] <- as.numeric(unlist(moving.dt[  , "cell.rafted"] ))
+  particles.reference.bm.all.inject[ moving.dt$id , 13 ] <- as.numeric(unlist(moving.dt[  , "at.sea"] ))
   
+  if( nrow(video.dt) > 0 ) {
+    
+    particles.video.location.dt <- rbindlist(list(particles.video.location.dt,video.dt)) 
+
+  }
+
+  rm(moving.dt); rm(video.dt); rm(parallelProcess)
   gc(reset=TRUE)
   
 }
@@ -953,7 +928,7 @@ end_time - start_time
 
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
-# Save Reference Table in SQL
+# Save Reference
 
 # Erase those that did not acomplish 
 # 0 unborne 
@@ -982,6 +957,13 @@ head(ReferenceTable)
 nrow(ReferenceTable)
 
 save(ReferenceTable, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","ReferenceTable.RData"))
+
+## -----------------
+## -----------------
+
+if(exists("particles.video.location.dt")) {
+  save(particles.video.location.dt, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","videoLocations.RData"))
+}
 
 ## ------------------------------------------------------------------------------------------------------------------
 # Time taken

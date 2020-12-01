@@ -17,23 +17,15 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
+load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","videoLocations.RData"))
+head(particles.video.location.dt)
+tail(particles.video.location.dt)
+
 mainTitle <- "Potential connectivity :: Azores archipelago [Year 2017]"
 simulation.name <- project.name
 
-particles.video.location.x.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.x.desc"))
-particles.video.location.y.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.video.location.y.desc"))
-
-particles.lon <- attach.big.matrix(particles.video.location.x.bm.desc)
-particles.lat <- attach.big.matrix(particles.video.location.y.bm.desc)
-
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
-
-# if(class(movie.sites.xy) == "character") { movie.sites.xy <- as.data.frame(shapefile(movie.sites.xy))[,2:3] }
-# 
-# movie.sites.xy <- movie.sites.xy[complete.cases(movie.sites.xy),]
-# movie.sites.id <- sort( as.vector(get.knnx( source.sink.xy[ source.sink.xy$source == 1,c("x","y") ] , movie.sites.xy , k = 1 + movie.sites.buffer , algorithm="kd_tree" )$nn.index) )
-# movie.sites.id <-  source.sink.xy[ source.sink.xy$source == 1, "cells.id" ][movie.sites.id]
 
 sim.extent <-unique(as.numeric(unlist(strsplit(global.simulation.parameters$extent, split=","))))
 movie.year <- global.simulation.parameters$movie.year
@@ -54,8 +46,9 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"Results/",project.na
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm <- data.frame(particles.reference.bm[,])
 colnames(particles.reference.bm) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted","ocean")
-
 movie.sites.ids <- particles.reference.bm[particles.reference.bm$start.cell %in% movie.sites.id, "id" ]
+
+particles.video.location.dt$pos.lon
 
 # ---------------------------------------------------------------------------------------------------------
 
@@ -89,7 +82,7 @@ days.months <- data.frame(
 
 # ------------------------------------------------------------------------------------------------------
 
-t.steps <- ncol(particles.lat)
+t.steps <- max(particles.video.location.dt$t.step.movie)
 change.day.vect <- rep(1:unique(n.hours.per.day),length.out=t.steps+unique(sim.every.hours))[1:t.steps]
 change.day <- rep(FALSE,length(change.day.vect))
 change.day[change.day.vect == 1] <- TRUE
@@ -110,6 +103,7 @@ cells.colors <- data.frame(cell=cells.colors,color=distinctColors(length(cells.c
 # Aggregate colors
 
 coords.cell <- do.call("rbind",apply(data.frame(cells.colors$cell),1,function(x) source.sink.xy[source.sink.xy$cells.id %in% x , c("cells.id","x","y") ]))
+
 
 dist <- spDists( as.matrix( coords.cell[,2:3] ) , as.matrix(coords.cell[,2:3] ) )
 dist <- as.dist(dist)

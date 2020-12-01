@@ -54,7 +54,7 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.n
 
 ## ------------------
 
-cl.2 <- makeCluster(10 , type="FORK")
+cl.2 <- makeCluster(number.cores)
 registerDoParallel(cl.2)
 
 all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
@@ -99,7 +99,6 @@ all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose
 stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 
 # -----------------------------------------
-
 # Save pairs
 
 save(all.connectivity.pairs.to.sql,file=paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates.RData"))
@@ -130,7 +129,6 @@ write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,
 Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
 write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm")) 
-
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------
