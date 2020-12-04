@@ -48,7 +48,9 @@ particles.reference.bm <- data.frame(particles.reference.bm[,])
 colnames(particles.reference.bm) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted","ocean")
 movie.sites.ids <- particles.reference.bm[particles.reference.bm$start.cell %in% movie.sites.id, "id" ]
 
-particles.video.location.dt$pos.lon
+# ----------------------
+
+particles.video.location.dt[,"start.cell"] <- particles.reference.bm[match(particles.video.location.dt$particle.id,particles.reference.bm$id),"start.cell"]
 
 # ---------------------------------------------------------------------------------------------------------
 
@@ -102,28 +104,19 @@ cells.colors <- data.frame(cell=cells.colors,color=distinctColors(length(cells.c
 # ---------------------------------
 # Aggregate colors
 
-coords.cell <- do.call("rbind",apply(data.frame(cells.colors$cell),1,function(x) source.sink.xy[source.sink.xy$cells.id %in% x , c("cells.id","x","y") ]))
-
-
-dist <- spDists( as.matrix( coords.cell[,2:3] ) , as.matrix(coords.cell[,2:3] ) )
-dist <- as.dist(dist)
-mds.coor <- cmdscale(dist)
-plot(mds.coor)
-plot(hclust(dist(1-dist), method="single"))
-
-k <- length(unique(cells.colors$cell))
-hc <- hclust(dist, "single")
-
-cells.colors.i <- distinctColors( k )
-cells.colors <- data.frame(cell=coords.cell$cells.id,color=sapply(cutree(hc, k = k),function(x) cells.colors.i[x]))
-
-# ---------------------------------
-
-particles.lon.t <- as.matrix(particles.lon)
-particles.lat.t <- as.matrix(particles.lat)
-
-polygon.region.interest.xx <-  c( sim.extent[1] , sim.extent[1] , sim.extent[2] , sim.extent[2] )
-polygon.region.interest.yy <-  c( sim.extent[3] , sim.extent[4] , sim.extent[4] , sim.extent[3] )
+particles.video.location.dt[,"color"] <- cells.colors[match(particles.video.location.dt$start.cell,cells.colors$cell),"color"]
+# 
+# dist <- spDists( as.matrix( coords.cell[,2:3] ) , as.matrix(coords.cell[,2:3] ) )
+# dist <- as.dist(dist)
+# mds.coor <- cmdscale(dist)
+# plot(mds.coor)
+# plot(hclust(dist(1-dist), method="single"))
+# 
+# k <- length(unique(cells.colors$cell))
+# hc <- hclust(dist, "single")
+# 
+# cells.colors.i <- distinctColors( k )
+# cells.colors <- data.frame(cell=coords.cell$cells.id,color=sapply(cutree(hc, k = k),function(x) cells.colors.i[x]))
 
 # ---------------------------------
 
@@ -167,22 +160,17 @@ map <- ggplot() +
   coord_equal() + theme_map # coord_map(projection = "mercator")
 map
 
+
+
 print.day <- 0
 
 for( t in 1:t.steps) {
   
   if( change.day[t] ) { print.day <- print.day + 1 }
-  
   print.date.sim <- format(as.Date(  paste(movie.year,"-",days.months[print.day,2],"-",days.months[print.day,1],sep="")  , "%Y-%m-%d"), "%d %b %Y")
 
-  moving.ids <- movie.sites.ids[which(particles.lon[,t] != 0)]
-  moving.cell.ids <- particles.reference.bm[ particles.reference.bm$id %in% moving.ids , "start.cell"]
-  moving.colors <- as.character( sapply(moving.cell.ids, function(x) { cells.colors[ cells.colors$cell %in% x , "color"][1] } ) )
-  
-  moving.lons <- particles.lon[,t] ; moving.lons <- moving.lons[moving.lons != 0]
-  moving.lats <- particles.lat[,t] ; moving.lats <- moving.lats[moving.lats != 0]
-  
-  points.plot <- data.frame(Lon = moving.lons , Lat = moving.lats , color=moving.colors )
+  points.plot <- particles.video.location.dt[particles.video.location.dt$t.step.movie == t,]
+  points.plot <- data.frame(Lon = points.plot$pos.lon , Lat = points.plot$pos.lat , color=points.plot$color )
   points.plot <- points.plot[complete.cases(points.plot),]
 
   map.t <- map + geom_point(data = points.plot ,  aes(x = Lon, y = Lat) , shape = 21, colour = points.plot$color, fill = points.plot$color, size = 1.5, stroke = 0.35, alpha = 0.9) +
