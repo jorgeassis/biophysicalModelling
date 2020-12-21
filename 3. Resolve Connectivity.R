@@ -7,7 +7,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../Project Config 0.R")
+source("../Project Config 5.R")
 source("Dependences.R")
 
 ## --------------------------------------------------------------------------------------------------------------
@@ -54,7 +54,7 @@ particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.n
 
 ## ------------------
 
-cl.2 <- makeCluster(number.cores)
+cl.2 <- makeCluster(16 , type="FORK")
 registerDoParallel(cl.2)
 
 all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
@@ -107,6 +107,7 @@ save(all.connectivity.pairs.to.sql,file=paste0(project.folder,"/Results/",projec
 ## --------------------------------------------------------------------------------------------------------------
 
 # Direct Overall Connectivity matrix (mean of all years)
+# load(file=paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates.RData"))
 
 # Subset Years
 # Connectivity <- Connectivity[ Year == 2017, ]
@@ -147,38 +148,44 @@ source.sink.xy
 additional.source.sink <- shapefile(additional.source.sink.shp)
 additional.source.sink <- additional.source.sink[,"ID"]
 
-Connectivity.Poly <- expand.grid(From=additional.source.sink$ID,To=additional.source.sink$ID)
-nrow(Connectivity.Poly)
+# ---------------------------
 
-cl.3 <- makeCluster(number.cores) ; registerDoParallel(cl.3)
+closest.source.sink.sites <- coordinates(additional.source.sink)
+closest.source.sink.sites <- spDists(as.matrix(source.sink.xy[,c("Lon","Lat")]),closest.source.sink.sites)
+closest.source.sink.sites <- apply(closest.source.sink.sites,2,which.min)
+closest.source.sink.sites <- source.sink.xy[closest.source.sink.sites,"Pair"]
+additional.source.sink$sitesSourceSink <- closest.source.sink.sites
+additional.source.sinkDF <- as.data.frame(additional.source.sink)
 
-Connectivity.Poly.Vals <- foreach(i=1:nrow(Connectivity.Poly), .verbose=FALSE, .packages=c("sp","gdistance")) %dopar% { 
+ConnectivityDT <- data.table(Connectivity)
+
+# ---------------------------
+
+cl.3 <- makeCluster(number.cores)
+registerDoParallel(cl.3)
+
+Connectivity.Poly.Vals <- foreach(siteID=additional.source.sink$ID, .verbose=FALSE, .packages=c("data.table")) %dopar% { 
   
-  From <- Connectivity.Poly[i,"From"]
-  To <- Connectivity.Poly[i,"To"]
+  ConnectivityDT.siteID <- data.table()
   
-  polygon.from <- coordinates(additional.source.sink[additional.source.sink$ID == From,])
-  polygon.to <- coordinates(additional.source.sink[additional.source.sink$ID == To,])
+  sourceSink.from <- additional.source.sinkDF[additional.source.sinkDF$ID == siteID , "sitesSourceSink"]
+  ConnectivityDT.Polys.i <- ConnectivityDT[ Pair.from == sourceSink.from , ]
+  ConnectivityDT.Polys.i[,Pair.from := siteID]
   
-  distances.from <- spDistsN1(as.matrix(source.sink.xy[,c("Lon","Lat")]),polygon.from)
-  distances.to <- spDistsN1(as.matrix(source.sink.xy[,c("Lon","Lat")]),polygon.to)
-  
-  distance.probability.i <- Connectivity[Connectivity$Pair.from %in% source.sink.xy[which(distances.from == min(distances.from)),"Pair"] & Connectivity$Pair.to %in% source.sink.xy[which(distances.to == min(distances.to)),"Pair"],]
-  
-  if(nrow(distance.probability.i) == 0 ) {
-    return(NULL)
+  for( sourceSink.to in ConnectivityDT.Polys.i[,Pair.to]) {
+    
+    siteID.to <- additional.source.sinkDF[additional.source.sinkDF$sitesSourceSink == sourceSink.to,"ID"]
+    
+    if(length(siteID.to) == 0) { next }
+    
+    ConnectivityDT.siteID.i <- do.call("rbind", replicate(length(siteID.to), ConnectivityDT.Polys.i[Pair.to == sourceSink.to,], simplify = FALSE))
+    ConnectivityDT.siteID.i[,Pair.to := siteID.to]
+    ConnectivityDT.siteID <- rbindlist(list(ConnectivityDT.siteID,ConnectivityDT.siteID.i))
+
   }
   
-  if(nrow(distance.probability.i) > 0 ) {
-    distance.probability.i <- t(data.frame(apply(distance.probability.i,2,mean)))
-    rownames(distance.probability.i) <- NULL
-    distance.probability.i <- data.frame(Pair.from.old=distance.probability.i[1,1],Pair.to.old=distance.probability.i[1,2],distance.probability.i)
-    distance.probability.i[1,3] <- From
-    distance.probability.i[1,4] <- To
-    rownames(distance.probability.i) <- NULL
-    return(distance.probability.i)
-  }
-
+  return(ConnectivityDT.siteID)
+  
 }
 
 stopCluster(cl.3) ; rm(cl.3) ; gc()
@@ -187,11 +194,18 @@ Connectivity.Poly <- do.call(rbind,Connectivity.Poly.Vals)
 
 ## ---------------------
 
+sum(!Connectivity.Poly$Pair.from %in% additional.source.sink$ID)
+sum(!Connectivity.Poly$Pair.to %in% additional.source.sink$ID)
+
+Connectivity.Poly[, lapply(.SD, mean), by=.(Pair.from,Pair.to)]
+
+## ---------------------
+
 source.sink.xy <- data.frame(Pair=additional.source.sink[,"ID"],Lon=as.data.frame(gCentroid(additional.source.sink,byid=TRUE))[,1],Lat=as.data.frame(gCentroid(additional.source.sink,byid=TRUE))[,2],Source=1)
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
 write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.Polys.bm"))
 
-Connectivity.bm <- as.big.matrix(as.matrix(Connectivity.Poly[,-c(1,2)]))
+Connectivity.bm <- as.big.matrix(as.matrix(Connectivity.Poly))
 write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys.bm")) 
 
 ## --------------------------------------------------------------------------------------------------------------

@@ -3,13 +3,17 @@
 ## Assis et al., 2020
 ## ------------------------------------------------------------------------------------------------------------------
 
+## -----------------
+
 # Lon < -180, ...
-# Check memory used!
+# Check memory used in code and alert!
+
+## -----------------
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("../Project Config 3.R") # source("0. Project Config.R")
+source("../Project Config 5.R") # source("0. Project Config.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -617,7 +621,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   Cluster <- makeCluster( number.cores ) 
   registerDoParallel(number.cores) 
   
-  parallelProcess <- foreach(chunk=1:number.cores, .verbose=FALSE, .packages=c("raster","rgeos","dismo","SDMTools")) %dopar% {
+  parallelProcess <- foreach(chunk=1:number.cores, .verbose=FALSE, .packages=c("zoo","raster","rgeos","dismo","SDMTools")) %dopar% {
     
     start.cell.i <- parallelChunk[parallelChunk$chunk == chunk,2]
     
@@ -698,7 +702,19 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
         speed.u <- apply(matrix(source.points.to.interp.u[idw.nearest.i,3],ncol=3) / idw.nearest.d^idwPower,1,sum) / apply(1 / idw.nearest.d^idwPower,1,sum)
         speed.v <- apply(matrix(source.points.to.interp.v[idw.nearest.i,3],ncol=3) / idw.nearest.d^idwPower,1,sum) / apply(1 / idw.nearest.d^idwPower,1,sum)
         
-        if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { stop("Error [!]") }
+        if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { 
+          
+          speed.u[speed.u > 100] <- NA
+          speed.u[speed.u < 100] <- NA
+          speed.v[speed.v > 100] <- NA
+          speed.v[speed.v > 100] <- NA
+
+          speed.u <- na.approx(speed.u, rule = 2)
+          speed.v <- na.approx(speed.v, rule = 2)
+          
+          }
+        
+        if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) {  stop("Error :: 009") }
         
         mov.eastward <- speed.u * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s
         mov.northward <- speed.v * 60 * 60 * ( 24 / n.hours.per.day ) # Was as m/s

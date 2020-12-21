@@ -7,7 +7,7 @@
 
 # rm(list=(ls()[ls()!="v"]))
 # gc(reset=TRUE)
-# source("../Project Config 0.R")
+# source("../Project Config 5.R")
 # source("Dependences.R")
 # n.days <- 30
 
@@ -150,60 +150,83 @@ colnames(matrixConnectivityT) <- c("Pair.from","Pair.to","Mean.Time")
 ## -------------------------
 
 ## Stepping-stone Connectivity
-
 ## Produce network to estimate least cost distances
 
-networkData <- matrixConnectivityP
-networkData <- networkData[!is.na(networkData$Probability),]
-networkData <- as.data.frame( networkData[ sort( as.vector(unlist(networkData[,"Probability"])) , decreasing = TRUE, index.return =TRUE)$ix , ] )
-head(networkData)
+produceSSConnnectivity <- FALSE
 
-network <- graph.edgelist( cbind( as.character( networkData[,1]) , as.character(networkData[,2]) ) , directed = TRUE )
-E(network)$weight = ifelse(-log(networkData[,3]) == Inf,0,-log(networkData[,3])) # Hock, Karlo Mumby, Peter J 2015
-network <- delete.edges(network, which(E(network)$weight ==0))
-network <- simplify(network)
-
-cl.3 <- makeCluster(number.cores) ; registerDoParallel(cl.3)
-
-matrixConnectivitySSP <- foreach(from=source.sink.xy$Pair, .verbose=FALSE, .packages=c("data.table","sp","gdistance","igraph")) %dopar% { 
-  
-  possible.paths <- get.shortest.paths(network,as.character( from ) ,mode="out")
-  possible.paths <- possible.paths[[1]]
-
-  res.connectivity.to <- data.frame( pair.From=from,pair.To=source.sink.xy$Pair, connectivity=NA)
-                                     
-  for( i in 1:length(possible.paths) ) {
+if(produceSSConnnectivity) {
+      
+    networkData <- matrixConnectivityP
+    networkData <- networkData[!is.na(networkData$Probability),]
+    networkData <- as.data.frame( networkData[ sort( as.vector(unlist(networkData[,"Probability"])) , decreasing = TRUE, index.return =TRUE)$ix , ] )
+    head(networkData)
     
-    possible.paths.i <- as.numeric(names(possible.paths[i][[1]]))
-    to <- possible.paths.i[length(possible.paths.i)]
-    to.i <- which(res.connectivity.to$pair.To == to)
+    network <- graph.edgelist( cbind( as.character( networkData[,1]) , as.character(networkData[,2]) ) , directed = TRUE )
     
-    if( from == to ) { path.values <- networkData[ networkData[,1] == from & networkData[,2] == to , 3 ][1]  }
+    E(network)$weight = ifelse(-log(networkData[,3]) == Inf,0,-log(networkData[,3])) # Hock, Karlo Mumby, Peter J 2015
+    network <- delete.edges(network, which(E(network)$weight ==0))
+    network <- simplify(network)
     
-    if( from != to ) {   
+    networkData <- data.table(networkData[networkData$Probability != 0,])
+    
+    cl.3 <- makeCluster(number.cores) ; registerDoParallel(cl.3)
+    
+    matrixConnectivitySSP <- foreach(from=source.sink.xy$Pair, .verbose=FALSE, .packages=c("data.table","sp","gdistance","igraph")) %dopar% { 
+      
+      possible.paths <- get.shortest.paths(network,as.character( from ) ,mode="out")
+      possible.paths <- possible.paths[[1]]
+    
+      res.connectivity.to <- data.frame( pair.From=from,pair.To=source.sink.xy$Pair, connectivity=NA)
+    
+      for( i in 1:length(possible.paths) ) {
+        
+        possible.paths.i <- as.numeric(names(possible.paths[i][[1]]))
+        to <- possible.paths.i[length(possible.paths.i)]
+        to.i <- which(res.connectivity.to$pair.To == to)
+        
+        if( from != to ) {   
+              
+              stones.t.interm <- cbind(possible.paths.i[-length(possible.paths.i)],possible.paths.i[-1])
+              path.values <- apply( stones.t.interm , 1 , function(z) { networkData[ Pair.from == z[1] & Pair.to == z[2] , Probability ] }   )
+              
+              path.values <- prod(path.values) 
+              
+              # if( length(path.values) > 0 ) { path.values <- prod(path.values) } 
+              # if( length(path.values) == 0) { stop("") ; path.values <- 0 }
+              
+              res.connectivity.to[to.i,2] <- to
+              res.connectivity.to[to.i,3] <- path.values 
+        }
+        
+        if( from == to ) {  
           
-          stones.t.interm <- cbind(possible.paths.i[-length(possible.paths.i)],possible.paths.i[-1])
-          path.values <- apply( stones.t.interm , 1 , function(z) { networkData[ networkData[,1] == z[1] & networkData[,2] == z[2] , 3 ][1] }   )
-          
-          if( length(path.values) > 0 ) { path.values <- apply( t(path.values) , 1 , prod ) }
-          if( length(path.values) == 0) { path.values <- 0 }
-          
+        res.connectivity.to[which(res.connectivity.to[,1] == res.connectivity.to[,2]),3] <- ifelse( length(networkData[ Pair.from == from & Pair.to == to , Probability ] ) == 0 , 0 , networkData[ Pair.from == from & Pair.to == to , Probability ] )
+      
+        }
+      
+      }
+      
+      return( res.connectivity.to )
+      
     }
     
-    res.connectivity.to[to.i,2] <- to
-    res.connectivity.to[to.i,3] <- path.values
+    stopCluster(cl.3) ; rm(cl.3) ; gc()
     
-  }
-  
-  return( res.connectivity.to )
-  
+    matrixConnectivitySSP <- do.call(rbind,matrixConnectivitySSP)
+    colnames(matrixConnectivitySSP) <- c("From","To","Probability")
+    matrixConnectivitySSP.square <- acast(matrixConnectivitySSP, formula=From~To, fun.aggregate= mean , value.var="Probability",drop = FALSE)
+
+    if( ! all.equal(colnames(matrixConnectivityP.square),colnames(matrixConnectivitySSP.square)) ) { stop("Error :: 00001") }
+
+    # Square Matrix
+    matrixConnectivitySSP.square[is.na(matrixConnectivitySSP.square)] <- 0
+    write.table(file=paste0(connectivityExportDir,"matrixConnectivitySSP.square.csv"),x=matrixConnectivitySSP.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
+    
+    # Pairs
+    matrixConnectivitySSP[is.na(matrixConnectivitySSP)] <- 0
+    write.table(file=paste0(connectivityExportDir,"matrixConnectivitySSP.csv"),x=matrixConnectivitySSP,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
+    
 }
-
-stopCluster(cl.3) ; rm(cl.3) ; gc()
-
-matrixConnectivitySSP <- do.call(rbind,matrixConnectivitySSP)
-colnames(matrixConnectivitySSP) <- c("From","To","Probability")
-matrixConnectivitySSP.square <- acast(matrixConnectivitySSP, formula=From~To, fun.aggregate= mean , value.var="Probability",drop = FALSE)
 
 ## -----------------------------------------
 ## Export Connectivity
@@ -214,23 +237,16 @@ dim(matrixConnectivityP.square)
 dim(matrixConnectivityT.square)
 dim(matrixConnectivitySSP.square)
 
-if( ! all.equal(colnames(matrixConnectivityP.square),colnames(matrixConnectivitySSP.square)) ) { stop("Error :: 00001") }
-
 matrixConnectivityP.square[is.na(matrixConnectivityP.square)] <- 0
-matrixConnectivitySSP.square[is.na(matrixConnectivitySSP.square)] <- 0
 
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.square.csv"),x=matrixConnectivityP.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.square.csv"),x=matrixConnectivityT.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
-write.table(file=paste0(connectivityExportDir,"matrixConnectivitySSP.square.csv"),x=matrixConnectivitySSP.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
 
 # Pairs
 
 matrixConnectivityP[is.na(matrixConnectivityP)] <- 0
-matrixConnectivitySSP[is.na(matrixConnectivitySSP)] <- 0
-
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.csv"),x=matrixConnectivityP,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.csv"),x=matrixConnectivityT,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
-write.table(file=paste0(connectivityExportDir,"matrixConnectivitySSP.csv"),x=matrixConnectivitySSP,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
 
 ## --------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------
@@ -240,6 +256,7 @@ write.table(file=paste0(connectivityExportDir,"matrixConnectivitySSP.csv"),x=mat
 ## Produce network
 
 networkData <- matrixConnectivityP
+networkData[is.na(networkData$Probability),"Probability"] <- 0
 networkData <- as.data.frame( networkData[ sort( as.vector(unlist(networkData[,"Probability"])) , decreasing = TRUE, index.return =TRUE)$ix , ] )
 
 network <- graph.edgelist( cbind( as.character( networkData[,1]) , as.character(networkData[,2]) ) , directed = TRUE )
@@ -248,7 +265,10 @@ network <- delete.edges(network, which(E(network)$weight ==0))
 network <- as.undirected(network, mode = "collapse", edge.attr.comb = "min") # min / mean / max
 network <- simplify(network)
 
-network.clustering <- cluster_walktrap(network) # network.clustering <- cluster_leading_eigen(network,options=list(maxiter=1000000))
+network.clustering <- cluster_walktrap(network) 
+#network.clustering <- cluster_fast_greedy(network) 
+
+# network.clustering <- cluster_leading_eigen(network,options=list(maxiter=1000000))
 network.membership <- network.clustering$membership
 cols.to.use <- distinctColors(length(unique(network.membership)))
 cols.to.use <- cols.to.use[network.membership]
