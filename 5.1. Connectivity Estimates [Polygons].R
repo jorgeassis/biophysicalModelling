@@ -10,6 +10,7 @@
 # source("../Project Config 5.R")
 # source("Dependences.R")
 # n.days <- 30
+# n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
 
 ## --------------------------------------------------------------------------------------------------------------
 ##
@@ -18,8 +19,8 @@
 ## --------------------------------------------------------------------------------------------------------------
 
 if( ! paste0("connectivityExport") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) }
-if( ! paste0("Sim",str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days"))) }
-connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days/"))
+if( ! paste0("Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days"))) }
+connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days/"))
 
 ## -------------------------
 ## Define major regions based on centroid areas
@@ -38,7 +39,10 @@ writeOGR(obj=additional.source.sink, dsn=paste0(project.folder,"/Results/",proje
 
 ## -------------------------
 
-Connectivity <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys.bm") )
+connectivityMainfile <- paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys",n.season,".bm")
+if(!file.exists(connectivityMainfile)) { stop("Missing connectivity file") }
+
+Connectivity <- read.big.matrix( connectivityMainfile )
 Connectivity <- as.data.frame(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
 Connectivity[ which(Connectivity[,"Time.max"] > n.days) , "Probability" ] <- 0
@@ -147,6 +151,22 @@ colnames(matrixConnectivityP) <- c("Pair.from","Pair.to","Probability")
 matrixConnectivityT <- melt(matrixConnectivityT.square)
 colnames(matrixConnectivityT) <- c("Pair.from","Pair.to","Mean.Time")
   
+## Export Connectivity
+
+dim(matrixConnectivityP.square)
+dim(matrixConnectivityT.square)
+
+matrixConnectivityP.square[is.na(matrixConnectivityP.square)] <- 0
+
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.square.csv"),x=matrixConnectivityP.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.square.csv"),x=matrixConnectivityT.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
+
+# Pairs
+
+matrixConnectivityP[is.na(matrixConnectivityP)] <- 0
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.csv"),x=matrixConnectivityP,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
+write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.csv"),x=matrixConnectivityT,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
+
 ## -------------------------
 
 ## Stepping-stone Connectivity
@@ -154,7 +174,7 @@ colnames(matrixConnectivityT) <- c("Pair.from","Pair.to","Mean.Time")
 
 produceSSConnnectivity <- FALSE
 
-if(produceSSConnnectivity) {
+if( produceSSConnnectivity ) {
       
     networkData <- matrixConnectivityP
     networkData <- networkData[!is.na(networkData$Probability),]
@@ -228,31 +248,10 @@ if(produceSSConnnectivity) {
     
 }
 
-## -----------------------------------------
-## Export Connectivity
-
-# Square Matrix
-
-dim(matrixConnectivityP.square)
-dim(matrixConnectivityT.square)
-dim(matrixConnectivitySSP.square)
-
-matrixConnectivityP.square[is.na(matrixConnectivityP.square)] <- 0
-
-write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.square.csv"),x=matrixConnectivityP.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
-write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.square.csv"),x=matrixConnectivityT.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
-
-# Pairs
-
-matrixConnectivityP[is.na(matrixConnectivityP)] <- 0
-write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.csv"),x=matrixConnectivityP,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
-write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.csv"),x=matrixConnectivityT,row.names=FALSE,col.names=TRUE,sep=";",dec=".")
-
 ## --------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------
 ## Plot connectivity [networks]
 
-## -------------------------
 ## Produce network
 
 networkData <- matrixConnectivityP
@@ -266,9 +265,10 @@ network <- as.undirected(network, mode = "collapse", edge.attr.comb = "min") # m
 network <- simplify(network)
 
 network.clustering <- cluster_walktrap(network) 
+#network.clustering <- clusters(network) 
 #network.clustering <- cluster_fast_greedy(network) 
-
 # network.clustering <- cluster_leading_eigen(network,options=list(maxiter=1000000))
+
 network.membership <- network.clustering$membership
 cols.to.use <- distinctColors(length(unique(network.membership)))
 cols.to.use <- cols.to.use[network.membership]
@@ -359,7 +359,7 @@ if( exists("pipeLiner") ) {
   
   c <- which(n.repetitions == n.days)
   
-  if( ! exists("isolatedAll") ) { 
+  if( n.days == 1 ) { 
     summaryAll <- data.frame()
     isolatedAll <- data.frame( matrix(0,nrow=nrow(connectivityMatrix),ncol=length(n.repetitions)), row.names=colnames(connectivityMatrix))
     colnames(isolatedAll) <- n.repetitions
@@ -367,29 +367,29 @@ if( exists("pipeLiner") ) {
   }
   
   isolatedAll[ isolated ,c] <- 1
-  write.csv(isolatedAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/isolatedAll.csv"))
+  write.csv(isolatedAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/isolatedAll",n.season,".csv"))
   linkageLevelAll[,c] <- linkage
-  write.csv(linkageLevelAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/linkageLevelAll.csv"))
+  write.csv(linkageLevelAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/linkageLevelAll",n.season,".csv"))
   higherLinkageLevelAll[higherLinkage,c] <- 1
-  write.csv(higherLinkageLevelAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherLinkageLevelAll.csv"))
+  write.csv(higherLinkageLevelAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherLinkageLevelAll",n.season,".csv"))
   clusterAssignmentAll[,c] <- network.membership[indexMatcher]
-  write.csv(clusterAssignmentAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/clusterAssignmentAll.csv"))
+  write.csv(clusterAssignmentAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/clusterAssignmentAll",n.season,".csv"))
   betweennessAll[,c] <- betweennessIndex
-  write.csv(betweennessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/betweennessAll.csv"))
+  write.csv(betweennessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/betweennessAll",n.season,".csv"))
   higherBetweennessAll[higherBetweenness,c] <- 1
-  write.csv(higherBetweennessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherBetweennessAll.csv"))
+  write.csv(higherBetweennessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherBetweennessAll",n.season,".csv"))
   eighenCentralityAll[,c] <- eigencentralityIndex
-  write.csv(eighenCentralityAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/eighenCentralityAll.csv"))
+  write.csv(eighenCentralityAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/eighenCentralityAll",n.season,".csv"))
   highereighenCentralityAll[higherEigencentrality,c] <- 1
-  write.csv(highereighenCentralityAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/highereighenCentralityAll.csv"))
+  write.csv(highereighenCentralityAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/highereighenCentralityAll",n.season,".csv"))
   closenessAll[,c] <- closenessIndex
-  write.csv(closenessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/closenessAll.csv"))
+  write.csv(closenessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/closenessAll",n.season,".csv"))
   higherclosenessAll[higherCloseness,c] <- 1
-  write.csv(higherclosenessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherclosenessAll.csv"))
+  write.csv(higherclosenessAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherclosenessAll",n.season,".csv"))
   resistanceAll[,c] <- resistance
-  write.csv(resistanceAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/resistanceAll.csv"))
+  write.csv(resistanceAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/resistanceAll",n.season,".csv"))
   higherresistanceAll[higherResistance,c] <- 1
-  write.csv(higherresistanceAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherresistanceAll.csv"))
+  write.csv(higherresistanceAll,file=paste0(project.folder,"/Results/",project.name,"/connectivityExport/higherresistanceAll",n.season,".csv"))
   
 }
 
@@ -407,6 +407,7 @@ additional.source.sink$HigherResistance <- higherresistanceAll[,c]
 writeOGR(obj=additional.source.sink, dsn=connectivityExportDir, layer="sourceSinkPolygonsData", driver="ESRI Shapefile",overwrite_layer=T) 
 
 summaryAll <- rbind(summaryAll,data.frame( day.sim=n.days,
+                                           season.sim=ifelse(n.season=="","All",n.season),
                                            numberClusters=numberClusters,
                                            aggregation=aggregationBasedOnClusters,
                                            n.isolated=isolated.length,
@@ -462,7 +463,6 @@ dev.off()
 ## Aggregate and plot network assignments
 
 matrixConnectivityP.agg <- data.frame(expand.grid(From=unique(source.sink.xy$Name),To=unique(source.sink.xy$Name)),Val=NA)
-matrixConnectivityPSS.agg <- data.frame(expand.grid(From=unique(source.sink.xy$Name),To=unique(source.sink.xy$Name)),Val=NA)
 matrixConnectivityT.agg <- data.frame(expand.grid(From=unique(source.sink.xy$Name),To=unique(source.sink.xy$Name)),Val=NA)
 
 for ( i in 1:nrow(matrixConnectivityP.agg)) {
@@ -473,8 +473,7 @@ for ( i in 1:nrow(matrixConnectivityP.agg)) {
   to <- source.sink.xy[which(source.sink.xy$Name == to),"Pair"]
   
   matrixConnectivityP.agg[i,3] <- mean(matrixConnectivityP[ matrixConnectivityP[,1] %in% from & matrixConnectivityP[,2] %in% to , "Probability" ])
-  matrixConnectivityPSS.agg[i,3] <- mean(matrixConnectivitySSP[ matrixConnectivitySSP[,1] %in% from & matrixConnectivitySSP[,2] %in% to , "Probability" ])
-  
+
   timeVal <- matrixConnectivityT[ matrixConnectivityT[,1] %in% from & matrixConnectivityT[,2] %in% to , "Mean.Time" ]
   timeVal <- mean(timeVal[timeVal != 0],na.rm=T)
   matrixConnectivityT.agg[i,3] <- timeVal
@@ -482,15 +481,12 @@ for ( i in 1:nrow(matrixConnectivityP.agg)) {
 }
 
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.agg.csv"),x=matrixConnectivityP.agg,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
-write.table(file=paste0(connectivityExportDir,"matrixConnectivityPSS.agg.csv"),x=matrixConnectivityPSS.agg,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.agg.csv"),x=matrixConnectivityT.agg,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
 
 matrixConnectivityP.agg.square <- acast(matrixConnectivityP.agg, formula=From~To, fun.aggregate= mean , value.var="Val",drop = FALSE)
-matrixConnectivityPSS.agg.square <- acast(matrixConnectivityPSS.agg, formula=From~To, fun.aggregate= mean , value.var="Val",drop = FALSE)
 matrixConnectivityT.agg.square <- acast(matrixConnectivityT.agg, formula=From~To, fun.aggregate= mean , value.var="Val",drop = FALSE)
 
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityP.agg.square.csv"),x=matrixConnectivityP.agg.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
-write.table(file=paste0(connectivityExportDir,"matrixConnectivityPSS.agg.square.csv"),x=matrixConnectivityPSS.agg.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
 write.table(file=paste0(connectivityExportDir,"matrixConnectivityT.agg.square.csv"),x=matrixConnectivityT.agg.square,row.names=TRUE,col.names=TRUE,sep=";",dec=".")
 
 # ----------

@@ -7,14 +7,15 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../Project Config 4.R")
+source("../Project Config 5.R")
 source("Dependences.R")
 
-number.cores <- 10
+n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
+number.cores <- 40
 
 ## ------------------------------------------------------------------------------------------------------------------
 
-Connectivity <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm"))
+Connectivity <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm"))
 Connectivity <- data.table(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
 Connectivity
@@ -73,27 +74,27 @@ head(marine.distances)
 
 distance.probability <- merge(Connectivity, marine.distances, by=c("Pair.from","Pair.to"))
 distance.probability <- as.big.matrix(as.matrix(distance.probability))
-write.big.matrix(distance.probability, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedDistances.bm"))
+write.big.matrix(distance.probability, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedDistances",n.season,".bm"))
 
 # ----------------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------
 
-distance.probability <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedDistances.bm"))
+distance.probability <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedDistances",n.season,".bm"))
 distance.probability <- data.table(distance.probability[,])
 colnames(distance.probability) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
 head(distance.probability)
 
 # ----------------------------------
 
-n.repetitions <- c(1,3,5,10,20,30,45,60,90,120)
+n.repetitions <- 1:max(distance.probability$Time.max)
 
 for( extract.simulation.days in n.repetitions) {
     
   n.days <- extract.simulation.days
 
   if( ! paste0("connectivityExport") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) }
-  if( ! paste0("Sim",str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days"))) }
-  connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days/"))
+  if( ! paste0("Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days"))) }
+  connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days/"))
 
   distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
   
@@ -124,7 +125,7 @@ for( extract.simulation.days in n.repetitions) {
 
 # ----------------------------------
 
-tMax <- 120
+tMax <- max(distance.probability$Time.max)
 resultsTime <- data.frame()
 
 for( t in 1:tMax){
@@ -150,7 +151,7 @@ p3 <- ggplot() +
   theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab("Maximum travelled distance (km)")
 p3
 
-pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Max Distance.pdf"), width = 10, height = 8 )
+pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Max Distance",n.season,".pdf"), width = 10, height = 8 )
 print(p3)
 dev.off()
 
@@ -161,21 +162,19 @@ p3 <- ggplot() +
   theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab("Mean probability of connectivity")
 p3
 
-pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Mean Probability.pdf"), width = 10, height = 8 )
+pdf( file=paste0(project.folder,"/Results/",project.name,"/Time vs Mean Probability",n.season,".pdf"), width = 10, height = 8 )
 print(p3)
 dev.off()
 
 # ----------------------------------
-
-n.repetitions <- c(1,3,5,10,20,30,45,60,90,120)
 
 for( extract.simulation.days in n.repetitions) {
   
     n.days <- extract.simulation.days
   
     if( ! paste0("connectivityExport") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) }
-    if( ! paste0("Sim",str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days"))) }
-    connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",str_pad(n.days, 3, pad = "0"),"Days/"))
+    if( ! paste0("Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days") %in% list.files(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/"))) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days"))) }
+    connectivityExportDir <- file.path(paste0(project.folder,"/Results/",project.name,"/connectivityExport/","Sim",n.season,str_pad(n.days, 3, pad = "0"),"Days/"))
   
     distance.probability.t <- distance.probability[Time.max <= extract.simulation.days,]
     distance.probability.t[distance.probability.t >= 9e99999] <- NA
@@ -199,25 +198,6 @@ for( extract.simulation.days in n.repetitions) {
     write.csv(summary.results,file=paste0(connectivityExportDir,"summary95Percentile.csv"))
   
 }
-
-# ----------------------------------
-
-# Identify which have a high threshold
-
-land.surface <- raster("Data/Rasters/Mask.tif")
-
-cells.i <- distance.probability[ Time.max <= 5 & Distance >= 200 & Distance < 1000000000, Pair.from   ]
-cells.j <- distance.probability[ Time.max <= 5 & Distance >= 200 & Distance < 1000000000, Pair.to  ]
-
-clipper <- as(extent(min(source.sink.xy[unique(c(cells.i,cells.j)),2]) - 2 , max(source.sink.xy[unique(c(cells.i,cells.j)),2]) + 2,min(source.sink.xy[unique(c(cells.i,cells.j)),3]) - 2,max(source.sink.xy[unique(c(cells.i,cells.j)),3]) + 2), "SpatialPolygons")
-land.surface <- crop(land.surface,clipper)
-
-plot(land.surface,box=FALSE,legend=FALSE,col=c("black","Gray"))
-points(source.sink.xy[cells.i,2:3],col="red")
-points(source.sink.xy[cells.j,2:3],col="green")
-
-distance.probability[ Pair.from %in% cells.i , ]
-reference.table[ cell %in% cells.i & cell.rafted %in% cells.j , ]
 
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------

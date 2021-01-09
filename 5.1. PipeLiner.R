@@ -25,9 +25,13 @@ n.days.max
 
 ## ----------------------------------------------------------------
 
-n.repetitions <- c(1,3,5,10,20,30,45,60,90,120)
+n.seasons <- c("","Spring","Summer","Autumn","Winter")
+n.repetitions <- 1:120
 
 for( n.days in n.repetitions ) {
+  
+  gc(reset=TRUE)
+  n.season <- "Summer"
   
   if( type == "polygons" ) { source("5.1. Connectivity Estimates [Polygons].R") }
   if( type == "coordinates" ) { stop("Revise") ; source("5.1. Connectivity Estimates [Coord Sites].R") }

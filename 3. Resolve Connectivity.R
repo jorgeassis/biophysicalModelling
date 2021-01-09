@@ -10,6 +10,16 @@ gc(reset=TRUE)
 source("../Project Config 5.R")
 source("Dependences.R")
 
+n.season <- "Spring" # Spring; Summer; Autumn; Winter; "" for All
+
+## ----------------------------------
+
+if( n.season == "" ) { n.months <- 1:12 }
+if( n.season == "Spring" ) { n.months <- 3:5 }
+if( n.season == "Summer" ) { n.months <- 6:8 }
+if( n.season == "Autumn" ) { n.months <- 9:11 }
+if( n.season == "Winter" ) { n.months <- c(12,1,2) }
+
 ## --------------------------------------------------------------------------------------------------------------
 ##
 ##
@@ -18,7 +28,7 @@ source("Dependences.R")
 
 ## Test if connectivity exists
 
-file.exists(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates.RData"))
+file.exists(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates",n.season,".RData"))
 
 ## ------------------------------------
 ## Resolve connectivity
@@ -65,6 +75,8 @@ all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose
   connectivity.temp.m <- data.frame(connectivity.temp.m)
   colnames(connectivity.temp.m) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted","ocean")
   
+  connectivity.temp.m <- connectivity.temp.m[connectivity.temp.m$start.month %in% n.months,]
+  
   connectivity.temp.m <- connectivity.temp.m[connectivity.temp.m$cell.rafted != 0 & connectivity.temp.m$state == 2,]
   connectivity.temp.m <- data.frame(connectivity.temp.m,travel.time= (1 + connectivity.temp.m$t.finish - connectivity.temp.m$t.start) / n.steps.per.day)
   connectivity.temp.m <- as.data.table(connectivity.temp.m)
@@ -101,7 +113,7 @@ stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 # -----------------------------------------
 # Save pairs
 
-save(all.connectivity.pairs.to.sql,file=paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates.RData"))
+save(all.connectivity.pairs.to.sql,file=paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates",n.season,".RData"))
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
@@ -129,13 +141,13 @@ write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,
 
 Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm")) 
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm")) 
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------
 ## Assign connectivity estimates [source.sink site] to polygons [if the case]
 
-Connectivity <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged.bm") )
+Connectivity <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm") )
 Connectivity <- as.data.frame(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
 Connectivity
@@ -206,7 +218,7 @@ source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
 write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.Polys.bm"))
 
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity.Poly))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys.bm")) 
+write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys",n.season,".bm")) 
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
