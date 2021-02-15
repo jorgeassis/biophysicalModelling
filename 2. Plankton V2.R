@@ -13,7 +13,7 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("../Project Config 5.R") # source("0. Project Config.R")
+source("0. Project Config.R") # source("0. Project Config.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -193,7 +193,18 @@ if( ! is.null(additional.source.sink.shp) ) {
     crs(additional.shp) <- dt.projection
     additional.shp <- st_as_sf(additional.shp)
 
-    hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  polyfill(additional.shp[x,"ID"], sim.resolution + 1), sim.resolution  ) })) # ?? h3_to_parent :: sim.resolution + 1 
+    # If polygons
+    
+    if( as.character(st_geometry_type(additional.shp)[1]) != "POINT") {
+      hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  polyfill(additional.shp[x,"ID"], sim.resolution + 1), sim.resolution  ) })) # ?? h3_to_parent :: sim.resolution + 1 
+    }
+    
+    # If points
+    
+    if( as.character(st_geometry_type(additional.shp)[1]) == "POINT") {
+      hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  geo_to_h3(st_coordinates(additional.shp[x,"ID"])[2:1], sim.resolution + 1), sim.resolution  ) })) # ?? h3_to_parent :: sim.resolution + 1 
+    }
+    
     # plot(h3_to_geo_boundary_sf(hexagons.address.additional))
   
     if(source.sink.loc.type == "peripheral") {
@@ -630,7 +641,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
     
     # -----------------------------------------------
     
-    particles.reference.moving.i <- unlist(sapply(start.cell.i,function(x) { mwhich(particles.reference.bm.all,c(2,9),list(x,1), list('eq','eq') , op = "AND") } ))
+    particles.reference.moving.i <- c(unlist(sapply(start.cell.i,function(x) { mwhich(particles.reference.bm.all,c(2,9),list(x,1), list('eq','eq') , op = "AND") } )))
     particles.reference.moving.dt <- data.table(matrix(particles.reference.bm.all[particles.reference.moving.i, ],ncol=length(particles.reference.names)))
     colnames(particles.reference.moving.dt) <- particles.reference.names
     

@@ -6,19 +6,21 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
+# setwd("/media/Bathyscaphe/Transport Simulation in the Atlantic Halodule/Git")
+
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Azores_D0"
-project.folder <- "/media/Bathyscaphe/Transport Simulation in the Azores/"
-data.folder <- paste0(project.folder,"Data/depth 0/")
+project.name <- "Halodule"
+project.folder <- "/media/Bathyscaphe/Transport Simulation in the Atlantic Halodule/"
+data.folder <- paste0(project.folder,"Data/")
 
-landmass.shp <- "../Data/mainLandAzores.shp" 
+landmass.shp <- NULL # "../Data/mainLandAzores.shp" 
 bathymetry.tif <- NULL
 
 additional.landmass.shp <- NULL # "../Data/Dispersal simulations/Shapefiles/additionalSites.shp" 
-additional.source.sink.shp <- "../Data/sourceSinkPolygons_0.shp" # "../Data/Shapefiles/rockyHabitats" # NULL
-additional.source.sink.shp.force.shore <- FALSE # If additional.source.sink.shp are new regions
+additional.source.sink.shp <- "../Data/sourceSinkSites.shp" # "../Data/sourceSinkPolygons_0.shp" # "../Data/Shapefiles/rockyHabitats" # NULL
+additional.source.sink.shp.force.shore <- TRUE # If additional.source.sink.shp are new regions
 
 source.sink.loc.type <- "centroid" # centroid peripheral
 
@@ -27,21 +29,21 @@ unwanted.release.sites.shp <- NULL # "Data/Dispersal simulations/Shapefiles/unwa
 
 # -----------------------------------
 
-number.cores <- 40
+number.cores <- 20
 
 # -----------------------------------
 # Region
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -35 
-max.lon <- -19 
-min.lat <- 34.25
-max.lat <- 42.25
+min.lon <- -105 
+max.lon <- 25
+min.lat <- -40
+max.lat <- 41
 
 buffer <- TRUE
 buffer.val <- 0.1
 
-sim.resolution <- 8 # https://github.com/uber/h3/blob/master/docs/core-library/restable.md
+sim.resolution <- 4 # https://github.com/uber/h3/blob/master/docs/core-library/restable.md
 
 # -----------------------------------
 # Traits
@@ -60,7 +62,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 120                       # Days allowed to travel
+particle.max.duration <- 60                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------

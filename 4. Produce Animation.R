@@ -5,7 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../Project Config 0 Video.R")
+source("0. Project Config.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -21,8 +21,8 @@ load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","videoLocat
 head(particles.video.location.dt)
 tail(particles.video.location.dt)
 
-mainTitle <- "Potential connectivity :: Azores archipelago [Year 2017]"
-simulation.name <- project.name
+mainTitle <- "Potential connectivity [Year 2017]"
+simulation.name <- "Halodule populations"
 
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
@@ -56,11 +56,19 @@ particles.video.location.dt[,"start.cell"] <- particles.reference.bm[match(parti
 
 videoBuffer <- 1
 
-if( is.null(landmass.shp)) { land.polygon <- getMap(resolution = "high") }
-if( ! is.null(landmass.shp)) { land.polygon <- shapefile(landmass.shp) }
+shapeVertex <- data.frame(Lon=c(min.lon,min.lon,max.lon,max.lon),
+                          Lat=c(min.lat,max.lat,max.lat,min.lat))
+shape <- spPolygons(as.matrix(shapeVertex))
+crs(shape) <- dt.projection
+
+if( is.null(landmass.shp) ) { land.polygon <- getMap(resolution = "high") }
+if( ! is.null(landmass.shp) ) { land.polygon <- shapefile(landmass.shp) }
+
+land.polygon <- gBuffer(land.polygon, byid=TRUE, width=0)
 crs(land.polygon) <- dt.projection 
 land.polygon <- crop(land.polygon,shape)
-land.polygon@bbox <- as.matrix(extent(c(min.lon-videoBuffer, max.lon+videoBuffer,  min.lat+videoBuffer,max.lat+videoBuffer)))
+
+land.polygon@bbox <- as.matrix(extent(c(min.lon + ifelse(min.lon < 0 , videoBuffer * (-1) , videoBuffer), max.lon + ifelse(max.lon < 0 , videoBuffer * (-1) , videoBuffer),  min.lat + ifelse(min.lat < 0 , videoBuffer * (-1) , videoBuffer),max.lat + ifelse(max.lat < 0 , videoBuffer * (-1) , videoBuffer) )))
 plot(land.polygon, col="grey")
 
 # ------------------
@@ -160,8 +168,6 @@ map <- ggplot() +
   coord_equal() + theme_map # coord_map(projection = "mercator")
 map
 
-
-
 print.day <- 0
 
 for( t in 1:t.steps) {
@@ -174,7 +180,7 @@ for( t in 1:t.steps) {
   points.plot <- points.plot[complete.cases(points.plot),]
 
   map.t <- map + geom_point(data = points.plot ,  aes(x = Lon, y = Lat) , shape = 21, colour = points.plot$color, fill = points.plot$color, size = 1.5, stroke = 0.35, alpha = 0.9) +
-    annotate(geom="text", x=min.lon, y=max.lat + 2.1, label=mainTitle,size=5.5,family="Helvetica", color = "#000000",hjust = 0) +
+    annotate(geom="text", x=min.lon, y=max.lat + 3, label=mainTitle,size=5.5,family="Helvetica", color = "#000000",hjust = 0) +
     annotate(geom="text", x=min.lon, y=max.lat + 1, label=paste0("Simulation: ",print.date.sim),size=4.5,family="Helvetica", color = "#000000",hjust = 0)
   
   png(file=paste0(project.folder,"/Results/",project.name,"/Video/Video map_",t,".png"), width=1280, height=720, bg = "#f5f5f2")
@@ -183,7 +189,7 @@ for( t in 1:t.steps) {
   
 }
  
-system( 'ffmpeg -s 1280x720 -i "/media/Bathyscaphe/Transport Simulation in the Azores/Results/Azores_D0/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Azores.mp4 -y' )
+system( 'ffmpeg -s 1280x720 -i "/media/Bathyscaphe/Transport Simulation in the Atlantic Halodule/Results/Halodule/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
 # file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
 
 # ------------------------------------------------------------------------------------------------------
