@@ -49,22 +49,31 @@ shapeVertex <- data.frame(Lon=c(min.lon,min.lon,max.lon,max.lon),
 shape <- spPolygons(as.matrix(shapeVertex))
 crs(shape) <- dt.projection
 shape <- st_as_sf(shape)
-hexagons.address <- polyfill(shape, sim.resolution)
+hexagons.address <- h3::polyfill(shape, sim.resolution)
 
 # -------
 
 polygons.all <- h3_to_geo_boundary_sf(hexagons.address)
-centroid.all <- st_centroid(polygons.all)
-centroid.all$ID <- 1:nrow(centroid.all)
+hexagons.land <- st_intersects( worldmap,polygons.all) # works more or less...
 
-hexagons.land <- st_join(centroid.all, worldmap, join = st_intersects)
-hexagons.land <- as.data.frame(hexagons.land)
-hexagons.address.land <- hexagons.address[which(!is.na(hexagons.land$ID.y))]
-
+polygons.all <- polygons.all[unique(unlist(hexagons.land)),]
+hexagons.address.land <- hexagons.address[unique(unlist(hexagons.land))]
 polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
-plot(polygons.land)
+plot(polygons.land,col="red")
+
+# polygons.all <- h3_to_geo_boundary_sf(hexagons.address)
+# centroid.all <- st_centroid(polygons.all)
+# centroid.all$ID <- 1:nrow(centroid.all)
+# 
+# hexagons.land <- st_join(centroid.all, worldmap, join = st_intersects)
+# hexagons.land <- as.data.frame(hexagons.land)
+# hexagons.address.land <- hexagons.address[which(!is.na(hexagons.land$ID.y))]
+# 
+# polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
+# plot(polygons.land)
 
 hexagons.address.ocean <- unique( hexagons.address[ ! hexagons.address %in% hexagons.address.land ] )
+plot(h3_to_geo_boundary_sf(hexagons.address.ocean),col="blue")
 
 ## --------------------------------------
 ## Get shore hexagons
@@ -141,9 +150,7 @@ if( sum(hexagons.address.shore %in% hexagons.address.ocean) > 0 | sum(hexagons.a
 
 ggplot() + geom_sf(data = polygons.land, fill=NA, colour="red", size=0.1)
 ggplot() + geom_sf(data = polygons.shore, fill="Black", colour="Black", size=0.1)
-
-# ggplot() + geom_sf(data = polygons.ocean, fill=NA, colour="red", size=0.1)
-# ggplot() + geom_sf(data = h3_to_geo_boundary_sf(hexagons.address), fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = polygons.ocean, fill=NA, colour="red", size=0.1)
 
 ## --------------------------------------
 ## Get source sink locations

@@ -22,7 +22,7 @@ head(particles.video.location.dt)
 tail(particles.video.location.dt)
 
 mainTitle <- "Potential connectivity [Year 2017]"
-simulation.name <- "Halodule populations"
+simulation.name <- "30 days propagule duration"
 
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
@@ -189,7 +189,7 @@ for( t in 1:t.steps) {
   
 }
  
-system( 'ffmpeg -s 1280x720 -i "/media/Bathyscaphe/Transport Simulation in the Atlantic Halodule/Results/Halodule/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
+system( 'ffmpeg -s 1280x720 -i "/media/Bathyscaphe/Transport Simulations in Selvagens/Results/Selvagens/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
 # file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
 
 # ------------------------------------------------------------------------------------------------------

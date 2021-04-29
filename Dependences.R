@@ -42,7 +42,7 @@ packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco",
                      "h3r",
                      "h3",
                      "reshape2",
-                    "stringr"
+                    "stringr", "h3jsr"
                      )
 
 for(package in packages.to.use) {
@@ -51,7 +51,9 @@ for(package in packages.to.use) {
   if( ! package %in% rownames(installed.packages()) & package == "h3js" ) { devtools::install_github("saurfang/h3js") }
   if( ! package %in% rownames(installed.packages()) & package == "h3r" ) { devtools::install_github("scottmmjackson/h3r") }
   if( ! package %in% rownames(installed.packages()) & package == "h3-r" ) { devtools::install_github("crazycapivara/h3-r") }
+  if( ! package %in% rownames(installed.packages()) & package == "h3jsr" ) { remotes::install_github("obrl-soil/h3jsr") }
   if( ! package %in% rownames(installed.packages()) & package == "rnaturalearthhires" ) { devtools::install_github("ropensci/rnaturalearthhires")  }
+  
   
   
     if( ! package %in% rownames(installed.packages()) ) { sink() ; stop("Error on package instalation") }

@@ -7,10 +7,10 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../Project Config 5.R")
+source("0. Project Config.R")
 source("Dependences.R")
 
-n.season <- "Spring" # Spring; Summer; Autumn; Winter; "" for All
+n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
 
 ## ----------------------------------
 
@@ -42,7 +42,7 @@ n.new.particles.per.day <- global.simulation.parameters$n.new.particles.per.day
 n.steps.per.day <- global.simulation.parameters$n.hours.per.day
 
 length(cell.to.process) * n.particles.per.cell
-  
+
 ## ------------------
 
 simulationDetails <- data.frame(sites=length(cell.to.process),
