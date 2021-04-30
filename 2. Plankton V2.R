@@ -147,7 +147,7 @@ polygons.shore <- polygons.shore[buffer.remover,]
 if( sum(hexagons.address.shore %in% hexagons.address.ocean) > 0 | sum(hexagons.address.land %in% hexagons.address.ocean) > 0 | sum(hexagons.address.ocean %in% hexagons.address.land) > 0 ) { stop("Error :: 001") }
 
 ## ----------
-
+ 
 ggplot() + geom_sf(data = polygons.land, fill=NA, colour="red", size=0.1)
 ggplot() + geom_sf(data = polygons.shore, fill="Black", colour="Black", size=0.1)
 ggplot() + geom_sf(data = polygons.ocean, fill=NA, colour="red", size=0.1)
