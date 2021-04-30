@@ -477,7 +477,7 @@ for( c in 1:nrow(combinations) ){ #
   # Euclidean distance
   
   dist <- as.dist(connectivity.matrix.ss)
-  dist[7] <- 1.1
+  dist[7] <- 1.1 # Canarias vs. Selvagens 
   # Hierarchical Clustering with hclust
   hc <- hclust(dist, method = "ward.D")
   
