@@ -41,23 +41,6 @@ n.particles.per.cell <- global.simulation.parameters$n.particles.per.cell
 n.new.particles.per.day <- global.simulation.parameters$n.new.particles.per.day
 n.steps.per.day <- global.simulation.parameters$n.hours.per.day
 
-length(cell.to.process) * n.particles.per.cell
-
-## ------------------
-
-simulationDetails <- data.frame(sites=length(cell.to.process),
-                                particles.per.site=n.particles.per.cell,
-                                n.particles=length(cell.to.process) * n.particles.per.cell,
-                                n.steps.per.day=24 ,
-                                n.days=n.particles.per.cell,
-                                particles.longevity=global.simulation.parameters$longevity,
-                                particles.max.duration=global.simulation.parameters$particle.max.duration,
-                                particles.behaviour=global.simulation.parameters$behaviour,
-                                extent_minLonMaxLonminLatMaxLat=global.simulation.parameters$extent
-)
-
-write.table(t(simulationDetails),file=paste0(project.folder,"/Results/",project.name,"/","simulationDetails.csv"),col.names=FALSE,sep=";")
-
 ## ------------------
 
 particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.reference.desc"))
@@ -142,6 +125,35 @@ write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,
 Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
 write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm")) 
+
+## ------------------------------------------------------------------------------------------------------
+## ------------------------------------------------------------------------------------------------------
+
+length(cell.to.process) * n.particles.per.cell
+
+## ------------------
+
+simulationDetails <- data.frame(sites=length(cell.to.process),
+                                particles.per.site=n.particles.per.cell,
+                                n.particles=length(cell.to.process) * n.particles.per.cell,
+                                n.steps.per.day=24 ,
+                                n.days=n.particles.per.cell,
+                                particles.longevity=global.simulation.parameters$longevity,
+                                particles.max.duration=global.simulation.parameters$particle.max.duration,
+                                particles.behaviour=global.simulation.parameters$behaviour,
+                                extent_minLonMaxLonminLatMaxLat=global.simulation.parameters$extent,
+                                meanProbability = mean(Connectivity$Mean.Probability),
+                                sdProbability = sd(Connectivity$Mean.Probability),
+                                rangeProbabilityMin = min(Connectivity$Mean.Probability),
+                                rangeProbabilityMax = max(Connectivity$Mean.Probability),
+                                meanTime = mean(Connectivity$Mean.Time),
+                                sdTime = sd(Connectivity$Mean.Time),
+                                meanEvents = mean(Connectivity$Mean.events),
+                                sdEvents = sd(Connectivity$Mean.events)
+                                
+)
+
+write.table(t(simulationDetails),file=paste0(project.folder,"/Results/",project.name,"/","simulationDetails.csv"),col.names=FALSE,sep=";")
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------

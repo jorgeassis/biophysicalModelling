@@ -5,14 +5,22 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-rm( list=(ls()[ls()!="v"]) )
-gc(reset=TRUE)
+if( ! pipeLiner ) {
+  
+  rm( list=(ls()[ls()!="v"]) )
+  gc(reset=TRUE)
+  
+  source("0. Project Config.R")
+  source("Dependences.R")
+  
+  list.dirs(path = paste0("../Results"), recursive = FALSE)
+  season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
+  spawn.p <- 1:12  # spawn.p <- c(6,7,8,9)
+  pld.period <- 30
+  
+}
 
-library(rnaturalearth)
-library(geosphere)
-library(rgeos)
-
-source("0. Project Config.R")
+# Review to change Source and Sink generation
 
 regionsOfInterest <- "../Data/mainRegions.shp" 
 
@@ -131,73 +139,13 @@ plot(regionsOfInterest)
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Produce connectivity for different spawning months and pld periods
 
-# List results
-
-list.dirs(path = paste0("../Results"), recursive = FALSE)
-
-season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
-pld.period <- 30 # 1:120 c(10 , 30 , 90 , 120 , 200)
-combinations <- expand.grid(season=season,pld.period=pld.period,stringsAsFactors = F)
-
-## --------------------
-
 combResults <- data.frame()
 
 isolatedResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
 rownames(isolatedResults) <- RegionNames
 colnames(isolatedResults) <- 1:nrow(combinations)
 
-betweennessResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(betweennessResults) <- RegionNames
-colnames(betweennessResults) <- 1:nrow(combinations)
-
-higherBetweennessResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherBetweennessResults) <- RegionNames
-colnames(higherBetweennessResults) <- 1:nrow(combinations)
-
-eighenCentralityResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(eighenCentralityResults) <- RegionNames
-colnames(eighenCentralityResults) <- 1:nrow(combinations)
-
-highereighenCentralityResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(highereighenCentralityResults) <- RegionNames
-colnames(highereighenCentralityResults) <- 1:nrow(combinations)
-
-closenessResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(closenessResults) <- RegionNames
-colnames(closenessResults) <- 1:nrow(combinations)
-
-higherclosenessResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherclosenessResults) <- RegionNames
-colnames(higherclosenessResults) <- 1:nrow(combinations)
-
-clusterAssignment <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(clusterAssignment) <- RegionNames
-colnames(clusterAssignment) <- 1:nrow(combinations)
-
-resistanceResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(resistanceResults) <- RegionNames
-colnames(resistanceResults) <- 1:nrow(combinations)
-
-higherResistanceResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherResistanceResults) <- RegionNames
-colnames(higherResistanceResults) <- 1:nrow(combinations)
-
-outDegreeResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(outDegreeResults) <- RegionNames
-colnames(outDegreeResults) <- 1:nrow(combinations)
-
-higherOutDegreeResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherOutDegreeResults) <- RegionNames
-colnames(higherOutDegreeResults) <- 1:nrow(combinations)
-
-selfRecruitmentResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(selfRecruitmentResults) <- RegionNames
-colnames(selfRecruitmentResults) <- 1:nrow(combinations)
-
-higherSelfRecruitmentResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
-rownames(higherSelfRecruitmentResults) <- RegionNames
-colnames(higherSelfRecruitmentResults) <- 1:nrow(combinations)
+betweennessResults <- higherBetweennessResults <- eighenCentralityResults <- highereighenCentralityResults <- closenessResults <- higherclosenessResults <- clusterAssignment <- resistanceResults <- higherResistanceResults <- outDegreeResults <- higherOutDegreeResults <- selfRecruitmentResults <- higherSelfRecruitmentResults <- isolatedResults
 
 ## ------------------------------------------------------------------------------
 
@@ -208,14 +156,7 @@ for( c in 1:nrow(combinations) ){ #
   
   cat(c,"\n")
   gc(reset=TRUE)
-  
-  season <- combinations[c,1]
-  pld.period <- combinations[c,2]
-  
-  if( season == "SeasonSummer" ) { spawn.p <- c(6,7,8,9) }
-  if( season == "SeasonWinter" ) { spawn.p <- c(11,12,1,2) }
-  if( season == "YearRound" ) { spawn.p <- 1:12 }
-  
+
   project.name.c <- paste0(project.name,"/",season,"_Pld",pld.period)
   
   ## ----------------------------------------------------
@@ -367,18 +308,18 @@ for( c in 1:nrow(combinations) ){ #
   
   higherSelfRecruitment <- which(SR >=  as.numeric(quantile(SR,0.95,na.rm=TRUE))) 
   higherSelfRecruitmentResults[ higherSelfRecruitment ,c] <- "TRUE"
-  write.csv(higherSelfRecruitmentResults,file="../Results/higherSelfRecruitment.csv.csv")
+  write.csv(higherSelfRecruitmentResults,file="../Results/higherSelfRecruitment.csv")
   
   diag(connectivity.matrix) <- 0
   
   write.csv(connectivity.matrix,paste0("../Results/",project.name.c,"/connectivitymatrix.csv"))
   
-  isolated.mpa <- which(apply(connectivity.matrix,1,sum,na.rm=T) == 0 & apply(connectivity.matrix,2,sum,na.rm=T) == 0)
-  isolatedResults[ isolated.mpa,c] <- "TRUE"
+  isolated.poly <- which(apply(connectivity.matrix,1,sum,na.rm=T) == 0 & apply(connectivity.matrix,2,sum,na.rm=T) == 0)
+  isolatedResults[ isolated.poly,c] <- "TRUE"
   write.csv(isolatedResults,file="../Results/isolatedMPAs.csv")
   
   # Aggregation level (Proportion of non-isolated MPAs, at least one connection, in relation to the number of MPAs)
-  aggregationAtLeastOne <- (nrow(connectivity.matrix)-length(isolated.mpa)) / nrow(connectivity.matrix)
+  aggregationAtLeastOne <- (nrow(connectivity.matrix)-length(isolated.poly)) / nrow(connectivity.matrix)
   
   # Aggregation level (Based on overall connections)
   connectivity.matrix.binomial <- connectivity.matrix
@@ -493,7 +434,7 @@ for( c in 1:nrow(combinations) ){ #
   write.csv(clusterAssignment,file="../Results/clusterAssignmentMPA.csv")
   
   # Number of clusters
-  numberClusters <- length(unique(membership.graph)) - length(isolated.mpa)
+  numberClusters <- length(unique(membership.graph)) - length(isolated.poly)
   
   aggregationBasedOnClusters <- 1 - ( numberClusters / length(membership.graph) )
   
@@ -502,7 +443,7 @@ for( c in 1:nrow(combinations) ){ #
   # Plot clusters
   
   cols.to.use <- distinctColors(length(unique(membership.graph)))[membership.graph]
-  cols.to.use[isolated.mpa] <- "white"
+  cols.to.use[isolated.poly] <- "white"
   
   l <- layout.fruchterman.reingold(graph.obj)
   reducedNames <- sapply(names(V(graph.obj)),function(x) { regionsOfInterest$Names[regionsOfInterest$ID == x][1] })
@@ -516,7 +457,7 @@ for( c in 1:nrow(combinations) ){ #
   # Plot clusters with connections
   
   cols.to.use <- distinctColors(length(unique(membership.graph)))[membership.graph]
-  cols.to.use[isolated.mpa] <- "white"
+  cols.to.use[isolated.poly] <- "white"
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapClusteringConnections.pdf"), width=12)
   print(
@@ -534,7 +475,7 @@ for( c in 1:nrow(combinations) ){ #
   print(
     mapSouthernEuropeNet + 
       geom_point(data = centroids ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "white", size = 2.5, stroke = 0.35, alpha = 0.7) +
-      geom_point(data = centroids[isolated.mpa,] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#9C2323", size = 2.5, stroke = 0.35, alpha = 0.9)
+      geom_point(data = centroids[isolated.poly,] ,  aes(x = x, y = y) , shape = 21, colour = "black", fill = "#9C2323", size = 2.5, stroke = 0.35, alpha = 0.9)
   )
   dev.off()
   
@@ -588,7 +529,7 @@ for( c in 1:nrow(combinations) ){ #
   
   cols.to.use <- colorRampPalette(c('#BAE2FF','yellow','orange','#9C2323'))
   cols.to.use <- cols.to.use(20)[as.numeric(cut(as.numeric(betweennessIndexPlot),breaks = 20))]
-  cols.to.use[isolated.mpa] <- "white"
+  cols.to.use[isolated.poly] <- "white"
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapBetweennessConnections.pdf"), width=12)
   print(
@@ -602,7 +543,7 @@ for( c in 1:nrow(combinations) ){ #
   
   cols.to.use <- colorRampPalette(c('#BAE2FF','yellow','orange','#9C2323'))
   cols.to.use <- cols.to.use(20)[as.numeric(cut(as.numeric(outDegreeIndexPlot),breaks = 20))]
-  cols.to.use[isolated.mpa] <- "white"
+  cols.to.use[isolated.poly] <- "white"
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapStrengthOut.pdf"), width=12)
   print(
@@ -625,7 +566,7 @@ for( c in 1:nrow(combinations) ){ #
   
   cols.to.use <- colorRampPalette(c('#BAE2FF','yellow','orange','#9C2323'))
   cols.to.use <- cols.to.use(20)[as.numeric(cut(as.numeric(SRIndexPlot),breaks = 20))]
-  cols.to.use[isolated.mpa] <- "white"
+  cols.to.use[isolated.poly] <- "white"
   
   pdf(file=paste0("../Results/",project.name,"/Maps/MapSRConnections.pdf"), width=12)
   print(
@@ -765,7 +706,7 @@ for( c in 1:nrow(combinations) ){ #
   
   combResults <- rbind(combResults,
                        data.frame(pld=pld.period,
-                                  n.isolated.mpa=length(isolated.mpa),
+                                  n.isolated.poly=length(isolated.poly),
                                   aggregationAtLeastOne=aggregationAtLeastOne,
                                   aggregationAllConnections=aggregationAllConnections,
                                   averageConnections=averageConnections,
@@ -798,7 +739,7 @@ names(combResults)
 
 x <- combResults$pld
 x.lab <- "Propagule duration (day)"
-y <- combResults$n.isolated.mpa
+y <- combResults$n.isolated.poly
 y.lab <- "Isolation degree (number of reserves)"
 
 par(mar = c(4.5, 5.5, 4.5, 4.5))
@@ -822,7 +763,7 @@ ggplot(combResults, aes(x = pld, y = averageConnections)) +
 dev.off()
 
 pdf(file=paste0("../Results/isolation degree.pdf"), width=12)
-ggplot(combResults, aes(x = pld, y = n.isolated.mpa)) +
+ggplot(combResults, aes(x = pld, y = n.isolated.poly)) +
   geom_line() + 
   ylab("Isolation degree (number of reserves)") +
   xlab("Propagule duration (day)")

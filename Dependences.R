@@ -13,7 +13,7 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------
 
-packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco", "geosphere","httr",
+packages.to.use <- c("rnaturalearth","geosphere","rgeos","dggridR","gdata","dplyr","sf","countrycode", "spatialEco", "geosphere","httr",
                      "gstat",
                      "fasterize",
                      "spdep",
@@ -44,6 +44,8 @@ packages.to.use <- c("dggridR","gdata","dplyr","sf","countrycode", "spatialEco",
                      "reshape2",
                     "stringr", "h3jsr"
                      )
+
+packages.to.use <- unique(packages.to.use)
 
 for(package in packages.to.use) {
   sink("/dev/null") 

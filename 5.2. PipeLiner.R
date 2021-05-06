@@ -28,6 +28,9 @@ n.days.max
 
 list.dirs(path = paste0("../Results"), recursive = FALSE)
 
+popCoordinates <- read.csv("../Data/DiffRecords.csv", sep=";")
+popFST <- read.csv("../Data/DiffFST.csv", sep=";")
+
 pld.period <- 1:60 # 1:120 c(10 , 30 , 90 , 120 , 200)
 n.seasons <- "YearRound" # c("YearRound","Spring","Summer","Autumn","Winter")
 combinations <- expand.grid(season=n.seasons,pld.period=pld.period,stringsAsFactors = F)
@@ -45,8 +48,8 @@ for( c in 1:nrow(combinations) ) {
   if( season == "Winter" ) { spawn.p <- c(12,1,2) }
   if( season == "YearRound" ) { spawn.p <- 1:12 }
   
-  if( type == "polygons" ) { source("5.1. Connectivity Estimates [Polygons].R") }
-  if( type == "points" ) { source("5.1. Connectivity Estimates [Points].R") }
+  if( type == "polygons" ) { source("5.2. Connectivity vs Differentiaiton.R") }
+  if( type == "points" ) { source("5.2. Connectivity vs Differentiaiton.R") }
   
 }
 

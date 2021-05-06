@@ -18,6 +18,8 @@ data.folder <- paste0(project.folder,"Data/")
 landmass.shp <- "Data/Shapefiles/Global Landmass.shp" # NULL "../Data/mainLandAzores.shp" "Data/Shapefiles/Global Landmass.shp"
 bathymetry.tif <- NULL
 
+# Revise to be polygons or points from source sink 
+
 additional.landmass.shp <- NULL # "../Data/Dispersal simulations/Shapefiles/additionalSites.shp" 
 additional.source.sink.shp <- NULL # "../Data/sourceSinkSites.shp" # "../Data/sourceSinkPolygons_0.shp" # "../Data/Shapefiles/rockyHabitats" # 
 additional.source.sink.shp.force.shore <- NULL # TRUE # If additional.source.sink.shp are new regions
