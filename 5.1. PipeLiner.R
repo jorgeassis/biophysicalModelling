@@ -18,6 +18,7 @@ source("Dependences.R")
 ## --------------------------------------------------------------------------------------------------------------
 
 pipeLiner <- TRUE
+doParallelCalculations <- TRUE # repeat all parallel computations
 type <- "points" # points polygons
 
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
@@ -35,6 +36,7 @@ combinations <- expand.grid(season=n.seasons,pld.period=pld.period,stringsAsFact
 for( c in 1:nrow(combinations) ) {
   
   gc(reset=TRUE)
+  cat(c,"\n")
   
   season <- combinations[c,1]
   pld.period <- combinations[c,2]
