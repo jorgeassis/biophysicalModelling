@@ -574,6 +574,8 @@ write.csv(data.frame(names=names(closenessIndex),index=(closenessIndex - min(clo
 
 ## ------------------------------------------
 
+Review!
+  
 # Plot clusters with connections
 
 cols.to.use <- distinctColors(length(unique(membership.graph)))[membership.graph[sapply(regionsOfInterest$RegionFinal,function(x) which(names(membership.graph) == x) )]]
