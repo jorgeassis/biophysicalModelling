@@ -445,7 +445,7 @@ save(global.simulation.parameters, file = paste0(project.folder,"/Results/",proj
 
 ## -----------------------
 
-rm(particles.reference.bm) ; rm(particles.reference) ; rm(polygons.all) ; rm(polygons.ocean) ; rm(hexagons.land); rm(centroid.all)
+rm(particles.reference.bm) ; rm(particles.reference) ; rm(polygons.all) ; rm(polygons.ocean) ; rm(hexagons.land)
 gc(reset=TRUE)
 memory.profile()
 head(list.memory())
@@ -634,12 +634,14 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   parallelChunk <- data.frame(chunk=sapply(1:number.cores,function(x) { rep(x,round(length(unique.start.cells) / number.cores)) } )[1:length(unique.start.cells)],
                               sounce.sink.ids=unique.start.cells)
   
+  if( sum(is.na(parallelChunk$chunk)) > 0 ) { parallelChunk[which(is.na(parallelChunk$chunk)),1 ] <- number.cores }
+  
   if( FALSE %in% (unique.start.cells %in% parallelChunk$sounce.sink.ids ) ) { stop("Error :: 1999") }
   
   Cluster <- makeCluster( number.cores ) 
   registerDoParallel(number.cores) 
   
-  parallelProcess <- foreach(chunk=1:number.cores, .verbose=FALSE, .packages=c("zoo","raster","rgeos","dismo","SDMTools")) %dopar% {
+  parallelProcess <- foreach(chunk=unique(parallelChunk$chunk), .verbose=FALSE, .packages=c("zoo","raster","rgeos","dismo","SDMTools")) %dopar% {
     
     start.cell.i <- parallelChunk[parallelChunk$chunk == chunk,2]
     
@@ -962,6 +964,8 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
 
 end_time <- Sys.time()
 end_time - start_time
+
+# Check NAs - zeros below :: If NAs, not possible!, check why!
 
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------

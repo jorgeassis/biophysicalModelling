@@ -5,6 +5,8 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
+# use kring to also search for the neares polygons.
+
 if( ! exists("pipeLiner") ) {
   
   rm( list=(ls()[ls()!="v"]) )
@@ -23,10 +25,37 @@ if( ! exists("pipeLiner") ) {
 
 ## --------------
 
+theme_map <- 
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Helvetica", color = "#22211d"),
+    axis.line = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
+    panel.grid.major = element_line(color = "#979797", size = 0.05),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+    panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+    legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    panel.border = element_blank()
+  )
+
+## --------------
+
 transformFST <- TRUE
 
 worldMap <- ne_countries(scale = 10, returnclass = "sp")
-worldMap <- crop(worldMap,extent(min(popCoordinates[,2])-10,max(popCoordinates[,2])+10,min(popCoordinates[,3])-10,max(popCoordinates[,3])+10))
+worldMap <- crop(worldMap,extent(min(popCoordinates[,2])-5,max(popCoordinates[,2])+5,min(popCoordinates[,3])-5,max(popCoordinates[,3])+5))
+
+mapRegion <- ggplot() +
+  geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group))  + coord_map() +
+  coord_sf(xlim = c( extent(worldMap)[1], extent(worldMap)[2]), ylim = c(extent(worldMap)[3], extent(worldMap)[4]), expand = FALSE)
+#  + coord_map('lambert', lat0=(extent(worldMap) + c(10,-10,10,-10))[3] + (extent(worldMap) + c(10,-10,10,-10))[4] / 2, lat1=45, xlim=c((extent(worldMap) + c(10,-10,10,-10))[1], (extent(worldMap) + c(10,-10,10,-10))[2]), ylim=c((extent(worldMap) + c(10,-10,10,-10))[3], (extent(worldMap) + c(10,-10,10,-10))[4])) + theme_map
+mapRegion
 
 Connectivity.file <- paste0(project.folder,"/Results/",project.name,"/InternalProc","/connectivityEstimatesAveragedDistances.bm")
 Connectivity <- read.big.matrix(Connectivity.file)
@@ -101,11 +130,18 @@ if( length(popCoordinatesSS) != length(unique(popCoordinatesSS)) ) {
   
 }
 
-ggplot() +
-  geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group))  + coord_map() +
+pdf(file=paste0("../Results/RecAllSampling.pdf"), width=12)
+mapRegion +
+  geom_point(data = source.sink.xy  ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "white", size = 2.5, stroke = 0.35, alpha = 0.9) +
+  geom_point(data = popCoordinates  ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "Red", size = 2.5, stroke = 0.35, alpha = 0.9) 
+dev.off()
+
+pdf(file=paste0("../Results/RecSamplingLabels.pdf"), width=12)
+mapRegion +
   geom_point(data = popCoordinates  ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "Red", size = 2.5, stroke = 0.35, alpha = 0.9) +
+ # geom_text(aes(x=popCoordinates$Lon,y=popCoordinates$Lat,label = popCoordinates.n), check_overlap = TRUE)
   geom_label(aes(label=popCoordinates.n, x=popCoordinates$Lon,y=popCoordinates$Lat),check_overlap = T) 
-  # geom_text(aes(label=popCoordinates.n, x=popCoordinatesMap$Lon,y=popCoordinatesMap$Lat),check_overlap = T) 
+dev.off()
 
 ## ---------------------------------------------------
 ## ---------------------------------------------------
@@ -126,12 +162,12 @@ raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 comb <- Connectivity
 comb[ which(comb[,"Time.max"] > pld.period) , "Probability" ] <- 0
 comb <- as.data.frame( comb[ sort(comb$Probability , decreasing = TRUE, index.return =TRUE)$ix , c("Pair.from","Pair.to","Probability")] )
+
 graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
 # E(graph.obj)$weight = 1 - comb[,3] # The wheight has a negative impact on finding the closest path
 # E(graph.obj)$weight = comb[,3] 
 E(graph.obj)$weight = ifelse(-log(comb[,3]) == Inf,0,-log(comb[,3])) # Hock, Karlo Mumby, Peter J 2015
-
-#graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
+graph.obj <- delete.edges(graph.obj, which(E(graph.obj)$weight ==0))
 graph.obj <- as.undirected(graph.obj, mode = "collapse", edge.attr.comb = "mean") # min / mean / max
 graph.obj <- simplify(graph.obj)
 
@@ -140,7 +176,6 @@ graph.obj <- simplify(graph.obj)
 
 graph.obj.sampled <- delete_vertices(graph.obj, names(V(graph.obj))[! names(V(graph.obj)) %in% as.character(popCoordinatesSS)])
 membership.graph <- clusters(graph.obj.sampled)$membership
-
 cols.to.use <- distinctColors(length(membership.graph))
 cols.to.use <- cols.to.use[membership.graph]
 
@@ -150,6 +185,15 @@ plot(graph.obj.sampled,vertex.label.dist=1.5,vertex.label.family="Helvetica",ver
 
 pdf( file=paste0(project.folder,"Results/Clustering Sampled Sites.pdf") , width = 10, height = 8 )
 plot(graph.obj.sampled,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , vertex.color=cols.to.use )
+dev.off()
+
+membership.graph <- clusters(graph.obj)$membership
+cols.to.use <- rep("Gray",length(membership.graph))
+names(cols.to.use) <- names(membership.graph)
+cols.to.use[which(names(cols.to.use) %in% popCoordinatesSS)] <- "Red"
+
+pdf( file=paste0(project.folder,"Results/Clustering Sampled Sites Vs All.pdf") , width = 10, height = 8 )
+plot(graph.obj,vertex.label.color="Black",vertex.label="",vertex.size=10,edge.curved = F , vertex.color=adjustcolor(cols.to.use, alpha.f = .5), edge.color=adjustcolor("black", alpha.f = 1))
 dev.off()
 
 ## ---------------------------------------------------
@@ -202,16 +246,11 @@ stopCluster(cl.3) ; rm(cl.3) ; gc()
 
 ## ---------------------------------------------------
   
-
-
-
-# REVIEW FROM THIS POINT ONWARDS
-
-
-
 connectivity <- do.call(rbind,potential.connectivity)
+
 connectivity <- connectivity[connectivity[,1] != connectivity[,2] ,]
-connectivity[connectivity[,5] == 0,5] <- 1e-299
+connectivity[is.na(connectivity$probability.ss),"probability.ss"] <- 0
+connectivity[connectivity[,"probability.ss"] == 0,5] <- 1e-299
 
 ## ---------------
 
@@ -242,9 +281,10 @@ for( i in 1:nrow(norm)) {
 
 connectivity.final <- connectivity.final[connectivity.final[,1] != connectivity.final[,2] ,]
 
-if(transform.fst) { connectivity.final[,3] <- connectivity.final$Differantiation/(1-connectivity.final$Differantiation) }
+if(transformFST) { connectivity.final[,3] <- connectivity.final$Differantiation/(1-connectivity.final$Differantiation) }
 
 connectivity.final <- connectivity.final[which(complete.cases(connectivity.final)),]
+connectivity.final <- connectivity.final[connectivity.final$Connectivity.max > -688.47294,]
 
 cor.ibd <- cor(connectivity.final$Distance,connectivity.final$Differantiation , use = "complete.obs",method="pearson")
 fit.ibd <- lm(Differantiation ~ Distance, data=connectivity.final , na.action = na.omit)
@@ -274,7 +314,7 @@ r2.max = summary(fit.max)$adj.r.squared
 p.max=summary(fit.max)$coefficients
 p.max= ifelse( nrow(p.max) == 2 , p.max[2,4] , NA)
 
-data.frame(day = n.days,
+data.frame(day = pld.period,
           aic.ibd= AIC(fit.ibd),
           r2.ibd = r2.ibd,
           cor.ibd = cor.ibd,

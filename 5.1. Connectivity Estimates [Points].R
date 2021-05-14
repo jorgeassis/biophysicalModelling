@@ -40,7 +40,7 @@ Connectivity
 
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
 
-sim.extent <-unique(as.numeric(unlist(strsplit(global.simulation.parameters$extent, split=","))))
+sim.extent <- unique(as.numeric(unlist(strsplit(global.simulation.parameters$extent, split=","))))
 months <- unique(as.numeric(unlist(strsplit(global.simulation.parameters$sim.months , split=","))))
 n.hours.per.day <- global.simulation.parameters$n.hours.per.day
 n.particles.per.cell <- global.simulation.parameters$n.particles.per.cell
@@ -81,7 +81,7 @@ if(length(missingTo) > 0) {
 ## --------------------------------------------------------------------
 # Temporary Subset
 
-subseter <- as.vector(extent(source.sink.xy.sp) + c(-0.1,0.1,-0.1,0.1)) # c(-11.25,37.85,29.75,46.25)
+subseter <- as.vector(extent(source.sink.xy.sp) + c(-0.5,0.5,-0.5,0.5)) # c(-11.25,37.85,29.75,46.25)
 
 ## --------------------------------------------------------------------
 ## --------------------------------------------------------------------
@@ -105,6 +105,8 @@ combResults <- data.frame()
 RegionNames <- as.character(source.sink.xy$Pair)
 
 if( ! exists("isolatedResults")) {
+  
+  if( ! exists("combinations")) { combinations <- matrix(NA) }
   
   isolatedResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
   rownames(isolatedResults) <- RegionNames
@@ -134,11 +136,9 @@ if( ! dir.exists(paste0("../Results/",project.name.c,"/Networks")) ) { dir.creat
 connectivity.matrix <- Connectivity[ ,c(1,2,3)]
 connectivity.matrix[is.na(connectivity.matrix)] <- 0
 connectivity.matrix <- acast(connectivity.matrix, Pair.from ~ Pair.to )
-
 write.csv(connectivity.matrix,paste0("../Results/",project.name.c,"/connectivitymatrix.csv"))
 
 ## ----------------------------------
-
 
 retention <- diag(connectivity.matrix)
 sumRows <- apply(connectivity.matrix,1,sum,na.rm=T)
@@ -179,8 +179,11 @@ higherResistance.calc <- which(resistance >=  as.numeric(quantile(resistance,0.9
 higherResistanceResults[which(rownames(higherResistanceResults) %in% names(higherResistance.calc)),c] <- 1
 write.csv(higherResistanceResults,file="../Results/higherSelfRecruitment.csv")
 
-# Average connections between MPAs
+# Average connections
 connect.index <- data.frame(SSSites=colnames(connectivity.matrix),exportTo=apply(connectivity.matrix,1,function(x){ sum(x != 0,na.rm=T) } ) , importFrom=apply(connectivity.matrix,2,function(x){ sum(x != 0,na.rm=T) } ))
+
+# hist(connect.index$exportTo)
+# hist(connect.index$importFrom)
 
 averageConnections <- mean(unlist(connect.index[,-1]),na.rm=T)
 sdConnections <- sd(unlist(connect.index[,-1]),na.rm=T)
@@ -233,8 +236,10 @@ for( i in nrow(connected.pairs):1 ){
   routes_sl.2 <- which(source.sink.xy.sp$Pair == connected.pairs[i,2])
   routes_sl <- gcIntermediate(source.sink.xy.sp[routes_sl.1,],source.sink.xy.sp[routes_sl.2,],n = 100, addStartEnd = TRUE, sp = TRUE)
   SLDF = sp::SpatialLinesDataFrame(routes_sl, data.frame(ID = NA), match.ID = F)
-  mapRegionNet <- mapRegionNet + geom_path(data = SLDF, size=0.35 , aes(x = long, y = lat), col = colfunc(101)[round(strenght)] ) # "#797979"
+  mapRegionNet <- mapRegionNet + geom_path(data = SLDF, size=0.35 , aes(x = long, y = lat), col = "#797979" ) # "#797979" colfunc(101)[round(strenght)]
 }
+
+mapRegionNet
 
 ## --------------------------------------------------------------------------------
 
@@ -272,7 +277,8 @@ hc <- hclust(dist, method = "ward.D")
 # Plot the result
 plot(hc)
 
-# -------------
+## ------------------------------------------
+## ------------------------------------------
 
 membership.graph <- clusters(graph.obj)$membership
 clusterAssignment[ sapply(names(membership.graph),function(x) which(row.names(clusterAssignment) == x) ),c] <- membership.graph

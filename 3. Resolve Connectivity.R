@@ -118,11 +118,12 @@ Connectivity ; gc()
 source.sink.id <- source.sink.xy$cells.id[which(source.sink.xy$source == 1)] 
 plot(source.sink.xy[which(source.sink.xy$source == 1),2:3] )
 
-source.sink.xy <- source.sink.xy[source.sink.xy$cells.id %in% source.sink.id,]
+source.sink.xy <- source.sink.xy[which(source.sink.xy$source == 1),]
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
 write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm"))
 
-Connectivity <- Connectivity[Connectivity$Pair.from %in% source.sink.id & Connectivity$Pair.to %in% source.sink.id,]
+Connectivity <- Connectivity[ Pair.from %in% source.sink.id,]
+Connectivity <- Connectivity[ Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
 write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm")) 
 

@@ -484,13 +484,29 @@ connectivity.matrix.ss <- connectivity.matrix.ss[-unLinked,-unLinked]
 dist <- as.dist(connectivity.matrix.ss)
 hc <- hclust(dist, method = "average") # average
 
+library(factoextra)
+library(dendextend)
+fviz_nbclust(connectivity.matrix.ss, FUNcluster= hcut, method = c("silhouette"), k.max= 8) # wss gap_stat
+fviz_nbclust(connectivity.matrix.ss[which(!rownames(connectivity.matrix.ss) %in% c("Portugal","Asturias","France")) , which(!colnames(connectivity.matrix.ss) %in% c("Portugal","Asturias","France")) ], FUNcluster= hcut, method = c("silhouette") , k.max= 5) # wss gap_stat
+
+hcPlot <- as.dendrogram(hc)
+plot(hcPlot, cex = 0.6, main = "Title", horiz = TRUE)
+rect.dendrogram(hcPlot, k=3, border = 2, horiz =T)
+
+pdf(file=paste0("../Results/dendogram.pdf"), width=12)
+plot(hcPlot, cex = 0.6, main = "Title", horiz = TRUE)
+rect.dendrogram(hcPlot, k=3,cluster=c(1,1,1,1,1,2,2,3,3,3,1), border = 2, horiz =T)
+dev.off()
+
 pdf(file=paste0("../Results/",project.name.c,"/Networks/dendogram.pdf"), width=12)
 plot(hc)
 dev.off()
-
+# -------------
 # -------------
 
+# Membership based on clusters
 membership.graph <- clusters(graph.obj)$membership
+
 clusterAssignment[ sapply(names(membership.graph),function(x) which(row.names(clusterAssignment) == x) ),c] <- membership.graph
 write.csv(clusterAssignment,file="../Results/clusterAssignment.csv")
 
@@ -574,8 +590,6 @@ write.csv(data.frame(names=names(closenessIndex),index=(closenessIndex - min(clo
 
 ## ------------------------------------------
 
-Review!
-  
 # Plot clusters with connections
 
 cols.to.use <- distinctColors(length(unique(membership.graph)))[membership.graph[sapply(regionsOfInterest$RegionFinal,function(x) which(names(membership.graph) == x) )]]
