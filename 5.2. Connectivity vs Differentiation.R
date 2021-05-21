@@ -15,13 +15,23 @@ if( ! exists("pipeLiner") ) {
   source("0. Project Config.R")
   source("Dependences.R")
   
-  list.dirs(path = paste0("../Results"), recursive = FALSE)
-  pld.period <- 30
+  season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
+  spawn.p <- 1:12  # spawn.p <- c(6,7,8,9)
+  pld.period <- 60
+  n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
   
   popCoordinates <- read.csv("../Data/DiffRecords.csv", sep=";")
   popDifferentiation <- read.csv("../Data/DiffFST.csv", sep=";", header=FALSE)
   
 }
+
+## ----------------------------------------------------
+
+project.name.c <- paste0(project.name,"/",season,"_Pld",pld.period,"/Genetics/")
+
+## ----------------------------------------------------
+
+if( ! dir.exists(paste0("../Results/",project.name.c)) ) { dir.create(file.path(paste0("../Results/",project.name.c)), showWarnings = FALSE) } 
 
 ## --------------
 
@@ -61,6 +71,7 @@ Connectivity.file <- paste0(project.folder,"/Results/",project.name,"/InternalPr
 Connectivity <- read.big.matrix(Connectivity.file)
 Connectivity <- data.table(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events","Distance")
+Connectivity <- Connectivity[Connectivity$Time.max <= pld.period,]
 
 sorce.sink.cells.file <- paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm")
 source.sink.xy <- read.big.matrix(sorce.sink.cells.file)
@@ -130,13 +141,13 @@ if( length(popCoordinatesSS) != length(unique(popCoordinatesSS)) ) {
   
 }
 
-pdf(file=paste0("../Results/RecAllSampling.pdf"), width=12)
+pdf(file=paste0("../Results/",project.name.c,"RecAllSampling.pdf"), width=12)
 mapRegion +
   geom_point(data = source.sink.xy  ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "white", size = 2.5, stroke = 0.35, alpha = 0.9) +
   geom_point(data = popCoordinates  ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "Red", size = 2.5, stroke = 0.35, alpha = 0.9) 
 dev.off()
 
-pdf(file=paste0("../Results/RecSamplingLabels.pdf"), width=12)
+pdf(file=paste0("../Results/",project.name.c,"RecSamplingLabels.pdf"), width=12)
 mapRegion +
   geom_point(data = popCoordinates  ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "Red", size = 2.5, stroke = 0.35, alpha = 0.9) +
  # geom_text(aes(x=popCoordinates$Lon,y=popCoordinates$Lat,label = popCoordinates.n), check_overlap = TRUE)
@@ -160,7 +171,6 @@ raster_tr_corrected <- geoCorrection(raster_tr, type="c", multpl=FALSE)
 ## All Pairs
 
 comb <- Connectivity
-comb[ which(comb[,"Time.max"] > pld.period) , "Probability" ] <- 0
 comb <- as.data.frame( comb[ sort(comb$Probability , decreasing = TRUE, index.return =TRUE)$ix , c("Pair.from","Pair.to","Probability")] )
 
 graph.obj <- graph.edgelist( cbind( as.character( comb[,1]) , as.character(comb[,2]) ) , directed = TRUE )
@@ -183,7 +193,7 @@ l <- layout.fruchterman.reingold(graph.obj.sampled)
 reducedNames <- unlist(sapply( names(V(graph.obj.sampled)),function(x) { popCoordinates.n[which( popCoordinatesSS == x)] } ))
 plot(graph.obj.sampled,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , vertex.color=cols.to.use )
 
-pdf( file=paste0(project.folder,"Results/Clustering Sampled Sites.pdf") , width = 10, height = 8 )
+pdf( file=paste0("../Results/",project.name.c,"Clustering Sampled Sites.pdf") , width = 10, height = 8 )
 plot(graph.obj.sampled,vertex.label.dist=1.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.75,vertex.label=reducedNames,vertex.size=10,layout = l,edge.curved = F , vertex.color=cols.to.use )
 dev.off()
 
@@ -192,7 +202,7 @@ cols.to.use <- rep("Gray",length(membership.graph))
 names(cols.to.use) <- names(membership.graph)
 cols.to.use[which(names(cols.to.use) %in% popCoordinatesSS)] <- "Red"
 
-pdf( file=paste0(project.folder,"Results/Clustering Sampled Sites Vs All.pdf") , width = 10, height = 8 )
+pdf( file=paste0("../Results/",project.name.c,"Clustering Sampled Sites Vs All.pdf") , width = 10, height = 8 )
 plot(graph.obj,vertex.label.color="Black",vertex.label="",vertex.size=10,edge.curved = F , vertex.color=adjustcolor(cols.to.use, alpha.f = .5), edge.color=adjustcolor("black", alpha.f = 1))
 dev.off()
 

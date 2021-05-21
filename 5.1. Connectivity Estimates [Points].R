@@ -16,8 +16,9 @@ if( exists("pipeLiner") ) {
   list.dirs(path = paste0("../Results"), recursive = FALSE)
   season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
   spawn.p <- 1:12  # spawn.p <- c(6,7,8,9)
-  pld.period <- 30
-  c <- 1
+  pld.period <- 60
+  n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
+  c <- 2
   
 }
 
@@ -28,12 +29,12 @@ sorce.sink.cells.file <- paste0(project.folder,"/Results/",project.name,"/Intern
 
 # Open connectivity
 
-n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
-
 Connectivity <- read.big.matrix(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm"))
 Connectivity <- data.table(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
+Connectivity <- Connectivity[Connectivity$Time.max <= pld.period,]
 Connectivity
+max(Connectivity$Time.max)
 
 ## ------------------------------------------------------------------------------------------------------------
 ## Read main sources
@@ -426,7 +427,7 @@ cols.to.use <- cols.to.use(20)[as.numeric(cut(as.numeric(selfRecruitmentPlot),br
 
 centroids <- source.sink.xy.sp[sapply(names(selfRecruitmentPlot),function(x) which(source.sink.xy.sp$Pair == x)),]
 centroids <- data.frame(centroids)
-centroidsHiger <- source.sink.xy.sp[sapply(names(higherSelfRecruitment[higherSelfRecruitment == 1 ]),function(x) which(source.sink.xy.sp$Pair == x)),]
+centroidsHiger <- source.sink.xy.sp[sapply(names(higherSelfRecruitment.calc),function(x) which(source.sink.xy.sp$Pair == x)),]
 centroidsHiger <- data.frame(centroidsHiger)
 
 pdf(file=paste0("../Results/",project.name.c,"/Maps/selfRecruitment.pdf"), width=12)
