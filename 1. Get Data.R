@@ -300,16 +300,17 @@ for (y in unique(fullDates$year) ){ #
     
     var4d <- ncvar_def( "UComponent", "m", list(dimX,dimY,dimT), mv, prec="double")
     var5d <- ncvar_def( "VComponent", "m", list(dimX,dimY,dimT), mv,  prec="double")
-    nc.file <- nc_create( paste(project.folder,"/Data","/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d) ,  force_v4=TRUE )
+    nc.file <- nc_create( paste(project.folder,"/Data","/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d)  ) # ,  force_v4=TRUE
     ncvar_put( nc.file, var1d, Longitude.array )  
     ncvar_put( nc.file, var2d, Latitude.array )   
     ncvar_put( nc.file, var3d, as.numeric(as.Date(time.window)) )
     ncvar_put( nc.file, var4d, data.u )  
     ncvar_put( nc.file, var5d, data.v )
     nc_close(nc.file)
+    
   }
   
-  if(final.dimensions == 3) {
+  if( final.dimensions == 3 ) {
     var5d <- ncvar_def( "UComponent", "m", list(dimX,dimY,dimD,dimT), mv, prec="double")
     var6d <- ncvar_def( "VComponent", "m", list(dimX,dimY,dimD,dimT), mv,  prec="double")
     nc.file <- nc_create( paste(project.folder,"/Data","/currents_3d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d,var6d) )
@@ -320,9 +321,30 @@ for (y in unique(fullDates$year) ){ #
     ncvar_put( nc.file, var5d, data.u )  
     ncvar_put( nc.file, var6d, data.v )
     nc_close(nc.file)
+    
   }
   
 }
+
+# -----------
+# -----------
+
+resul <- data.frame()
+
+for( i in 2008:2017) {
+  
+  simulaton.raw.data.file <- paste0("/media/Bathyscaphe/Transport Simulations in Selvagens/Data//currents_2d_Selvagens_",i,".nc")
+  
+  simulation.raw.data <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
+  dim.i <- ncvar_get( simulation.raw.data, "X" )
+  dim.j <- ncvar_get( simulation.raw.data, "Y" )
+  nc_close(simulation.raw.data)
+  
+  resul.i <- data.frame(i,dim(dim.i),dim(dim.j))
+  resul <- rbind(resul,resul.i)
+  
+}
+
 
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------

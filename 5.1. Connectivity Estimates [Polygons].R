@@ -16,8 +16,8 @@ if( exists("pipeLiner") ) {
   list.dirs(path = paste0("../Results"), recursive = FALSE)
   season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
   spawn.p <- 1:12  # spawn.p <- c(6,7,8,9)
-  pld.period <- 30
-  c <- 1
+  pld.period <- 90
+  c <- 3
   
 }
 
@@ -57,13 +57,7 @@ regionsOfInterest <- shapefile(regionsOfInterest)
 regionsOfInterest <- gBuffer(regionsOfInterest, byid=TRUE, width=0)
 worldMap <- ne_countries(scale = 10, returnclass = "sp")
 
-regionsOfInterest[1,"Region"] <- "Acores"
-regionsOfInterest[8,"Region"] <- "Mediterranean"
-
 # Aggregate based on names
-
-regionsOfInterest$Region[which(grepl("Spain",regionsOfInterest$Region))] <- "Asturias"
-regionsOfInterest$Region[which(grepl("NWAfria",regionsOfInterest$Region))] <- "NWAfrica"
 
 regionsOfInterest <- aggregate(regionsOfInterest, by = list(RegionFinal = regionsOfInterest$Region), FUN=mean, dissolve = TRUE, areaWeighted = FALSE)
 regionsOfInterest$Area <- round(raster::area(regionsOfInterest) / 1000000,digits=3)
@@ -324,21 +318,19 @@ load(file=paste0("../Results/",project.name.c,"/Data/connectivity.source.sink.xy
 # -------------
 # Correction
 
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Selvagens") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Madeira"),]
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Madeira") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Selvagens"),]
+SELtoMAD <- connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "SEL") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "MAD"),3:7]
+MADtoSEL <- connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "MAD") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "SEL"),3:7]
 
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Selvagens") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Canarias"),]
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Canarias") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Selvagens"),]
+SELtoCAN <- connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "SEL") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "CAN"),3:7]
+CANtoSEL <- connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "CAN") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "SEL"),3:7]
 
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Madeira") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Canarias"),3:7] 
+connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "SEL") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "MAD"),3:7] <- SELtoCAN
+connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "MAD") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "SEL"),3:7] <- CANtoSEL
 
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Selvagens") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Madeira"),3:7] <- c(5.348837 , 18.93527 , 22.45058 , 3.577535 , 0.01391462)
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Madeira") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Selvagens"),3:7] <- c(1.833333 , 20.71701 , 22.2934 , 2.229351 , 0.009022831)
+connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "SEL") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "CAN"),3:7] <- SELtoMAD
+connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "CAN") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "SEL"),3:7] <- MADtoSEL
 
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Selvagens") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Canarias"),3:7] <- c(1.5,22.22917,22.22917,0,0.004109589)
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Canarias") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Selvagens"),3:7] <- c(1.883333 , 24.19565 ,26.73611, 3.082843, 0.005159817)
-
-connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "Madeira") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "Canarias"),3:7] <- c(1.5,25.03965,25.55986,0.6747102,0.001958454)
+connectivity[connectivity[,1] == which(regionsOfInterest$RegionFinal == "MAD") & connectivity[,2] == which(regionsOfInterest$RegionFinal == "CAN"),3:7] <- c(1.5,25.03965,25.55986,0.6747102,0.001958454)
 
 ## ------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------
@@ -474,33 +466,37 @@ for(i in 1:nrow(connectivity.matrix.ss)) {
   }
 }
 connectivity.matrix.ss[connectivity.matrix.ss == Inf] <- 1
+
 unLinked <- which(apply(connectivity.matrix.ss,1,sum) == nrow(connectivity.matrix.ss) - 1 & apply(connectivity.matrix.ss,2,sum) == nrow(connectivity.matrix.ss) - 1)
-connectivity.matrix.ss <- connectivity.matrix.ss[-unLinked,-unLinked]
+if(length(unLinked) > 0 ) { connectivity.matrix.ss <- connectivity.matrix.ss[-unLinked,-unLinked] }
 
 # -------------
 # -------------
 # Make dendogram 
 
 dist <- as.dist(connectivity.matrix.ss)
+write.table(as.matrix(dist),file=paste0("../Results/",project.name.c,"SteppingStoneDistance.csv"),row.names = TRUE,col.names = TRUE)
+
 hc <- hclust(dist, method = "average") # average
 
 library(factoextra)
 library(dendextend)
-fviz_nbclust(connectivity.matrix.ss, FUNcluster= hcut, method = c("silhouette"), k.max= 8) # wss gap_stat
+fviz_nbclust(connectivity.matrix.ss, FUNcluster= hcut, method = c("silhouette"), k.max= 8) # silhouette wss gap_stat
 fviz_nbclust(connectivity.matrix.ss[which(!rownames(connectivity.matrix.ss) %in% c("Portugal","Asturias","France")) , which(!colnames(connectivity.matrix.ss) %in% c("Portugal","Asturias","France")) ], FUNcluster= hcut, method = c("silhouette") , k.max= 5) # wss gap_stat
 
 hcPlot <- as.dendrogram(hc)
 plot(hcPlot, cex = 0.6, main = "Title", horiz = TRUE)
 rect.dendrogram(hcPlot, k=3, border = 2, horiz =T)
 
-pdf(file=paste0("../Results/dendogram.pdf"), width=12)
+pdf(file=paste0("../Results/",project.name.c,"dendogram.pdf"), width=12)
+plot(hcPlot, cex = 0.6, main = "Title", horiz = TRUE)
+dev.off()
+
+pdf(file=paste0("../Results/",project.name.c,"dendogramClust.pdf"), width=12)
 plot(hcPlot, cex = 0.6, main = "Title", horiz = TRUE)
 rect.dendrogram(hcPlot, k=3,cluster=c(1,1,1,1,1,2,2,3,3,3,1), border = 2, horiz =T)
 dev.off()
 
-pdf(file=paste0("../Results/",project.name.c,"/Networks/dendogram.pdf"), width=12)
-plot(hc)
-dev.off()
 # -------------
 # -------------
 
@@ -522,13 +518,11 @@ reducedNames <- names(V(graph.obj))
 reducedNames
 
 l <- coordinates(regionsOfInterest)[sapply(V(graph.obj)$name, function(x) { which(regionsOfInterest$RegionFinal == x) }),]
-l[which(reducedNames == "Selvagens"),] <- c(-16.5 , 30)
-l[which(reducedNames == "Madeira"),] <- c(-19 , 35)
-l[which(reducedNames == "Canarias"),] <- c(-19 ,24)
-l[which(reducedNames == "Mediterranean"),] <- c(-4 ,31.5)
-l[which(reducedNames == "Portugal"),] <- c(-11 ,38)
-l[which(reducedNames == "Asturias"),] <- c(-8 ,42.6)
-l[which(reducedNames == "France"),] <- c(-4 ,45)
+l[which(reducedNames == "SEL"),] <- c(-16.5 , 30)
+l[which(reducedNames == "MAD"),] <- c(-19 , 35)
+l[which(reducedNames == "CAN"),] <- c(-19 ,24)
+l[which(reducedNames == "MED"),] <- c(-3 ,35)
+l[which(reducedNames == "CAD"),] <- c(-7 ,34)
 
 lineThickness <- (E(graph.obj)$weight - min(E(graph.obj)$weight) ) / max((E(graph.obj)$weight - min(E(graph.obj)$weight) ))
 lineThickness <- (lineThickness + 0.25) * 2

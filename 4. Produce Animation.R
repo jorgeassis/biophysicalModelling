@@ -21,8 +21,10 @@ load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","videoLocat
 head(particles.video.location.dt)
 tail(particles.video.location.dt)
 
+# particle.max.duration
+
 mainTitle <- "Potential connectivity [Year 2017]"
-simulation.name <- "30 days propagule duration"
+simulation.name <- "90 days propagule duration"
 
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
 load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
@@ -113,7 +115,7 @@ cells.colors <- data.frame(cell=cells.colors,color=distinctColors(length(cells.c
 # Aggregate colors
 
 particles.video.location.dt[,"color"] <- cells.colors[match(particles.video.location.dt$start.cell,cells.colors$cell),"color"]
-# 
+ 
 # dist <- spDists( as.matrix( coords.cell[,2:3] ) , as.matrix(coords.cell[,2:3] ) )
 # dist <- as.dist(dist)
 # mds.coor <- cmdscale(dist)

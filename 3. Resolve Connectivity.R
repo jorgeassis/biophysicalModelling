@@ -43,7 +43,7 @@ n.steps.per.day <- global.simulation.parameters$n.hours.per.day
 
 ## ------------------
 
-particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.reference.desc"))
+particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.reference.desc") )
 
 ## ------------------
 

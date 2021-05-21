@@ -400,7 +400,7 @@ clean.dump.files(clean.dump.files=TRUE,files="raw.data.",dump.folder=paste0(proj
 clean.dump.files(clean.dump.files=TRUE,files="particles.reference.",dump.folder=paste0(project.folder,"/Results/",project.name,"/InternalProc"))
 
 particles.reference.bm <- big.matrix(nrow=nrow(particles.reference),ncol=ncol(particles.reference) , backingpath=paste0(project.folder,"Results/",project.name,"/InternalProc") , backingfile = "particles.reference.bin", descriptorfile = "particles.reference.desc")
-particles.reference.bm.desc <- dget( paste0(project.folder,"Results/",project.name,"/InternalProc/particles.reference.desc"))
+particles.reference.bm.desc <- dget( paste0(project.folder,"Results/",project.name,"/InternalProc/particles.reference.desc") )
 
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm[,1] <- unlist(particles.reference[,1])
@@ -965,8 +965,6 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
 end_time <- Sys.time()
 end_time - start_time
 
-# Check NAs - zeros below :: If NAs, not possible!, check why!
-
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
 # Save Reference
@@ -996,8 +994,12 @@ particles.reference.bm <- particles.reference.bm[particles.reference.bm[,"cell.r
 ReferenceTable <- data.frame( particles.reference.bm , travel.time= ( 1 + particles.reference.bm[,11] - particles.reference.bm[,10] ) / n.hours.per.day )
 head(ReferenceTable)
 nrow(ReferenceTable)
-
 save(ReferenceTable, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","ReferenceTable.RData"))
+
+# Number of events
+
+global.simulation.parameters <- data.frame(global.simulation.parameters,numberOfConnEvents=nrow(particles.reference.bm))
+save(global.simulation.parameters, file = paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
 
 ## -----------------
 ## -----------------
