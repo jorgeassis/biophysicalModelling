@@ -1,31 +1,17 @@
 ## ------------------------------------------------------------------------------------------------------------------
 ## PlankTonic
-## Assis et al., 2018
+## Assis et al., 2021
 ## ------------------------------------------------------------------------------------------------------------------
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-# setwd("/media/Bathyscaphe/Transport Simulation in the Atlantic Halodule/Git")
-
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Halodule"
-project.folder <- "/media/Bathyscaphe/Transport Simulation in the Atlantic Halodule/"
+project.name <- "01 Intertidal"
+project.folder <- "/Users/jorgeassis/Google Drive/theMarineDataScientist/Projects/Portuguese EEZ Connectivity estimates/"
 data.folder <- paste0(project.folder,"Data/")
-
-landmass.shp <- NULL # "../Data/mainLandAzores.shp" 
-bathymetry.tif <- NULL
-
-additional.landmass.shp <- NULL # "../Data/Dispersal simulations/Shapefiles/additionalSites.shp" 
-additional.source.sink.shp <- "../Data/sourceSinkSites.shp" # "../Data/sourceSinkPolygons_0.shp" # "../Data/Shapefiles/rockyHabitats" # NULL
-additional.source.sink.shp.force.shore <- TRUE # If additional.source.sink.shp are new regions
-
-source.sink.loc.type <- "centroid" # centroid peripheral
-
-unwanted.release.coastline <- TRUE
-unwanted.release.sites.shp <- NULL # "Data/Dispersal simulations/Shapefiles/unwantedSites.shp" # NULL
 
 # -----------------------------------
 
@@ -33,6 +19,36 @@ number.cores <- 20 # [!!]
 
 # -----------------------------------
 # Region
+
+# Change 0
+landmass.shp <- NULL # NULL for default landmass // .shp file for specific landmass
+alternativeLandmassPolygon <- NULL
+
+# Change 1
+additionalLandmassPolygon <- 
+  additional.landmass.shp <- NULL # NULL for none // .shp file for addiitonal landmass regions
+
+# Change 1.2
+additional.source.sink.shp <- "../Data/sourceSinkSites.shp" # "../Data/sourceSinkPolygons_0.shp" # "../Data/Shapefiles/rockyHabitats" # NULL
+additional.source.sink.shp.force.shore <- TRUE # If additional.source.sink.shp are new regions
+additionalSourceSinkSites <- #POLY? XY? ??
+  
+  # Change 2
+  source.sink.loc.type <- "centroid" # centroid peripheral along H3 polygons
+locationSourceSinkSites <- "centroid" # centroid peripheral along H3 polygons
+
+# Change 3
+unwanted.release.coastline <- TRUE # If TRUE, landmass regions are unwanted sourceSink sites
+removeLandmassSourceSinkSites <- TRUE # If TRUE, landmass regions are unwanted sourceSink sites
+
+# Change 4
+unwanted.release.sites.shp <- NULL 
+maskSourceSinkPolygon <- NULL # .shp file to mask sourceSink sites
+maskSourceSinkType <- "include" # include exclude
+
+maskSourceSinkBathymetry <- NULL # range of bathymetry
+bathymetryRasterFile <- NULL # .tif bathymetry file
+
 
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 min.lon <- -105 
@@ -43,7 +59,7 @@ max.lat <- 41
 buffer <- TRUE
 buffer.val <- 0.1
 
-sim.resolution <- 5 # https://github.com/uber/h3/blob/master/docs/core-library/restable.md
+sim.resolution <- 6 # https://h3geo.org/docs/core-library/restable/
 
 # -----------------------------------
 # Traits
