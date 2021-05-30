@@ -130,7 +130,7 @@ for (y in unique(fullDates$year) ){ #
     if( length(t) == 0) { stop("Error ::  102")}
     
     depths <- ncvar_get( nc, "depth")
-    depth <-  which(depths %in% depth.range)
+    depth <-  which(depths %in% rawDataDepth)
     Latitude <- ncvar_get( nc, "lat")
     Longitude <- ncvar_get( nc, "lon")
     Longitude[Longitude >= 180] <- Longitude[Longitude >= 180] - 360
@@ -294,7 +294,7 @@ for (y in unique(fullDates$year) ){ #
   
   # 2D
   
-  if(final.dimensions == 2) {
+  if(rawDataDimensions == 2) {
     
     # setfileoption("nc","format","netcdf4") 
     
@@ -310,7 +310,7 @@ for (y in unique(fullDates$year) ){ #
     
   }
   
-  if( final.dimensions == 3 ) {
+  if( rawDataDimensions == 3 ) {
     var5d <- ncvar_def( "UComponent", "m", list(dimX,dimY,dimD,dimT), mv, prec="double")
     var6d <- ncvar_def( "VComponent", "m", list(dimX,dimY,dimD,dimT), mv,  prec="double")
     nc.file <- nc_create( paste(project.folder,"/Data","/currents_3d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d,var6d) )

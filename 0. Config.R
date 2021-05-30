@@ -9,7 +9,7 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "01 Intertidal"
+project.name <- "1 Intertidal"
 project.folder <- "/Users/jorgeassis/Google Drive/theMarineDataScientist/Projects/Portuguese EEZ Connectivity estimates/"
 data.folder <- paste0(project.folder,"Data/")
 
@@ -19,6 +19,12 @@ number.cores <- 20 # [!!]
 
 # -----------------------------------
 # Region
+
+## Generate sourceSinkSites from landmasses
+
+
+
+## Additional sourceSinkSites from souece (points, shapefiles or rasters defining bathymetry)
 
 # Change 0
 landmass.shp <- NULL # NULL for default landmass // .shp file for specific landmass
@@ -62,13 +68,17 @@ buffer.val <- 0.1
 sim.resolution <- 6 # https://h3geo.org/docs/core-library/restable/
 
 # -----------------------------------
+# Hycom config
+
+rawDataDimensions <- 2
+rawDataDepth <- c(0)
+
+# -----------------------------------
 # Traits
 
 months.all <- 1:12 # c(9,10,11,12,1,2,3,4) 
 from.day <- 1 ; to.day <- 31
 from.year <- 2008 ; to.year <- 2017 #  2008:2017
-
-depth.range <- c(0)
 
 allow.back.to.origin <- FALSE                     # at t == t.start
 
@@ -80,11 +90,6 @@ remove.new.particles.last.days.n.days <- 30
 longevity <- TRUE
 particle.max.duration <- 60                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
-
-# -----------------------------------
-# Hycom config
-
-final.dimensions <- 2
 
 # -----------------------------------
 # Ilustration (movie)
