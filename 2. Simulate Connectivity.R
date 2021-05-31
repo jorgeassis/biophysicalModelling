@@ -16,30 +16,172 @@ gc(reset=TRUE)
 source("0. Config.R") 
 source("Dependences.R")
 
+## ------------------------------------------------------------------------------------------------------------------------------
+##
+## 
+## 
+## ------------------------------------------------------------------------------------------------------------------------------
+
+## Define region of interest
+
+if( is.null(alternativeLandmass)) { worldmap <- getMap(resolution = "high") }
+if( ! is.null(alternativeLandmass)) { worldmap <- shapefile(alternativeLandmass) }
+
+worldmap <- gBuffer(worldmap, byid=TRUE, width=0)
+worldmap <- crop(worldmap,extent(min.lon,max.lon,min.lat,max.lat))
+
+worldmap <- st_as_sf(worldmap)
+worldmap$ID <- 1:nrow(worldmap)
+
 ## --------------------------------------
-## Get source sink locations
+
+## Produce hexagon lists
+
+shapeVertex <- data.frame(Lon=c(min.lon,min.lon,max.lon,max.lon),
+                          Lat=c(min.lat,max.lat,max.lat,min.lat))
+shape <- spPolygons(as.matrix(shapeVertex))
+shape <- st_as_sf(shape)
+st_crs(shape) <- 4326
+hexagons.address <- polyfill(shape, sim.resolution)
+hexagons.address <- unlist(hexagons.address)
+names(hexagons.address) <- NULL
+
+# -------
+
+polygons.all <- h3jsr::h3_to_polygon(hexagons.address)
+hexagons.land <- st_intersects( worldmap[,"ID"],polygons.all)
+
+hexagons.address.land <- hexagons.address[unique(unlist(hexagons.land))]
+polygons.land <- h3jsr::h3_to_polygon(hexagons.address.land)
+plot(polygons.land,col="red")
+
+# polygons.all <- h3_to_geo_boundary_sf(hexagons.address)
+# centroid.all <- st_centroid(polygons.all)
+# centroid.all$ID <- 1:nrow(centroid.all)
+# 
+# hexagons.land <- st_join(centroid.all, worldmap, join = st_intersects)
+# hexagons.land <- as.data.frame(hexagons.land)
+# hexagons.address.land <- hexagons.address[which(!is.na(hexagons.land$ID.y))]
+# 
+# polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
+# plot(polygons.land)
+
+hexagons.address.ocean <- unique( hexagons.address[ ! hexagons.address %in% hexagons.address.land ] )
+plot(h3jsr::h3_to_polygon(hexagons.address.ocean),col="blue")
+
+## --------------------------------------
+## Get shore hexagons
+
+shoreTest <- function(hexagon) {
+  neighbors <- h3_k_ring(hexagon, 1)
+  if( sum(hexagons.address.land %in% neighbors) > 0 & sum(hexagons.address.ocean %in% neighbors) > 0 ) { return(hexagon) } else { return(NULL) }
+}
+
+cl <- makeCluster(number.cores)
+clusterExport(cl, c("hexagons.address.land","shoreTest","hexagons.address.ocean","h3_k_ring"))
+hexagons.address.sourcesink <- unlist(unique(parLapply(cl, hexagons.address.land , function(x) { shoreTest(x) })))
+stopCluster(cl)
+
+hexagons.address.land <- hexagons.address.land[! hexagons.address.land %in% hexagons.address.sourcesink]
+hexagons.address.ocean <- hexagons.address.ocean[! hexagons.address.ocean %in% hexagons.address.sourcesink]
+
+## Clean shore hexagons 
+
+shoreTestCleaner <- function(hexagon) {
+  neighbors <- h3_k_ring(hexagon, 1)
+  if( sum(hexagons.address.land %in% neighbors) > 0 & sum(hexagons.address.ocean %in% neighbors) > 0 ) { return(NULL) } else { return(hexagon) }
+}
+
+cl <- makeCluster(number.cores)
+clusterExport(cl, c("hexagons.address.sourcesink","hexagons.address.land","shoreTestCleaner","hexagons.address.ocean","h3_k_ring"))
+hexagons.address.ocean.add <- unlist(unique(parLapply(cl, hexagons.address.sourcesink , function(x) { shoreTestCleaner(x) })))
+stopCluster(cl)
+
+hexagons.address.ocean <- unique(c(hexagons.address.ocean,hexagons.address.ocean.add))
+
+shoreTestCleaner <- function(hexagon) {
+  neighbors <- h3_k_ring(hexagon, 1)
+  if( sum(hexagons.address.land %in% neighbors) > 0 & sum(hexagons.address.ocean %in% neighbors) > 0 ) { return(hexagon) } else { return(NULL) }
+}
+
+cl <- makeCluster(number.cores)
+clusterExport(cl, c("hexagons.address.sourcesink","hexagons.address.land","shoreTestCleaner","hexagons.address.ocean","h3_k_ring"))
+hexagons.address.sourcesink.add <- unlist(unique(parLapply(cl, hexagons.address.sourcesink , function(x) { shoreTestCleaner(x) })))
+stopCluster(cl)
+
+hexagons.address.sourcesink <- unique(c(hexagons.address.sourcesink,hexagons.address.sourcesink.add))
+hexagons.address.land <- hexagons.address.land[! hexagons.address.land %in% hexagons.address.sourcesink]
+hexagons.address.ocean <- hexagons.address.ocean[! hexagons.address.ocean %in% hexagons.address.sourcesink]
+
+polygons.sourceSink <- h3_to_polygon(hexagons.address.sourcesink)
+polygons.land <- h3_to_polygon(hexagons.address.land)
+polygons.ocean <- h3_to_polygon(hexagons.address.ocean)
+
+## --------------------------------------
+## Remove outer frame
+
+buffer.val <- 0.1
+
+centroid.ocean <- st_centroid(polygons.ocean)
+buffer.remover <- which(st_coordinates(centroid.ocean)[,1] <= max.lon - buffer.val &
+                          st_coordinates(centroid.ocean)[,1] >= min.lon + buffer.val &
+                          st_coordinates(centroid.ocean)[,2] <= max.lat - buffer.val &
+                          st_coordinates(centroid.ocean)[,2] >= min.lat + buffer.val )
+
+hexagons.address.ocean <- hexagons.address.ocean[buffer.remover]
+polygons.ocean <- polygons.ocean[buffer.remover,]
+
+centroid.land <- st_centroid(polygons.land)
+buffer.remover <- which(st_coordinates(centroid.land)[,1] <= max.lon - buffer.val &
+                          st_coordinates(centroid.land)[,1] >= min.lon + buffer.val &
+                          st_coordinates(centroid.land)[,2] <= max.lat - buffer.val &
+                          st_coordinates(centroid.land)[,2] >= min.lat + buffer.val )
+
+hexagons.address.land <- hexagons.address.land[buffer.remover]
+polygons.land <- polygons.land[buffer.remover,]
+
+centroid.shore <- st_centroid(polygons.sourceSink)
+buffer.remover <- which(st_coordinates(centroid.shore)[,1] <= max.lon - buffer.val &
+                          st_coordinates(centroid.shore)[,1] >= min.lon + buffer.val &
+                          st_coordinates(centroid.shore)[,2] <= max.lat - buffer.val &
+                          st_coordinates(centroid.shore)[,2] >= min.lat + buffer.val )
+
+hexagons.address.sourcesink <- hexagons.address.sourcesink[buffer.remover]
+polygons.sourceSink <- polygons.sourceSink[buffer.remover,]
+
+if( sum(hexagons.address.sourcesink %in% hexagons.address.ocean) > 0 | sum(hexagons.address.land %in% hexagons.address.ocean) > 0 | sum(hexagons.address.ocean %in% hexagons.address.land) > 0 ) { stop("Error :: 001") }
+
+## ----------
+
+ggplot() + geom_sf(data = polygons.land, fill=NA, colour="red", size=0.1)
+ggplot() + geom_sf(data = polygons.sourceSink, fill="Black", colour="Black", size=0.1)
+ggplot() + geom_sf(data = polygons.ocean, fill=NA, colour="red", size=0.1)
+
+## --------------------------------------
+## --------------------------------------
+## Produce source sink sites
 
 if(sourceSinkLocationType == "peripheral") {
-    cl <- makeCluster(number.cores)
-    clusterExport(cl, c("hexagons.address.shore","h3_to_geo_boundary"))
-    source.sink.hexagons <- parApply(cl,data.frame(hexagons.address.shore),1, function(x) { data.frame(address=x,h3_to_geo_boundary(x[[1]])[[1]][,c("lng","lat")]) })
-    stopCluster(cl) 
-    source.sink.hexagons <- do.call(rbind, source.sink.hexagons)
+  cl <- makeCluster(number.cores)
+  clusterExport(cl, c("hexagons.address.sourcesink","h3_to_geo_boundary"))
+  source.sink.hexagons <- parApply(cl,data.frame(hexagons.address.sourcesink),1, function(x) { data.frame(address=x,h3_to_geo_boundary(x[[1]])[[1]][,c("lng","lat")]) })
+  stopCluster(cl) 
+  source.sink.hexagons <- do.call(rbind, source.sink.hexagons)
 }
 
 if(sourceSinkLocationType == "centroid") {
-  source.sink.hexagons <- st_centroid(polygons.shore)
-  source.sink.hexagons <- data.frame(lng=st_coordinates(source.sink.hexagons)[,1],lat=st_coordinates(source.sink.hexagons)[,2],address=hexagons.address.shore)
+  source.sink.hexagons <- st_centroid(polygons.sourceSink)
+  source.sink.hexagons <- data.frame(lng=st_coordinates(source.sink.hexagons)[,1],lat=st_coordinates(source.sink.hexagons)[,2],address=hexagons.address.sourcesink)
 }
 
 source.sink.hexagons <- source.sink.hexagons[!duplicated(source.sink.hexagons[,c("lng","lat")]),]
 coordinates( source.sink.hexagons) = ~lng+lat
 crs(source.sink.hexagons) <- dt.projection
-polygons.land.sp <- sf:::as_Spatial(polygons.land$geom)
+polygons.land.sp <- sf:::as_Spatial(polygons.land)
 crs(polygons.land.sp) <- dt.projection
 source.sink.hexagons <- as.data.frame(source.sink.hexagons[which(is.na(over(source.sink.hexagons, polygons.land.sp))),])
 
-plot(polygons.shore[1,])
+plot(polygons.sourceSink[1,])
 plot(polygons.land,col="red",add=TRUE)
 points( source.sink.hexagons[,c("lng","lat")])
 
@@ -56,55 +198,63 @@ if(sum(duplicated(source.sink.xy[,2:3])) > 0 ) { stop("Error :: PT001")}
 if( ! is.null(additionalSourceSinkRegions) ) {
   
   additional.pts <- data.frame()
-  
-  for(i in 1:length(additionalSourceSinkRegions)){
-    
-    additional.shp <- shapefile(additionalSourceSinkRegions[i])
-    additional.shp$ID <- 1:nrow(additional.shp)
-    crs(additional.shp) <- dt.projection
-    additional.shp <- st_as_sf(additional.shp)
 
-    # If polygons
+  if( class(additionalSourceSinkRegions) == "character" ) {
     
-    if( as.character(st_geometry_type(additional.shp)[1]) != "POINT") {
-      hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  polyfill(additional.shp[x,"ID"], sim.resolution + 1), sim.resolution  ) })) # ?? h3_to_parent :: sim.resolution + 1 
+    for(i in 1:length(additionalSourceSinkRegions)){
+      
+      additional.shp <- shapefile(additionalSourceSinkRegions[i])
+      additional.shp$ID <- 1:nrow(additional.shp)
+      crs(additional.shp) <- dt.projection
+      additional.shp <- st_as_sf(additional.shp)
+      
+      # If polygons
+      
+      if( as.character(st_geometry_type(additional.shp)[1]) != "POINT") {
+        hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  polyfill(additional.shp[x,"ID"], sim.resolution + 1), sim.resolution  ) })) # ?? h3_to_parent :: sim.resolution + 1 
+      }
+      
+      # If points
+      
+      if( as.character(st_geometry_type(additional.shp)[1]) == "POINT") {
+        additional.shp.coords <- st_coordinates(additional.shp)
+        hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_geo_to_h3(additional.shp.coords[x,2],additional.shp.coords[x,1], sim.resolution  ) }))
+      }
+      
+      hexagons.address.additional <- unique(hexagons.address.additional)
+      hexagons.address.additional <- hexagons.address.additional[hexagons.address.additional %in% hexagons.address.ocean]
+      
+      # plot(h3_to_polygon(hexagons.address.additional))
+      
+      if(sourceSinkLocationType == "peripheral") {
+        source.sink.hexagons.additional <- lapply(hexagons.address.additional ,function(x) { data.frame(address=x,h3_to_geo_boundary(x)[[1]][,c("lng","lat")]) })
+        source.sink.hexagons.additional <- do.call(rbind, source.sink.hexagons.additional)
+        source.sink.hexagons.additional <- source.sink.hexagons.additional[!duplicated(source.sink.hexagons.additional[,c("lng","lat")]),]
+      }
+      
+      if(sourceSinkLocationType == "centroid") {
+        source.sink.hexagons.additional <- h3_to_polygon(hexagons.address.additional)
+        source.sink.hexagons.additional <- st_centroid(source.sink.hexagons.additional)
+        source.sink.hexagons.additional <- data.frame(lng=st_coordinates(source.sink.hexagons.additional)[,1],lat=st_coordinates(source.sink.hexagons.additional)[,2],address=hexagons.address.additional)
+      }
+      
+      additional.pts.i <- data.frame(cells.id=source.sink.hexagons.additional$address,x=source.sink.hexagons.additional$lng,y=source.sink.hexagons.additional$lat,source=1,stringsAsFactors = FALSE)
+      source.sink.xy <- source.sink.xy[ ! source.sink.xy$cells.id %in% additional.pts.i$cells.id,]
+      
+      ## ----------
+      
+      additional.pts <- rbind(additional.pts,additional.pts.i)
+      
     }
-    
-    # If points
-    
-    if( as.character(st_geometry_type(additional.shp)[1]) == "POINT") {
-      hexagons.address.additional <- unique(sapply(1:nrow(additional.shp) , function(x) { h3_to_parent(  geo_to_h3(st_coordinates(additional.shp[x,"ID"])[2:1], sim.resolution + 1), sim.resolution  ) })) # ?? h3_to_parent :: sim.resolution + 1 
-    }
-    
-    # plot(h3_to_geo_boundary_sf(hexagons.address.additional))
-  
-    if(sourceSinkLocationType == "peripheral") {
-      source.sink.hexagons.additional <- lapply(hexagons.address.additional ,function(x) { data.frame(address=x,h3_to_geo_boundary(x)[[1]][,c("lng","lat")]) })
-      source.sink.hexagons.additional <- do.call(rbind, source.sink.hexagons.additional)
-      source.sink.hexagons.additional <- source.sink.hexagons.additional[!duplicated(source.sink.hexagons.additional[,c("lng","lat")]),]
-    }
-    
-    if(sourceSinkLocationType == "centroid") {
-      source.sink.hexagons.additional <- h3_to_geo_boundary_sf(hexagons.address.additional)
-      source.sink.hexagons.additional <- st_centroid(source.sink.hexagons.additional)
-      source.sink.hexagons.additional <- data.frame(lng=st_coordinates(source.sink.hexagons.additional)[,1],lat=st_coordinates(source.sink.hexagons.additional)[,2],address=hexagons.address.additional)
-    }
-
-    additional.pts.i <- data.frame(cells.id=source.sink.hexagons.additional$address,x=source.sink.hexagons.additional$lng,y=source.sink.hexagons.additional$lat,source=1,stringsAsFactors = FALSE)
-    source.sink.xy <- source.sink.xy[ ! source.sink.xy$cells.id %in% additional.pts.i$cells.id,]
-    
-    ## ----------
-
-    additional.pts <- rbind(additional.pts,additional.pts.i)
     
   }
-
-  source.sink.xy <- rbind(source.sink.xy,additional.pts)
-  hexagons.address.shore <- unique(source.sink.xy$cells.id)
-  polygons.shore <- h3_to_geo_boundary_sf(hexagons.address.shore)
   
-  hexagons.address.ocean <- hexagons.address.ocean[ ! hexagons.address.ocean %in% hexagons.address.shore ]
-  hexagons.address.land <- hexagons.address.land[ ! hexagons.address.land %in% hexagons.address.shore ]
+  source.sink.xy <- rbind(source.sink.xy,additional.pts)
+  hexagons.address.sourcesink <- unique(source.sink.xy$cells.id)
+  polygons.sourceSink <- h3_to_polygon(hexagons.address.sourcesink)
+  
+  hexagons.address.ocean <- hexagons.address.ocean[ ! hexagons.address.ocean %in% hexagons.address.sourcesink ]
+  hexagons.address.land <- hexagons.address.land[ ! hexagons.address.land %in% hexagons.address.sourcesink ]
   
 }
 
@@ -113,22 +263,25 @@ if( ! is.null(additionalSourceSinkRegions) ) {
 
 if( ! is.null(maskSourceSinkSites) ) {
   
-  stop("maskSourceSinkSitesType is missing :: Code")
-  
   source.sink.xy.t <- source.sink.xy
   coordinates(source.sink.xy.t) <- c("x","y")
   crs(source.sink.xy.t) <- crs(worldmap)
-
-  unwanted <- shapefile(paste0(project.folder,maskSourceSinkSites))
-  unwanted <- as(unwanted,"SpatialPolygons")
-  crs(unwanted) <- crs(worldmap)
   
-  points.over.polygon <- as.vector(which( ! is.na( sp::over( source.sink.xy.t , unwanted , fn = NULL) )) )
-
-  if( length(points.over.polygon) > 0 ) { source.sink.xy[points.over.polygon,"source"] <- 0 }
-
+  maskSourceSinkSites <- shapefile(maskSourceSinkSites)
+  maskSourceSinkSites <- as(maskSourceSinkSites,"SpatialPolygons")
+  crs(maskSourceSinkSites) <- crs(worldmap)
+  
+  points.over.polygon <- as.vector(which( ! is.na( sp::over( source.sink.xy.t , maskSourceSinkSites , fn = NULL) )) )
+  
+  if( length(points.over.polygon) > 0 ) { 
+    
+    if(maskSourceSinkSitesType == "include") { source.sink.xy[points.over.polygon,"source"] <- 0 }
+    
+    if(maskSourceSinkSitesType == "exclude") { source.sink.xy[(1:nrow(source.sink.xy))[!(1:nrow(source.sink.xy)) %in% points.over.polygon],"source"] <- 0 }
+    
+  }
 }
- 
+
 ## ---------------
 
 if(sum(duplicated(source.sink.xy[,c("x","y")])) > 0) { stop("Error :: 007") }
@@ -147,6 +300,12 @@ ggplot() + geom_sf(data=worldmap) + geom_point(data = source.sink.xy[source.sink
 
 head(source.sink.xy)
 tail(source.sink.xy)
+
+if( sum(hexagons.address.sourcesink %in% hexagons.address.ocean) > 0 | sum(hexagons.address.land %in% hexagons.address.ocean) > 0 | sum(hexagons.address.ocean %in% hexagons.address.land) > 0 ) { stop("Error :: 001") }
+
+## ------------------
+
+raster::shapefile(h3_to_polygon(hexagons.address.sourcesink), "../Results/sourceSinkSitesHexagons.shp")
 
 ## ------------------
 
@@ -692,7 +851,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
         # -----------------------------------------------
         # Particles over shore hexagons [ includes additional shapefile hexagons, if the case]
         
-        particles.on.shore <- which( hexagons.address.test %in% hexagons.address.shore )
+        particles.on.shore <- which( hexagons.address.test %in% hexagons.address.sourcesink )
         particles.on.shore.id <- as.vector(moving.particles.id[particles.on.shore])
         particles.on.shore.condition <- length(particles.on.shore) > 0
         

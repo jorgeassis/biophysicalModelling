@@ -9,7 +9,7 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "1 Intertidal"
+project.name <- "2 UpperInf"
 project.folder <- "/Users/jorgeassis/Google Drive/theMarineDataScientist/Projects/Portuguese EEZ Connectivity estimates/"
 data.folder <- paste0(project.folder,"Data/")
 
@@ -36,9 +36,9 @@ sourceSinkLocationType <- "centroid" # centroid or peripheral along H3 polygons
 alternativeLandmass <- NULL # .shp file for specific landmass
 removeLandmassSourceSinkSites <- FALSE # Landmass regions are unwanted Source Sink sites
 
-additionalSourceSinkRegions <- NULL # .shp file for additional Points or Polygon regions
+additionalSourceSinkRegions <- "../Data/Spatial/additionalSourceSink_0_40.shp" # .shp file for additional Points or Polygon regions
   
-maskSourceSinkSites <- NULL # .shp file to mask Source Sink sites
+maskSourceSinkSites <- "../Data/Spatial/simulationRegion.shp" # .shp file to mask Source Sink sites
 maskSourceSinkSitesType <- "include" # include or exclude Source Sink sites from sim
 
 # -----------------------------------
