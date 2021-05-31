@@ -9,6 +9,9 @@ gc(reset=TRUE)
 source("0. Project Config.R")
 source("Dependences.R")
 
+buffer <- TRUE
+buffer.val <- 0.1
+
 ## -----------------------------------------
 
 files <- "http://tds.hycom.org/thredds/dodsC/GLBu0.08/reanalysis" # 1992-2012

@@ -15,57 +15,31 @@ data.folder <- paste0(project.folder,"Data/")
 
 # -----------------------------------
 
-number.cores <- 20 # [!!]
+number.cores <- 8
 
 # -----------------------------------
-# Region
+# Main region
 
-## Generate sourceSinkSites from landmasses
-
-
-
-## Additional sourceSinkSites from souece (points, shapefiles or rasters defining bathymetry)
-
-# Change 0
-landmass.shp <- NULL # NULL for default landmass // .shp file for specific landmass
-alternativeLandmassPolygon <- NULL
-
-# Change 1
-additionalLandmassPolygon <- 
-  additional.landmass.shp <- NULL # NULL for none // .shp file for addiitonal landmass regions
-
-# Change 1.2
-additional.source.sink.shp <- "../Data/sourceSinkSites.shp" # "../Data/sourceSinkPolygons_0.shp" # "../Data/Shapefiles/rockyHabitats" # NULL
-additional.source.sink.shp.force.shore <- TRUE # If additional.source.sink.shp are new regions
-additionalSourceSinkSites <- #POLY? XY? ??
-  
-  # Change 2
-  source.sink.loc.type <- "centroid" # centroid peripheral along H3 polygons
-locationSourceSinkSites <- "centroid" # centroid peripheral along H3 polygons
-
-# Change 3
-unwanted.release.coastline <- TRUE # If TRUE, landmass regions are unwanted sourceSink sites
-removeLandmassSourceSinkSites <- TRUE # If TRUE, landmass regions are unwanted sourceSink sites
-
-# Change 4
-unwanted.release.sites.shp <- NULL 
-maskSourceSinkPolygon <- NULL # .shp file to mask sourceSink sites
-maskSourceSinkType <- "include" # include exclude
-
-maskSourceSinkBathymetry <- NULL # range of bathymetry
-bathymetryRasterFile <- NULL # .tif bathymetry file
-
-
+min.lon <- -42 
+max.lon <- -7
+min.lat <- 27.5
+max.lat <- 50
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-min.lon <- -105 
-max.lon <- 25
-min.lat <- -40
-max.lat <- 41
-
-buffer <- TRUE
-buffer.val <- 0.1
 
 sim.resolution <- 6 # https://h3geo.org/docs/core-library/restable/
+
+# -----------------------------------
+# Source Sink sites
+
+sourceSinkLocationType <- "centroid" # centroid or peripheral along H3 polygons
+
+alternativeLandmass <- NULL # .shp file for specific landmass
+removeLandmassSourceSinkSites <- FALSE # Landmass regions are unwanted Source Sink sites
+
+additionalSourceSinkRegions <- NULL # .shp file for additional Points or Polygon regions
+  
+maskSourceSinkSites <- NULL # .shp file to mask Source Sink sites
+maskSourceSinkSitesType <- "include" # include or exclude Source Sink sites from sim
 
 # -----------------------------------
 # Hycom config
@@ -88,7 +62,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 60                       # Days allowed to travel
+particle.max.duration <- 120                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------
@@ -97,8 +71,8 @@ behaviour <- FALSE                                # Only settle after period
 movie.year <- 2017
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
-movie.sites.xy <- NULL # "../Data/Movie.shp" 
-# matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 , -9.489235 , 38.708553 , -5 , 50 , - 2 , 45 , -5 , 44 , 5 , 40 , -10 , 30 ) , ncol=2 , byrow=TRUE) 
+movie.sites.xy <- "../Data/Spatial/movie.shp" # 
+# matrix( c(  -8.892305, 37.956704 , -9.225347 , 38.411873 ) , ncol=2 , byrow=TRUE) 
 
 ## ------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------
