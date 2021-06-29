@@ -3,12 +3,6 @@
 ## Assis et al., 2018
 ## ------------------------------------------------------------------------------------------------------------------
 
-if( ! "Results" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Results"))) }
-if( ! project.name %in% list.files(paste0(project.folder,"/Results")) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name))) }
-if( ! "Data" %in% list.files(project.folder) ) { dir.create(file.path(paste0(project.folder,"/Data"))) }
-
-if( ! "InternalProc" %in% list.files(paste0(project.folder,"/Results/",project.name)) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/InternalProc"))) }
-
 sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------

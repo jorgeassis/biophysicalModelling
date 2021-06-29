@@ -9,9 +9,10 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "2 UpperInf"
-project.folder <- "/Users/jorgeassis/Google Drive/theMarineDataScientist/Projects/Portuguese EEZ Connectivity estimates/"
-data.folder <- paste0(project.folder,"Data/")
+project.name <- "Intertidal"
+project.folder <- "../"
+data.folder <- paste0(project.folder,"Data/1 Intertidal/")
+results.folder <- paste0(project.folder,"Results/1 Intertidal/")
 
 # -----------------------------------
 
@@ -33,13 +34,16 @@ sim.resolution <- 6 # https://h3geo.org/docs/core-library/restable/
 
 sourceSinkLocationType <- "centroid" # centroid or peripheral along H3 polygons
 
-alternativeLandmass <- NULL # .shp file for specific landmass
-removeLandmassSourceSinkSites <- FALSE # Landmass regions are unwanted Source Sink sites
+alternativeLandmass <- NULL ## .shp file for specific landmass
+removeLandmassSourceSinkSites <- FALSE ## landmass regions are unwanted Source Sink sites
 
-additionalSourceSinkRegions <- "../Data/Spatial/additionalSourceSink_0_40.shp" # .shp file for additional Points or Polygon regions
-  
-maskSourceSinkSites <- "../Data/Spatial/simulationRegion.shp" # .shp file to mask Source Sink sites
-maskSourceSinkSitesType <- "include" # include or exclude Source Sink sites from sim
+addSourceSinkRegions <- NULL ## .shp file for additional Points or Polygon regions
+
+addSourceSinkRegionsBathymetry <- NULL ## NULL or range
+bathymetryRasterFile <- NULL ## NULL or .tif raster layer
+
+maskSourceSinkSites <- "../Data/Spatial/simulationRegion.shp" ## .shp file to mask Source Sink sites
+maskSourceSinkSitesType <- "include" ## include or exclude Source Sink sites from sim
 
 # -----------------------------------
 # Hycom config

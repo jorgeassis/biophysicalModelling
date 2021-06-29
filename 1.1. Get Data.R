@@ -6,7 +6,7 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("0. Project Config.R")
+source("../0. Config _ 4 Demersal.R")
 source("Dependences.R")
 
 buffer <- TRUE
@@ -111,6 +111,7 @@ for (y in unique(fullDates$year) ){ #
         file <- fullDates.y[k+repo[repo.i],]$file
         
         if(length(file) == 0) { file <- "NA"  }
+        if(length(repo.i) == 100) { error("Error: GD:: 001")  }
         
       }
     }
@@ -303,7 +304,7 @@ for (y in unique(fullDates$year) ){ #
     
     var4d <- ncvar_def( "UComponent", "m", list(dimX,dimY,dimT), mv, prec="double")
     var5d <- ncvar_def( "VComponent", "m", list(dimX,dimY,dimT), mv,  prec="double")
-    nc.file <- nc_create( paste(project.folder,"/Data","/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d)  ) # ,  force_v4=TRUE
+    nc.file <- nc_create( paste(data.folder,"/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d)  ) # ,  force_v4=TRUE
     ncvar_put( nc.file, var1d, Longitude.array )  
     ncvar_put( nc.file, var2d, Latitude.array )   
     ncvar_put( nc.file, var3d, as.numeric(as.Date(time.window)) )
@@ -333,10 +334,11 @@ for (y in unique(fullDates$year) ){ #
 # -----------
 
 resul <- data.frame()
+simulaton.raw.data.files <- list.files(data.folder,pattern="nc",full.names = T, recursive=T)
 
-for( i in 2008:2017) {
+for( i in 1:length(unique(fullDates$year))) {
   
-  simulaton.raw.data.file <- paste0("/media/Bathyscaphe/Transport Simulations in Selvagens/Data//currents_2d_Selvagens_",i,".nc")
+  simulaton.raw.data.file <- simulaton.raw.data.files[i]
   
   simulation.raw.data <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
   dim.i <- ncvar_get( simulation.raw.data, "X" )
@@ -348,6 +350,7 @@ for( i in 2008:2017) {
   
 }
 
+resul
 
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------

@@ -7,7 +7,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../0. Config _ 1 Intertidal.R")
 source("Dependences.R")
 
 n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
@@ -28,13 +28,13 @@ if( n.season == "Winter" ) { n.months <- c(12,1,2) }
 
 ## Test if connectivity exists
 
-file.exists(paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates",n.season,".RData"))
+file.exists(paste0(results.folder,"/InternalProc/","connectivityEstimates",n.season,".RData"))
 
 ## ------------------------------------
 ## Resolve connectivity
 
-load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
-load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
+load(paste0(results.folder,"/InternalProc/","SourceSink.RData"))
+load(paste0(results.folder,"/InternalProc/","Parameters.RData"))
 
 cell.to.process <- unique(source.sink.xy$cells.id[source.sink.xy$source == 1])
 n.particles.per.cell <- global.simulation.parameters$n.particles.per.cell
@@ -43,11 +43,11 @@ n.steps.per.day <- global.simulation.parameters$n.hours.per.day
 
 ## ------------------
 
-particles.reference.bm.desc <- dget( paste0(project.folder,"/Results/",project.name,"/InternalProc/particles.reference.desc") )
+particles.reference.bm.desc <- dget( paste0(results.folder,"/InternalProc/particles.reference.desc") )
 
 ## ------------------
 
-cl.2 <- makeCluster(16 , type="FORK")
+cl.2 <- makeCluster(number.cores)
 registerDoParallel(cl.2)
 
 all.connectivity.pairs.to.sql <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN","bigmemory")) %dopar% { # 
@@ -96,13 +96,13 @@ stopCluster(cl.2) ; rm(cl.2) ; gc(reset=TRUE)
 # -----------------------------------------
 # Save pairs
 
-save(all.connectivity.pairs.to.sql,file=paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates",n.season,".RData"))
+save(all.connectivity.pairs.to.sql,file=paste0(results.folder,"/InternalProc/","connectivityEstimates",n.season,".RData"))
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------
 
 # Direct Overall Connectivity matrix (mean of all years)
-# load(file=paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimates.RData"))
+# load(file=paste0(results.folder,"/InternalProc/","connectivityEstimates.RData"))
 
 # Subset Years
 # Connectivity <- Connectivity[ Year == 2017, ]
@@ -120,12 +120,12 @@ plot(source.sink.xy[which(source.sink.xy$source == 1),2:3] )
 
 source.sink.xy <- source.sink.xy[which(source.sink.xy$source == 1),]
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
-write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm"))
+write.big.matrix(source.sink.bm, paste0(results.folder,"/InternalProc/","source.sink.bm"))
 
 Connectivity <- Connectivity[ Pair.from %in% source.sink.id,]
 Connectivity <- Connectivity[ Pair.to %in% source.sink.id,]
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm")) 
+write.big.matrix(Connectivity.bm, paste0(results.folder,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm")) 
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------
@@ -154,18 +154,18 @@ simulationDetails <- data.frame(sites=length(cell.to.process),
                                 
 )
 
-write.table(t(simulationDetails),file=paste0(project.folder,"/Results/",project.name,"/","simulationDetails.csv"),col.names=FALSE,sep=";")
+write.table(t(simulationDetails),file=paste0(results.folder,"/","simulationDetails.csv"),col.names=FALSE,sep=";")
 
 ## ------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------
 ## Assign connectivity estimates [source.sink site] to polygons [if the case]
 
-Connectivity <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm") )
+Connectivity <- read.big.matrix( paste0(results.folder,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm") )
 Connectivity <- as.data.frame(Connectivity[,])
 colnames(Connectivity) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
 Connectivity
 
-source.sink.xy <- read.big.matrix( paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm") )
+source.sink.xy <- read.big.matrix( paste0(results.folder,"/InternalProc/","source.sink.bm") )
 source.sink.xy <- as.data.frame(source.sink.xy[,])
 colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
 source.sink.xy
@@ -228,10 +228,10 @@ Connectivity.Poly[, lapply(.SD, mean), by=.(Pair.from,Pair.to)]
 
 source.sink.xy <- data.frame(Pair=additional.source.sink[,"ID"],Lon=as.data.frame(gCentroid(additional.source.sink,byid=TRUE))[,1],Lat=as.data.frame(gCentroid(additional.source.sink,byid=TRUE))[,2],Source=1)
 source.sink.bm <- as.big.matrix(as.matrix(source.sink.xy))
-write.big.matrix(source.sink.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.Polys.bm"))
+write.big.matrix(source.sink.bm, paste0(results.folder,"/InternalProc/","source.sink.Polys.bm"))
 
 Connectivity.bm <- as.big.matrix(as.matrix(Connectivity.Poly))
-write.big.matrix(Connectivity.bm, paste0(project.folder,"/Results/",project.name,"/InternalProc/","connectivityEstimatesAveragedPolys",n.season,".bm")) 
+write.big.matrix(Connectivity.bm, paste0(results.folder,"/InternalProc/","connectivityEstimatesAveragedPolys",n.season,".bm")) 
 
 ## --------------------------------------------------------------------------------------------------------------
 ## --------------------------------------------------------------------------------------------------------------

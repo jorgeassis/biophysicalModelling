@@ -5,7 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("0. Project Config.R")
+source("../0. Config _ 1 Intertidal.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -17,17 +17,17 @@ source("Dependences.R")
 
 # Video with Particle Flow
 
-load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","videoLocations.RData"))
+load(paste0(results.folder,"/InternalProc/","videoLocations.RData"))
 head(particles.video.location.dt)
 tail(particles.video.location.dt)
 
 # particle.max.duration
 
 mainTitle <- "Potential connectivity [Year 2017]"
-simulation.name <- "90 days propagule duration"
+simulation.name <- "120 days propagule duration"
 
-load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","SourceSink.RData"))
-load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
+load(paste0(results.folder,"/InternalProc/","SourceSink.RData"))
+load(paste0(results.folder,"/InternalProc/","Parameters.RData"))
 
 sim.extent <-unique(as.numeric(unlist(strsplit(global.simulation.parameters$extent, split=","))))
 movie.year <- global.simulation.parameters$movie.year
@@ -44,7 +44,7 @@ sim.every.hours <- 24 / n.hours.per.day
 min.lon <- sim.extent[1] ; max.lon <- sim.extent[2] ; min.lat <- sim.extent[3] ; max.lat <- sim.extent[4]
 ratio <- abs(sim.extent[1]) +  abs(sim.extent[2]) : abs(sim.extent[4]) - abs(sim.extent[3])
 
-particles.reference.bm.desc <- dget( paste0(project.folder,"Results/",project.name,"/InternalProc/particles.reference.desc"))
+particles.reference.bm.desc <- dget( paste0(results.folder,"/InternalProc/particles.reference.desc"))
 particles.reference.bm <- attach.big.matrix(particles.reference.bm.desc)
 particles.reference.bm <- data.frame(particles.reference.bm[,])
 colnames(particles.reference.bm) <- c("id","start.cell","start.year","start.month","start.day","pos.lon","pos.lat","pos.alt","state","t.start","t.finish","cell.rafted","ocean")
@@ -63,8 +63,8 @@ shapeVertex <- data.frame(Lon=c(min.lon,min.lon,max.lon,max.lon),
 shape <- spPolygons(as.matrix(shapeVertex))
 crs(shape) <- dt.projection
 
-if( is.null(landmass.shp) ) { land.polygon <- getMap(resolution = "high") }
-if( ! is.null(landmass.shp) ) { land.polygon <- shapefile(landmass.shp) }
+if( is.null(alternativeLandmass) ) { land.polygon <- getMap(resolution = "high") }
+if( ! is.null(alternativeLandmass) ) { land.polygon <- shapefile(alternativeLandmass) }
 
 land.polygon <- gBuffer(land.polygon, byid=TRUE, width=0)
 crs(land.polygon) <- dt.projection 
@@ -75,7 +75,7 @@ plot(land.polygon, col="grey")
 
 # ------------------
 
-if( ! "Video" %in% list.files(paste0(project.folder,"/Results/",project.name,"/")) ) { dir.create(file.path(paste0(project.folder,"/Results/",project.name,"/Video"))) }
+if( ! "Video" %in% list.files(paste0(results.folder,"/")) ) { dir.create(file.path(paste0(results.folder,"/Video"))) }
 
 # ------------------------------------------------------
 
@@ -134,7 +134,7 @@ show.additional.landmass.shp <- FALSE
 
 if(show.additional.landmass.shp) {
   
-  additional.landmass.shp <- shapefile(paste0("../",additional.landmass.shp))
+  additional.landmass.shp <- shapefile(paste0("../",alternativeLandmass))
   
 }
 
@@ -185,85 +185,14 @@ for( t in 1:t.steps) {
     annotate(geom="text", x=min.lon, y=max.lat + 3, label=mainTitle,size=5.5,family="Helvetica", color = "#000000",hjust = 0) +
     annotate(geom="text", x=min.lon, y=max.lat + 1, label=paste0("Simulation: ",print.date.sim),size=4.5,family="Helvetica", color = "#000000",hjust = 0)
   
-  png(file=paste0(project.folder,"/Results/",project.name,"/Video/Video map_",t,".png"), width=1280, height=720, bg = "#f5f5f2")
+  png(file=paste0(results.folder,"/Video/Video map_",t,".png"), width=1280, height=720, bg = "#f5f5f2")
   print(map.t)
   dev.off()
   
 }
  
-system( 'ffmpeg -s 1280x720 -i "/media/Bathyscaphe/Transport Simulations in Selvagens/Results/Selvagens/Video/Video map_%d.png" -vcodec libx264 -r 32 -pix_fmt yuv420p Halodule.mp4 -y' )
-# file.remove( list.files(paste0(project.folder,"/Results/Video"),pattern="png",full.names=TRUE) )
+png_files <- sprintf(paste0(results.folder,"/Video/Video map_%d.png"), 1:t.steps)
+av::av_encode_video(png_files, paste0(results.folder,"/output.mp4"), framerate = 24)
 
 # ------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------
-
-# Video with assignments
-
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-Connectivity <- data.table(dbReadTable(sql, "Connectivity"))
-source.sink.xy <- dbReadTable(sql, "SourceSinkSites")
-dbDisconnect(sql)
-
-sql <- dbConnect(RSQLite::SQLite(), paste0(sql.directory,"/",project.name,"SimulationResults.sql"))
-cell.to.process <- 1:nrow(dbReadTable(sql, "SourceSinkSites"))
-particles.reference <- as.data.table(dbReadTable(sql, "ReferenceTable"))
-n.particles.per.cell <- dbReadTable(sql, "Parameters")$n.particles.per.cell
-dbDisconnect(sql)
-
-cl.2 <- makeCluster(number.cores)
-registerDoParallel(cl.2)
-
-Connectivity <- foreach(cell.id.ref.f=cell.to.process, .verbose=FALSE, .combine = rbind ,  .packages=c("gstat","raster","data.table","FNN")) %dopar% { # 
-  
-  connectivity.pairs.to.sql <- data.frame()
-  connectivity.temp.m <- particles.reference[ start.cell == cell.id.ref.f , ]
-  
-  for(y in unique(connectivity.temp.m$start.year)) {
-    
-    connectivity.temp <- connectivity.temp.m[ start.year == y , ]
-    
-    for( cell.id.ref.t in unique(connectivity.temp[ , cell.rafted ]) ) {
-      
-      connectivity.pairs.to.sql <- rbind(connectivity.pairs.to.sql,
-                                         
-                                         data.frame(  Pair.from = cell.id.ref.f,
-                                                      Pair.to = cell.id.ref.t,
-                                                      Number.events = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]),
-                                                      Time.mean = mean(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                      Time.min = min(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                      Time.max = max(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                      Time.sd = sd(connectivity.temp[ cell.rafted == cell.id.ref.t,]$travel.time),
-                                                      Probability = nrow(connectivity.temp[ cell.rafted == cell.id.ref.t,]) / n.particles.per.cell,
-                                                      Year = simulation.year ) )
-    }
-    
-  }
-  
-  connectivity.pairs.to.sql[is.na(connectivity.pairs.to.sql)] <- 0
-  return( connectivity.pairs.to.sql )
-}
-
-stopCluster(cl.2) ; rm(cl.2)
-
-# ------------------------
-
-Connectivity <- Connectivity[ , j=list(mean(Probability, na.rm = TRUE) , max(Probability, na.rm = TRUE) , mean(Time.mean, na.rm = TRUE) , max(Time.mean, na.rm = TRUE) , mean(Number.events, na.rm = TRUE) ) , by = list(Pair.from,Pair.to)]
-colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Mean.Probability" , "Max.Probability" , "Mean.Time" , "Max.Time" , "N.events" )
-Connectivity
-
-# ------------------------
-
-png(file=paste0(project.folder,"/Results/Video/Video assignments_%02d.png"), width=1280, height=720)
-par( mar=c(0,0,0,0) , bg="#ffffff")
-
-for( source in unique(Connectivity[ , Pair.from ]) ) {
-  
-  plot(source.sink.xy[,2:3], pch=20,col="Gray")
-  points(source.sink.xy[Connectivity[ Pair.from == source , Pair.to ],2:3],col="Red")
-  points(source.sink.xy[source,2:3],pch=20,col="Black")
-  
-}
-
-dev.off()
-
-# ------------------------
