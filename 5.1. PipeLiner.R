@@ -8,7 +8,7 @@
 rm( list=(ls()[ls()!="v"]) )
 gc(reset=TRUE)
 
-source("0. Project Config.R")
+source("../0. Config _ 1 Intertidal.R")
 source("Dependences.R")
 
 ## --------------------------------------------------------------------------------------------------------------
@@ -21,7 +21,7 @@ pipeLiner <- TRUE
 doParallelCalculations <- TRUE # repeat all parallel computations
 type <- "points" # points polygons
 
-load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
+load(paste0(results.folder,"/InternalProc/","Parameters.RData"))
 n.days.max <- global.simulation.parameters$particle.max.duration
 n.days.max
 
@@ -29,28 +29,45 @@ n.days.max
 
 list.dirs(path = paste0("../Results"), recursive = FALSE)
 
-pld.period <- 1:60 # 1:120 c(10 , 30 , 90 , 120 , 200)
-n.seasons <- "YearRound" # c("YearRound","Spring","Summer","Autumn","Winter")
+pld.period <- 1:n.days.max # c(10 , 30 , 90 , 120 , 200)
+n.seasons <- "" # c("","Spring","Summer","Autumn","Winter")
 combinations <- expand.grid(season=n.seasons,pld.period=pld.period,stringsAsFactors = F)
 
 for( c in 1:nrow(combinations) ) {
   
   gc(reset=TRUE)
   cat(c,"\n")
+  dev.off()
   
   season <- combinations[c,1]
   pld.period <- combinations[c,2]
 
-  if( season == "Spring" ) { spawn.p <- c(3,4,5) }
-  if( season == "Summer" ) { spawn.p <- c(6,7,8) }
-  if( season == "Autumn" ) { spawn.p <- c(9,10,11) }
-  if( season == "Winter" ) { spawn.p <- c(12,1,2) }
-  if( season == "YearRound" ) { spawn.p <- 1:12 }
-  
   if( type == "polygons" ) { source("5.1. Connectivity Estimates [Polygons].R") }
   if( type == "points" ) { source("5.1. Connectivity Estimates [Points].R") }
   
 }
 
-## --------------------------------------------------------------------------------------------------------------
-## --------------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------
+
+mainTheme <- theme(panel.grid.major = element_blank() ,
+                   text = element_text(size=12) ,
+                   axis.title.y = element_text(margin = margin(t = 0, r = 12, b = 0, l = 0)) ,
+                   axis.title.x = element_text(margin = margin(t = 12, r = 0, b = 0, l = 0)) )
+
+names(combResults)
+
+y.lab <- "Number of clusters"
+
+p3 <- ggplot() +
+  geom_point(data = combResults, aes(x=pld, y=numberClustersConsensus), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.5) +
+  theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab(y.lab) 
+  # + geom_smooth(data = combResults, aes(x=pld, y=numberClustersConsensus),span = 0.8)
+
+p3
+
+pdf( file=paste0(results.folder,"/",y.lab,".pdf"), width = 10, height = 8 )
+print(p3)
+dev.off()
+
+## ----------------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------

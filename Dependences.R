@@ -7,7 +7,8 @@ sql.directory <<- paste0(project.folder,"/Results/SQL/")
 
 ## -------------------------
 
-packages.to.use <- c("rnaturalearth",
+packages.to.use <- c("factoextra",
+                     "rnaturalearth",
                      "geosphere",
                      "rgeos",
                      #"dggridR",
