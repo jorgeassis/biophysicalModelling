@@ -8,7 +8,7 @@
 rm( list=(ls()[ls()!="v"]) )
 gc(reset=TRUE)
 
-source("../0. Config _ 1 Intertidal.R")
+source("../0. Config _ 3 Circalitoral.R")
 source("Dependences.R")
 
 ## --------------------------------------------------------------------------------------------------------------
@@ -26,8 +26,6 @@ n.days.max <- global.simulation.parameters$particle.max.duration
 n.days.max
 
 ## ----------------------------------------------------------------
-
-list.dirs(path = paste0("../Results"), recursive = FALSE)
 
 pld.period <- 1:n.days.max # c(10 , 30 , 90 , 120 , 200)
 n.seasons <- "" # c("","Spring","Summer","Autumn","Winter")
@@ -56,6 +54,9 @@ mainTheme <- theme(panel.grid.major = element_blank() ,
 
 names(combResults)
 
+y.lab <- "Isolation degree (number of sites)"
+y.lab <- "Degree centrality (average number of connections)"
+y.lab <- "Degree centrality (maximum number of connections)"
 y.lab <- "Number of clusters"
 
 p3 <- ggplot() +
