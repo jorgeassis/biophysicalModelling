@@ -6,7 +6,7 @@
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("../0. Config _ 4 Demersal.R")
+source("0. Config.R")
 source("Dependences.R")
 
 buffer <- TRUE
@@ -304,7 +304,7 @@ for (y in unique(fullDates$year) ){ #
     
     var4d <- ncvar_def( "UComponent", "m", list(dimX,dimY,dimT), mv, prec="double")
     var5d <- ncvar_def( "VComponent", "m", list(dimX,dimY,dimT), mv,  prec="double")
-    nc.file <- nc_create( paste(data.folder,"/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d)  ) # ,  force_v4=TRUE
+    nc.file <- nc_create( paste(data.folder,"/currents_2d_",project.name,"_",y,".nc",sep=""), list(var1d,var2d,var3d,var4d,var5d)   ,  force_v4=TRUE ) # 
     ncvar_put( nc.file, var1d, Longitude.array )  
     ncvar_put( nc.file, var2d, Latitude.array )   
     ncvar_put( nc.file, var3d, as.numeric(as.Date(time.window)) )
@@ -327,6 +327,9 @@ for (y in unique(fullDates$year) ){ #
     nc_close(nc.file)
     
   }
+ 
+  rm(data.u)
+  rm(data.v)
   
 }
 

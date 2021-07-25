@@ -9,25 +9,25 @@ gc(reset=TRUE)
 ## ------------------------------------
 ## Files and folders
 
-project.name <- "Intertidal"
+project.name <- "Mangrove"
 project.folder <- "../"
-data.folder <- paste0(project.folder,"Data/1 Intertidal/")
-results.folder <- paste0(project.folder,"Results/1 Intertidal/")
+data.folder <- paste0(project.folder,"Data/")
+results.folder <- paste0(project.folder,"Results/")
 
 # -----------------------------------
 
-number.cores <- 8
+number.cores <- 32
 
 # -----------------------------------
 # Main region
 
-min.lon <- -42 
-max.lon <- -7
-min.lat <- 27.5
+min.lon <- -180 
+max.lon <- 180
+min.lat <- -50
 max.lat <- 50
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 
-sim.resolution <- 6 # https://h3geo.org/docs/core-library/restable/
+sim.resolution <- 4 # 5 # https://h3geo.org/docs/core-library/restable/
 
 # -----------------------------------
 # Source Sink sites
@@ -42,7 +42,7 @@ addSourceSinkRegions <- NULL ## .shp file for additional Points or Polygon regio
 addSourceSinkRegionsBathymetry <- NULL ## NULL or range
 bathymetryRasterFile <- NULL ## NULL or .tif raster layer
 
-maskSourceSinkSites <- "../Data/Spatial/simulationRegion.shp" ## .shp file to mask Source Sink sites
+maskSourceSinkSites <- "../Data/Spatial/mangroveOccurrence.shp" ## .shp file to mask Source Sink sites
 maskSourceSinkSitesType <- "include" ## include or exclude Source Sink sites from sim
 
 # -----------------------------------
@@ -56,7 +56,7 @@ rawDataDepth <- c(0)
 
 months.all <- 1:12 # c(9,10,11,12,1,2,3,4) 
 from.day <- 1 ; to.day <- 31
-from.year <- 2008 ; to.year <- 2017 #  2008:2017
+from.year <- 2013 ; to.year <- 2017 #  2008:2017
 
 allow.back.to.origin <- FALSE                     # at t == t.start
 
@@ -66,7 +66,7 @@ remove.new.particles.last.days <- FALSE            # If last days (particle.max.
 remove.new.particles.last.days.n.days <- 30
 
 longevity <- TRUE
-particle.max.duration <- 120                       # Days allowed to travel
+particle.max.duration <- 180                       # Days allowed to travel
 behaviour <- FALSE                                # Only settle after period
 
 # -----------------------------------

@@ -5,14 +5,10 @@
 
 ## -----------------
 
-# Lon < -180, ...
-
-## -----------------
-
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
 
-source("../0. Config _ 5 Bathyal.R")
+source("0. Config.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -26,7 +22,7 @@ source("Dependences.R")
 if( ! dir.exists(data.folder) ) { dir.create(file.path(data.folder), showWarnings = FALSE) } 
 if( ! dir.exists(results.folder) ) { dir.create(file.path(results.folder), showWarnings = FALSE) } 
 
-if( ! "InternalProc" %in% list.files(results.folder) ) { dir.create(file.path(paste0(results.folder,"/Results/InternalProc"))) }
+if( ! "InternalProc" %in% list.files(results.folder) ) { dir.create(file.path(paste0(results.folder,"/InternalProc"))) }
 
 ## --------------------------------------
 
@@ -45,26 +41,62 @@ worldmap$ID <- 1:nrow(worldmap)
 
 ## Produce hexagon lists
 
-shapeVertex <- data.frame(Lon=c(min.lon,min.lon,max.lon,max.lon),
-                          Lat=c(min.lat,max.lat,max.lat,min.lat))
-shape <- spPolygons(as.matrix(shapeVertex))
-shape <- st_as_sf(shape)
-st_crs(shape) <- 4326
-hexagons.address <- polyfill(shape, sim.resolution)
-hexagons.address <- unlist(hexagons.address)
-names(hexagons.address) <- NULL
+if( ! min.lon < 0 & max.lon > 0 ) {
+  
+  shapeVertex <- data.frame(Lon=c(min.lon,min.lon,max.lon,max.lon),
+                            Lat=c(min.lat,max.lat,max.lat,min.lat))
+  
+  shape <- spPolygons(as.matrix(shapeVertex))
+  shape <- st_as_sf(shape)
+  st_crs(shape) <- 4326
+  hexagons.address <- h3jsr::polyfill(shape, sim.resolution) 
+  hexagons.address <- unlist(hexagons.address)
+  names(hexagons.address) <- NULL
+  
+}
+
+if( min.lon < 0 & max.lon > 0 ) {
+  
+  shapeVertex <- data.frame(Lon=c(min.lon,min.lon,0,0),
+                            Lat=c(min.lat,max.lat,max.lat,min.lat))
+  
+  shape <- spPolygons(as.matrix(shapeVertex))
+  shape <- st_as_sf(shape)
+  st_crs(shape) <- 4326
+  hexagons.address.1 <- h3jsr::polyfill(shape, sim.resolution) 
+  hexagons.address.1 <- unlist(hexagons.address.1)
+  names(hexagons.address.1) <- NULL
+  
+  shapeVertex <- data.frame(Lon=c(0,0,max.lon,max.lon),
+                            Lat=c(min.lat,max.lat,max.lat,min.lat))
+  
+  shape <- spPolygons(as.matrix(shapeVertex))
+  shape <- st_as_sf(shape)
+  st_crs(shape) <- 4326
+  hexagons.address.2 <- h3jsr::polyfill(shape, sim.resolution) 
+  hexagons.address.2 <- unlist(hexagons.address.2)
+  names(hexagons.address.2) <- NULL
+  hexagons.address <- unique(c(hexagons.address.1,hexagons.address.2))
+  
+}
 
 # -------
 
-polygons.all <- h3jsr::h3_to_polygon(hexagons.address)
+polygons.all <- h3_to_geo_boundary_sf(hexagons.address)
+#polygons.all <- st_wrap_dateline(polygons.all, options = "WRAPDATELINE=YES", quiet = TRUE)
+
+st_crs(polygons.all) <- 4326
+st_crs(worldmap) <- 4326
+
 hexagons.land <- st_intersects( worldmap[,"ID"],polygons.all)
 
 hexagons.address.land <- hexagons.address[unique(unlist(hexagons.land))]
 hexagons.address.ocean <- unique( hexagons.address[ ! hexagons.address %in% hexagons.address.land ] )
 
-# polygons.land <- h3jsr::h3_to_polygon(hexagons.address.land)
-# plot(polygons.land,col="red")
-# plot(h3jsr::h3_to_polygon(hexagons.address.ocean),col="blue")
+polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
+
+plot(polygons.land,col="red")
+# plot(h3_to_geo_boundary_sf(hexagons.address.ocean),col="blue")
 
 ## --------------------------------------
 ## Get shore hexagons
@@ -113,8 +145,8 @@ hexagons.address.ocean <- hexagons.address.ocean[! hexagons.address.ocean %in% h
 ## --------------------------------------
 ## Remove outer frame
 
-polygons.sourceSink <- h3_to_polygon(hexagons.address.sourcesink)
-polygons.land <- h3_to_polygon(hexagons.address.land)
+polygons.sourceSink <- h3_to_geo_boundary_sf(hexagons.address.sourcesink)
+polygons.land <- h3_to_geo_boundary_sf(hexagons.address.land)
 
 buffer.val <- 0.1
 
@@ -149,17 +181,26 @@ if(sourceSinkLocationType == "peripheral") {
 }
 
 if(sourceSinkLocationType == "centroid") {
-  polygons.sourceSink <- h3_to_polygon(hexagons.address.sourcesink)
+  polygons.sourceSink <- h3_to_geo_boundary_sf(hexagons.address.sourcesink)
   source.sink.hexagons <- st_centroid(polygons.sourceSink)
   source.sink.hexagons <- data.frame(lng=st_coordinates(source.sink.hexagons)[,1],lat=st_coordinates(source.sink.hexagons)[,2],address=hexagons.address.sourcesink)
 }
 
-source.sink.hexagons <- source.sink.hexagons[!duplicated(source.sink.hexagons[,c("lng","lat")]),]
+source.sink.hexagons <- source.sink.hexagons[which(!duplicated(source.sink.hexagons[,c("lng","lat")])),]
 coordinates( source.sink.hexagons) = ~lng+lat
 crs(source.sink.hexagons) <- dt.projection
 polygons.land.sp <- sf:::as_Spatial(polygons.land)
 crs(polygons.land.sp) <- dt.projection
-source.sink.hexagons <- as.data.frame(source.sink.hexagons[which(is.na(over(source.sink.hexagons, polygons.land.sp))),])
+
+source.sink.hexagons.over.land <- over(source.sink.hexagons, polygons.land.sp)
+
+if( ! FALSE %in% dim(source.sink.hexagons.over.land) > 0 ) {
+  source.sink.hexagons <- as.data.frame(source.sink.hexagons[which(is.na(source.sink.hexagons.over.land)),])
+}
+
+if( FALSE %in% dim(source.sink.hexagons.over.land) > 0 ) {
+  source.sink.hexagons <- as.data.frame(source.sink.hexagons)
+}
 
 plot(polygons.sourceSink[1,])
 plot(polygons.land,col="red",add=TRUE)
@@ -340,7 +381,7 @@ if(sum(duplicated(source.sink.xy[,"cells.id"])) > 0) { stop("Error :: 008") }
 
 ## -----------------------------------------------------
 
-if(length(hexagons.address.ocean) == 0) { hexagons.address.ocean <- h3_geo_to_h3(max.lat,min.lon, sim.resolution  ) }
+if( length(hexagons.address.ocean) == 0 ) { hexagons.address.ocean <- h3_geo_to_h3(max.lat,min.lon, sim.resolution  ) }
 
 ## -----------------------------------------------------
 ## Give new ids
@@ -360,17 +401,28 @@ if( sum(hexagons.address.sourcesink %in% hexagons.address.ocean) > 0 | sum(hexag
 
 ## ------------------
 
-plot1 <- ggplot() + geom_sf(data = h3_to_polygon(hexagons.address.ocean), fill=NA, colour="#6EADEC", size=0.1) + 
-                    geom_sf(data = h3_to_polygon(hexagons.address.land), fill=NA, colour="#E1BF6F", size=0.1) + 
-                    geom_sf(data = h3_to_polygon(hexagons.address.sourcesink), fill="#4B4A48", colour="#FFFFFF", size=0.1) + theme_bw()
+polygons.plot.ocean <- h3_to_polygon(hexagons.address.ocean)
+polygons.plot.ocean <- st_wrap_dateline(polygons.plot.ocean, options = "WRAPDATELINE=YES", quiet = TRUE)
+polygons.plot.land <- h3_to_polygon(hexagons.address.land)
+polygons.plot.land <- st_wrap_dateline(polygons.plot.land, options = "WRAPDATELINE=YES", quiet = TRUE)
+polygons.plot.sourcesink <- h3_to_polygon(hexagons.address.sourcesink)
+polygons.plot.sourcesink <- st_wrap_dateline(polygons.plot.sourcesink, options = "WRAPDATELINE=YES", quiet = TRUE)
 
-plot1 
+#polygons.land <- st_wrap_dateline(polygons.land, options = "WRAPDATELINE=YES", quiet = TRUE)
+
+plot1 <- ggplot() + geom_sf(data = polygons.plot.ocean, fill=NA, colour="#6EADEC", size=0.1) + 
+                    geom_sf(data = polygons.plot.land, fill=NA, colour="#E1BF6F", size=0.1) + 
+                    geom_sf(data = polygons.plot.sourcesink[which(source.sink.xy$source == 1)], fill="Red", colour="#FFFFFF", size=0.1) + theme_bw()
+
+plot1
+
+sum(source.sink.xy$source == 1)
 
 pdf(file=paste0(results.folder,"/sourceSinkSitesHexagons.pdf"),width=12)
 plot1
 dev.off()
 
-hexagons.sourcesink.shp <- as(h3_to_polygon(hexagons.address.sourcesink), "Spatial")
+hexagons.sourcesink.shp <- as(polygons.plot.sourcesink, "Spatial")
 hexagons.sourcesink.shp$ID <- 1:length(hexagons.sourcesink.shp)
 hexagons.sourcesink.shp$SOURCE <- source.sink.xy$source
 
@@ -388,6 +440,7 @@ source.cells.id <- source.sink.xy[source.sink.xy$source == 1,1]
 ## Define Available raw data and Test if data is available
 
 raw.data.files <- list.files(data.folder,full.names = TRUE,pattern="nc")
+raw.data.files <- raw.data.files[sapply(from.year:to.year,function(x){ which(grepl(x,raw.data.files)) })]
 simulation.parameters.step <- data.frame()
 
 for( file in 1:length(raw.data.files)) {
@@ -541,7 +594,7 @@ save(global.simulation.parameters, file = paste0(results.folder,"/InternalProc/"
 
 ## -----------------------
 
-rm(particles.reference.bm) ; rm(particles.reference) ; rm(polygons.all) ; rm(hexagons.land)
+rm(polygons.land.sp) ; rm(particles.reference.bm) ; rm(particles.reference) ; rm(polygons.all) ; rm(hexagons.land)
 gc(reset=TRUE)
 memory.profile()
 head(list.memory())
@@ -837,10 +890,17 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
         
         # Assign temporary positions
         
-        dLon <- mov.eastward / ( 6378137 * cos( pi * (  points.to.interp[,.(pos.lat)]  / 180) ) )
+        dLon <- mov.eastward / ( 6378137 * cos( pi * (  unlist(points.to.interp[,.(pos.lat)] )  / 180) ) )
+        names(dLon) <- NULL
         dLat <- mov.northward / 6378137
+        
         dLon <- points.to.interp[,pos.lon] + dLon * 180/pi 
         dLat <- points.to.interp[,pos.lat] + dLat * 180/pi
+      
+        # Condition for regional transition
+        
+        dLon[ dLon > 180 ] <- dLon[dLon > 180 ] - 360
+        dLon[ dLon < -180 ] <- dLon[dLon < -180 ] + 360
         
         # -----------------------------------------------
         
