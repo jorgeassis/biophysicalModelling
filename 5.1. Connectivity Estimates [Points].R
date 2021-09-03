@@ -10,12 +10,12 @@ if( ! exists("pipeLiner") ) {
   rm( list=(ls()[ls()!="v"]) )
   gc(reset=TRUE)
 
-  source("../0. Config _ 1 Intertidal.R")
+  source("0. Config.R")
   source("Dependences.R")
   
   list.dirs(path = paste0("../Results"), recursive = FALSE)
   season <- "" # Spring; Summer; Autumn; Winter; "" for All
-  c <- 2
+  c <- 180
   pld.period <- c
   
 }
@@ -111,7 +111,7 @@ if( ! exists("combResults")) {
 
   combResults <- data.frame()
   
-  if( ! exists("combinations")) { combinations <- matrix(NA) }
+  if( ! exists("combinations")) { combinations <- data.frame(1:pld.period) }
   
   isolatedResults <- data.frame(matrix(nrow=length(RegionNames),ncol=nrow(combinations),""),stringsAsFactors = FALSE)
   rownames(isolatedResults) <- RegionNames
@@ -236,7 +236,10 @@ for( i in 1:nrow(connected.pairs) ){
   strenght <- (connected.pairs[i,3] * 100) + 1 
   routes_sl.1 <- which(source.sink.xy$Pair == connected.pairs[i,1])
   routes_sl.2 <- which(source.sink.xy$Pair == connected.pairs[i,2])
-  routes_sl <- gcIntermediate(source.sink.xy[routes_sl.1,c("Lon","Lat")],source.sink.xy[routes_sl.2,c("Lon","Lat")],n = 100, addStartEnd = TRUE, sp = TRUE)
+  
+# routes_sl <- gcIntermediate(source.sink.xy[routes_sl.1,c("Lon","Lat")],source.sink.xy[routes_sl.2,c("Lon","Lat")],n = 100, addStartEnd = TRUE, sp = TRUE)
+  routes_sl <- gcIntermediate(source.sink.xy[routes_sl.1,c("Lon","Lat")],source.sink.xy[routes_sl.2,c("Lon","Lat")],n = 100, addStartEnd = TRUE, sp = TRUE, breakAtDateLine=TRUE)
+  
   lineConnections = c(lineConnections,sp::SpatialLinesDataFrame(routes_sl, data.frame(ID = i), match.ID = F))
 }
 
@@ -245,6 +248,12 @@ mapRegionNet <- ggplot() +
   geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group))  + coord_map() +
   coord_sf(xlim = c( extent(worldMap)[1], extent(worldMap)[2]), ylim = c(extent(worldMap)[3], extent(worldMap)[4]), expand = FALSE) + 
   coord_map('lambert', lat0=(subseter[3] + subseter[4] / 2), lat1=45, xlim=c(subseter[1] - 1.5, subseter[2] + 1.5), ylim=c(subseter[3] - 1.5 , subseter[4] + 1.5)) + theme_map
+
+mapRegionNet <- ggplot() +
+  geom_path(data = do.call(rbind, lineConnections) , size=0.35 , aes(x = long, y = lat, group = group), col = "#797979" ) +
+  geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group))  + coord_map() +
+  coord_sf(xlim = c( extent(worldMap)[1], extent(worldMap)[2]), ylim = c(extent(worldMap)[3], extent(worldMap)[4]), expand = FALSE) + 
+  coord_map('lambert', lat0=(subseter[3] + subseter[4] / 2), lat1=45) + theme_map
 
 # mapRegionNet
 
@@ -302,12 +311,12 @@ membership.graph.1 <- walktrap.community(graph.obj)$membership
 membership.graph.2 <- cluster_fast_greedy(graph.obj)$membership
 membership.graph.3 <- leading.eigenvector.community(graph.obj,options=list(maxiter=1000000))$membership
 membership.graph.4 <- cluster_label_prop(graph.obj)$membership
-membership.graph.5 <- cluster_edge_betweenness(graph.obj)$membership
-membership.mt <- cbind(membership.graph.1,membership.graph.2,membership.graph.3,membership.graph.4,membership.graph.5)
+#membership.graph.5 <- cluster_edge_betweenness(graph.obj)$membership
+membership.mt <- cbind(membership.graph.1,membership.graph.2,membership.graph.3,membership.graph.4) # ,membership.graph.5
 
-membership.consensus <- array(NA,dim=c(nrow(membership.mt),nrow(membership.mt),5))
+membership.consensus <- array(NA,dim=c(nrow(membership.mt),nrow(membership.mt),4)) # 5
 
-for(c in 1:5) {
+for(c in 1:dim(membership.consensus)[3]) { # 5
   
   vect <- get(paste0("membership.graph.",c))
   membership.consensus.i <- matrix(NA,nrow=length(vect),ncol=length(vect))
@@ -322,7 +331,7 @@ for(c in 1:5) {
     
 }
 
-membership.consensus <- apply(membership.consensus,1:2,sum) / 5
+membership.consensus <- apply(membership.consensus,1:2,sum) / dim(membership.consensus)[3] # 5
 membership.consensus.vector <- numeric(ncol(membership.consensus))
 membership.consensus.vector.assign <- numeric(0)
 membership.consensus.vector.c <- 0
@@ -341,7 +350,6 @@ for(i in 1:ncol(membership.consensus)) {
 
 names(membership.consensus.vector) <- names(membership.graph)
 hexagons.sourcesink.shp[sapply(names(membership.consensus.vector),function(x) which( as.character(hexagons.sourcesink.shp$ID) == x)) ,"clusterConsensus"] <- membership.consensus.vector
-
 numberClustersConsensus <- length(unique(membership.consensus.vector))
 
 ## ------------------------------------------
@@ -403,12 +411,13 @@ centroids <- data.frame(centroids)
 if(length(isolated.sourceSink) > 0) {
   centroidsIsolated <- source.sink.xy.sp[sapply(names(isolated.sourceSink),function(x) which(source.sink.xy.sp$Pair == x)),]
   centroidsIsolated <- data.frame(centroidsIsolated)
-} else { centroidsIsolated <- centroids[1,]; centroidsIsolated$Lon <- -181; centroidsIsolated$Lat <- 91 }
+  centroidsIsolatedPts <- geom_point(data = centroidsIsolated ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "white", size = 1.5, stroke = 0.35, alpha = 0.9) 
+} else { centroidsIsolatedPts <- NULL }
 
 pdf(file=paste0(project.name.c,"/Maps/clusteringConnectionsConsensus.pdf"), width=12)
 print(
   mapRegionNet + 
-    geom_point(data = centroidsIsolated ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "white", size = 1.5, stroke = 0.35, alpha = 0.9) +
+    centroidsIsolatedPts +
     geom_point(data = centroids ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = cols.to.use, size = 1.5, stroke = 0.35, alpha = 0.7)
 )
 dev.off()

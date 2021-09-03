@@ -5,7 +5,7 @@
 
 rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
-source("../0. Config _ 1 Intertidal.R")
+source("0. Config.R")
 source("Dependences.R")
 
 ## ------------------------------------------------------------------------------------------------------------------------------
@@ -24,7 +24,7 @@ tail(particles.video.location.dt)
 # particle.max.duration
 
 mainTitle <- "Potential connectivity [Year 2017]"
-simulation.name <- "120 days propagule duration"
+simulation.name <- "180 days propagule duration"
 
 load(paste0(results.folder,"/InternalProc/","SourceSink.RData"))
 load(paste0(results.folder,"/InternalProc/","Parameters.RData"))
@@ -182,8 +182,8 @@ for( t in 1:t.steps) {
   points.plot <- points.plot[complete.cases(points.plot),]
 
   map.t <- map + geom_point(data = points.plot ,  aes(x = Lon, y = Lat) , shape = 21, colour = points.plot$color, fill = points.plot$color, size = 1.5, stroke = 0.35, alpha = 0.9) +
-    annotate(geom="text", x=min.lon, y=max.lat + 3, label=mainTitle,size=5.5,family="Helvetica", color = "#000000",hjust = 0) +
-    annotate(geom="text", x=min.lon, y=max.lat + 1, label=paste0("Simulation: ",print.date.sim),size=4.5,family="Helvetica", color = "#000000",hjust = 0)
+    annotate(geom="text", x=min.lon, y=max.lat + 8, label=mainTitle,size=5.5,family="Helvetica", color = "#000000",hjust = 0) +
+    annotate(geom="text", x=min.lon, y=max.lat + 4, label=paste0("Simulation: ",print.date.sim),size=4.5,family="Helvetica", color = "#000000",hjust = 0)
   
   png(file=paste0(results.folder,"/Video/Video map_",t,".png"), width=1280, height=720, bg = "#f5f5f2")
   print(map.t)

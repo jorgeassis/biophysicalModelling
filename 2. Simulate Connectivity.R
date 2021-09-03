@@ -401,14 +401,21 @@ if( sum(hexagons.address.sourcesink %in% hexagons.address.ocean) > 0 | sum(hexag
 
 ## ------------------
 
+if( length(hexagons.address.ocean) > 100000) { stop("May crash this here")}
+
 polygons.plot.ocean <- h3_to_polygon(hexagons.address.ocean)
 polygons.plot.ocean <- st_wrap_dateline(polygons.plot.ocean, options = "WRAPDATELINE=YES", quiet = TRUE)
 polygons.plot.land <- h3_to_polygon(hexagons.address.land)
 polygons.plot.land <- st_wrap_dateline(polygons.plot.land, options = "WRAPDATELINE=YES", quiet = TRUE)
+
+## ------------------
+
 polygons.plot.sourcesink <- h3_to_polygon(hexagons.address.sourcesink)
 polygons.plot.sourcesink <- st_wrap_dateline(polygons.plot.sourcesink, options = "WRAPDATELINE=YES", quiet = TRUE)
 
-#polygons.land <- st_wrap_dateline(polygons.land, options = "WRAPDATELINE=YES", quiet = TRUE)
+# polygons.land <- st_wrap_dateline(polygons.land, options = "WRAPDATELINE=YES", quiet = TRUE)
+
+plot1 <- ggplot() + geom_sf(data = polygons.plot.sourcesink[which(source.sink.xy$source == 1)], fill="Red", colour="#FFFFFF", size=0.1) + theme_bw()
 
 plot1 <- ggplot() + geom_sf(data = polygons.plot.ocean, fill=NA, colour="#6EADEC", size=0.1) + 
                     geom_sf(data = polygons.plot.land, fill=NA, colour="#E1BF6F", size=0.1) + 
@@ -608,7 +615,7 @@ start_time <- Sys.time()
 
 time.i <- character(nrow(simulation.parameters.step))
 
-for ( simulation.step in 1:nrow(simulation.parameters.step) ) { # 
+for( simulation.step in 1:nrow(simulation.parameters.step) ) { # 
   
   ## --------------------------------------------------------
   ## Progress
@@ -627,6 +634,12 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   cat('\n',paste0(rep("-",100),collapse = ""))
   cat('\n',paste0(rep("-",progress.percent),collapse = ""),"||",progress.percent,"%")
   cat('\n',paste0(rep("-",100),collapse = ""))
+  
+  ## Log
+  
+  fileConn <- file(paste0(results.folder,"/InternalProc/","process.log"))
+  writeLines(paste0("Log ",Sys.time()," | Started at: ",start_time," | Running step: #",simulation.step," out of #", nrow(simulation.parameters.step), " | Time taken: ",time.take.step.min," min. (total: ",time.take.step.all," mins)"), fileConn)
+  close(fileConn)
   
   ## --------------------------------------------------------
   
@@ -708,7 +721,7 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   
   ## --------------------------------------------------------
   
-  # Environmental data [Can be subsetd in dopar ]
+  # Environmental data [Can be subseted in dopar ]
   
   nc.file <- nc_open( simulaton.raw.data.file, readunlim=FALSE )
   time.start.day <- ncvar_get( nc.file, "Date" )
@@ -773,6 +786,18 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
   speed.v.sec <- t( parSapply(cl = cl, 1:nrow(raw.data.v), function (x) seq( from = raw.data.v[x,3] , to = raw.data.v[x,4] , length.out = n.hours.per.day + 1 ) ))
   
   stopCluster(cl)
+  
+  if( max(speed.u.sec) > 100 | min(speed.u.sec) < -100 | max(speed.v.sec) > 100 | min(speed.v.sec) < -100 ) { 
+    
+    speed.u.sec[speed.u.sec > 100] <- NA
+    speed.u.sec[speed.u.sec < -100] <- NA
+    speed.v.sec[speed.v.sec > 100] <- NA
+    speed.v.sec[speed.v.sec < -100] <- NA
+    
+    speed.u.sec <- na.approx(speed.u.sec, rule = 2)
+    speed.v.sec <- na.approx(speed.v.sec, rule = 2)
+    
+  }
   
   speed.u.sec.coords <- raw.data.u[,1:2]
   speed.v.sec.coords <- raw.data.v[,1:2]
@@ -870,18 +895,6 @@ for ( simulation.step in 1:nrow(simulation.parameters.step) ) { #
         
         speed.u <- apply(matrix(source.points.to.interp.u[idw.nearest.i,3],ncol=3) / idw.nearest.d^idwPower,1,sum) / apply(1 / idw.nearest.d^idwPower,1,sum)
         speed.v <- apply(matrix(source.points.to.interp.v[idw.nearest.i,3],ncol=3) / idw.nearest.d^idwPower,1,sum) / apply(1 / idw.nearest.d^idwPower,1,sum)
-        
-        if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) { 
-          
-          speed.u[speed.u > 100] <- NA
-          speed.u[speed.u < 100] <- NA
-          speed.v[speed.v > 100] <- NA
-          speed.v[speed.v > 100] <- NA
-
-          speed.u <- na.approx(speed.u, rule = 2)
-          speed.v <- na.approx(speed.v, rule = 2)
-          
-          }
         
         if( max(speed.u) > 100 | min(speed.u) < -100 | max(speed.v) > 100 | min(speed.v) < -100 ) {  stop("Error :: 009") }
         

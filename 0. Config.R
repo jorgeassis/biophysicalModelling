@@ -27,7 +27,7 @@ min.lat <- -50
 max.lat <- 50
 dt.projection <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 
-sim.resolution <- 4 # 5 # https://h3geo.org/docs/core-library/restable/
+sim.resolution <- 5 # https://h3geo.org/docs/core-library/restable/
 
 # -----------------------------------
 # Source Sink sites
@@ -56,7 +56,7 @@ rawDataDepth <- c(0)
 
 months.all <- 1:12 # c(9,10,11,12,1,2,3,4) 
 from.day <- 1 ; to.day <- 31
-from.year <- 2013 ; to.year <- 2017 #  2008:2017
+from.year <- 2013 ; to.year <- 2016 #  2008:2017
 
 allow.back.to.origin <- FALSE                     # at t == t.start
 
@@ -72,7 +72,7 @@ behaviour <- FALSE                                # Only settle after period
 # -----------------------------------
 # Ilustration (movie)
 
-movie.year <- 2017
+movie.year <- 2016
 movie.sites.buffer <- 0 # Nearby cells to include, 0 for xy only
 
 movie.sites.xy <- "../Data/Spatial/movie.shp" # 
