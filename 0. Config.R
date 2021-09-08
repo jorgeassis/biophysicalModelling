@@ -3,6 +3,9 @@
 ## Assis et al., 2021
 ## ------------------------------------------------------------------------------------------------------------------
 
+## Log Changes
+## Divide environmental data per core in a better way to be able to do sim at 5 resolution.
+
 ## ------------------------------------
 ## Git
 
