@@ -9,7 +9,7 @@ if( ! exists("pipeLiner") ) {
   
   rm( list=(ls()[ls()!="v"]) )
   gc(reset=TRUE)
-
+ 
   source("0. Config.R")
   source("Dependences.R")
   

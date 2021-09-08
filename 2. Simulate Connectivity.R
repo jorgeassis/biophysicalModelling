@@ -398,7 +398,7 @@ head(source.sink.xy)
 tail(source.sink.xy)
 
 if( sum(hexagons.address.sourcesink %in% hexagons.address.ocean) > 0 | sum(hexagons.address.land %in% hexagons.address.ocean) > 0 | sum(hexagons.address.ocean %in% hexagons.address.land) > 0 ) { stop("Error :: 001") }
-
+ 
 ## ------------------
 
 if( length(hexagons.address.ocean) > 100000) { stop("May crash this here")}
