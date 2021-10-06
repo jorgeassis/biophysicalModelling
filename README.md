@@ -7,7 +7,7 @@ R code to develop a biophysical model integrating high-resolution ocean currents
 Assis, J., Fragkopoulou, E., Serrão, E. A., Costa, B. H., Gandra, M., & Abecasis, D. (2021). Weak biodiversity connectivity in the European network of no-take marine protected areas. Science of the Total Environment, 773, 1–24. doi.org/10.1016/j.scitotenv.2021.145664
 <br><br>
 
-![plot](./Data/img.png | width=850)
+![plot](./Data/img.png){width=850}
 Example of biophysical modelling output showing weak connectivity in the European network of MPAs. [read publication](https://www.sciencedirect.com/science/article/pii/S0048969721007324)
 
 ## Additional references
