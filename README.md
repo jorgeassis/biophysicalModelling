@@ -1,6 +1,6 @@
 # biophysicalModelling
 
-R code to develop a biophysical model integrating high-resolution ocean currents to predict oceanographic connectivity.
+R code to develop a full biophysical modelling framework predicting oceanographic connectivity.
 <br><br>
 ## Key reference
 
