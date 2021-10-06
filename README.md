@@ -2,15 +2,15 @@
 
 R code to develop a full biophysical modelling framework predicting oceanographic connectivity.
 <br><br>
-## Key reference
+### Key reference
 
 Assis, J., Fragkopoulou, E., Serrão, E. A., Costa, B. H., Gandra, M., & Abecasis, D. (2021). Weak biodiversity connectivity in the European network of no-take marine protected areas. Science of the Total Environment, 773, 1–24. doi.org/10.1016/j.scitotenv.2021.145664
 <br><br>
 
 ![plot](./Data/img.png)
 Example of biophysical modelling output showing weak connectivity in the European network of MPAs. [read publication](https://www.sciencedirect.com/science/article/pii/S0048969721007324)
-
-## Additional references
+<br
+### Additional references
 
 Assis, J., Zupan, M., Nicastro, K. R., Zardi, G. I., McQuaid, C. D., & Serrão, E. A. (2015). Oceanographic Conditions Limit the Spread of a Marine Invader along Southern African Shores. Plos One, 10(6), e0128124. doi:10.1371/journal.pone.0128124
 
