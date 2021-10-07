@@ -8,7 +8,7 @@ Assis, J., Fragkopoulou, E., Serrão, E. A., Costa, B. H., Gandra, M., & Abecasi
 <br><br>
 
 ![plot](./Data/img.png)
-Example of biophysical modelling output showing weak connectivity in the European network of MPAs. [[read publication](https://www.sciencedirect.com/science/article/pii/S0048969721007324)]
+Example of biophysical modelling output showing weak connectivity in the European network of MPAs [ [read publication](https://www.sciencedirect.com/science/article/pii/S0048969721007324) ].
 <br><br>
 ### Additional references
 
