@@ -12,12 +12,18 @@ Example of biophysical modelling output showing weak connectivity in the Europea
 <br><br>
 ### Additional references
 
-Assis, J., Zupan, M., Nicastro, K. R., Zardi, G. I., McQuaid, C. D., & Serrão, E. A. (2015). Oceanographic Conditions Limit the Spread of a Marine Invader along Southern African Shores. Plos One, 10(6), e0128124. doi:10.1371/journal.pone.0128124
+Assis, J., Serrão, E. A., C. Coelho, N., Tempera, F., Valero, M., & Alberto, F. (2018). Past climate changes and strong oceanographic barriers structured low ‐ latitude genetic relics for the golden kelp Laminaria ochroleuca. Journal of Biogeography, 45(45), 2326–2336. https://doi.org/10.1111/jbi.13425
 
-Cunha, R. L., Assis, J., Madeira, C., Seabra, R., Lima, F. P., Lopes, E. P., … Castilho, R. (2017). Drivers of Cape Verde archipelagic endemism in keyhole limpets. Scientific Reports, (7), 41817. doi:10.1038/srep41817
+Nicastro, K. R., Assis, J., Serr, E. A., Pearson, G. A., Valero, M., Jacinto, R., & Zardi, G. I. (2019). Congruence between fine-scale genetic breaks and dispersal potential in an estuarine seaweed across multiple transition zones. ICES Journal of Marine Science. https://doi.org/10.1093/icesjms/fsz179
 
-Klein, M., Teixeira, S., Assis, J., Serrão, E. A., Gonçalves, E. J., & Borges, R. (2016). High Interannual Variability in Connectivity and Genetic Pool of a Temperate Clingfish Matches Oceanographic Transport Predictions. Plos One, 11(12), e0165881. doi:10.1371/journal.pone.0165881
+Lourenço, C. R., Nicastro, K. R., McQuaid, C. D., Chefaoui, R. M., Assis, J., Taleb, M. Z., & Zardi, G. I. (2017). Evidence for rangewide panmixia despite multiple barriers to dispersal in a marine mussel. Scientific Reports, 1–16. https://doi.org/10.1038/s41598-017-10753-9
 
-Lourenço, C. R., Nicastro, K. R., McQuaid, C. D., Chefaoui, R. M., Assis, J., Taleb, M. Z., & Zardi, G. I. (2017). Evidence for rangewide panmixia despite multiple barriers to dispersal in a marine mussel. Scientific Reports, 1–16. doi:10.1038/s41598-017-10753-9
+Buonomo, R., Assis, J., Fernandes, F., Engelen, A. H., Airoldi, L., & Serrão, E. A. (2016). Habitat continuity and stepping-stone oceanographic distances explain population genetic connectivity of the brown alga Cystoseira amentacea. Molecular Ecology, 26(3), 766–870. https://doi.org/10.1111/mec.13960
 
-Buonomo, R., Assis, J., Fernandes, F., Engelen, A. H., Airoldi, L., & Serrão, E. A. (2016). Habitat continuity and stepping-stone oceanographic distances explain population genetic connectivity of the brown alga Cystoseira amentacea. Molecular Ecology, 26(3), 766–870. doi:10.1111/mec.13960
+Ntuli, N. N., Nicastro, K. R., Zardi, G. I., Assis, J., McQuaid, C. D., & Teske, P. R. (2020). Rejection of the genetic implications of the “Abundant Centre Hypothesis” in marine mussels. Scientific Reports, 10(1), 1–12. https://doi.org/10.1038/s41598-020-57474-0
+
+Cunha, R. L., Assis, J., Madeira, C., Seabra, R., Lima, F. P., Lopes, E. P., … Castilho, R. (2017). Drivers of Cape Verde archipelagic endemism in keyhole limpets. Scientific Reports, (7), 41817. https://doi.org/10.1038/srep41817
+
+Assis, J., Zupan, M., Nicastro, K. R., Zardi, G. I., McQuaid, C. D., & Serrão, E. A. (2015). Oceanographic Conditions Limit the Spread of a Marine Invader along Southern African Shores. Plos One, 10(6), e0128124. https://doi.org/10.1371/journal.pone.0128124
+
+Klein, M., Teixeira, S., Assis, J., Serrão, E. A., Gonçalves, E. J., & Borges, R. (2016). High Interannual Variability in Connectivity and Genetic Pool of a Temperate Clingfish Matches Oceanographic Transport Predictions. Plos One, 11(12), e0165881. https://doi.org/10.1371/journal.pone.0165881
