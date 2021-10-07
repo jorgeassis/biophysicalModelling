@@ -1,6 +1,6 @@
 # biophysicalModelling
 
-R code to develop a full biophysical modelling framework predicting oceanographic connectivity.
+R code to develop a biophysical modelling framework to predict oceanographic connectivity.
 <br><br>
 ### Key reference
 
