@@ -5,12 +5,12 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-rm( list=(ls()[ls()!="v"]) )
+closeAllConnections()
+rm(list=(ls()[ls()!="v"]))
 gc(reset=TRUE)
+source("0. Config.R")
+source("Dependences/mainFunctions.R")
 
-source("../0. Config _ 3 Circalitoral.R")
-source("Dependences.R")
- 
 ## --------------------------------------------------------------------------------------------------------------
 ##
 ##
@@ -21,7 +21,7 @@ pipeLiner <- TRUE
 doParallelCalculations <- TRUE # repeat all parallel computations
 type <- "points" # points polygons
 
-load(paste0(results.folder,"/InternalProc/","Parameters.RData"))
+load(paste0(results.folder,"/modelParameters.RData"))
 n.days.max <- global.simulation.parameters$particle.max.duration
 n.days.max
 
@@ -60,10 +60,8 @@ y.lab <- "Degree centrality (maximum number of connections)"
 y.lab <- "Number of clusters"
 
 p3 <- ggplot() +
-  geom_point(data = combResults, aes(x=pld, y=numberClustersConsensus), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.5) +
-  theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab(y.lab) 
-  # + geom_smooth(data = combResults, aes(x=pld, y=numberClustersConsensus),span = 0.8)
-
+  geom_point(data = combResults, aes(x=pld, y=numberClusters), shape = 21,colour = "black", fill = "black", size = 2, stroke = 0.75, alpha = 0.5) +
+  theme_minimal() + mainTheme + xlab("Dispersal period (day)") + ylab(y.lab) # + geom_smooth(data = combResults, aes(x=pld, y=numberClustersConsensus),span = 0.8)
 p3
 
 pdf( file=paste0(results.folder,"/",y.lab,".pdf"), width = 10, height = 8 )

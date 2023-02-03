@@ -1,13 +1,34 @@
-## Biophysical modelling framework to estimate oceanographic connectivity
+# biophysicalModelling
 
-### Key reference
-
-Assis, J., Fragkopoulou, E., Serrão, E. A., Costa, B. H., Gandra, M., & Abecasis, D. (2021). Weak biodiversity connectivity in the European network of no-take marine protected areas. Science of the Total Environment, 773, 1–24. doi.org/10.1016/j.scitotenv.2021.145664
+Biophysical modelling framework developed in R computing language to predict oceanographic connectivity.
 <br><br>
 
 ![plot](./Data/img.png)
 Example of biophysical modelling output showing weak connectivity in the European network of MPAs [ [read publication](https://www.sciencedirect.com/science/article/pii/S0048969721007324) ].
 <br><br>
+
+### Requirements
+
+The biophysical modelling framework requires the following R Packages:
+
+- [requirements.txt](https://github.com/jorgeassis/plankTonic/blob/master/requirements.txt)
+<br><br>
+
+### License
+
+This project is licensed under the Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0) - see the [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) webpage for details.
+<br><br>
+
+### Authors and acknowledgments
+
+This project is being developed by Jorge Assis - see [bDS](https://www.biodiversitydatascience.com) webpage for details - and supported by the Foundation for Science and Technology (FCT) of Portugal through  UIDB/04326/2020, UIDP/04326/2020, LA/P/0101/2020 and PTDC/BIA-CBI/6515/2020.
+<br><br>
+
+### Main reference
+
+Assis, J., Fragkopoulou, E., Serrão, E. A., Costa, B. H., Gandra, M., & Abecasis, D. (2021). Weak biodiversity connectivity in the European network of no-take marine protected areas. Science of the Total Environment, 773, 1–24. doi.org/10.1016/j.scitotenv.2021.145664
+<br><br>
+
 ### Additional references
 
 Assis, J., Serrão, E. A., C. Coelho, N., Tempera, F., Valero, M., & Alberto, F. (2018). Past climate changes and strong oceanographic barriers structured low ‐ latitude genetic relics for the golden kelp Laminaria ochroleuca. Journal of Biogeography, 45(45), 2326–2336. https://doi.org/10.1111/jbi.13425

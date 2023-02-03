@@ -5,34 +5,64 @@
 ##
 ## ------------------------------------------------------------------------------------------------------------------
 
-if( exists("pipeLiner") ) {
+if( ! exists("pipeLiner") ) {
   
-  rm( list=(ls()[ls()!="v"]) )
+  closeAllConnections()
+  rm(list=(ls()[ls()!="v"]))
   gc(reset=TRUE)
-  
-  source("0. Project Config.R")
+  source("0. Config.R")
   source("Dependences.R")
-  
+
   list.dirs(path = paste0("../Results"), recursive = FALSE)
   season <- "YearRound" # c("YearRound","SeasonSummer","SeasonWinter")
+  n.season <- "" # Spring; Summer; Autumn; Winter; "" for All
   spawn.p <- 1:12  # spawn.p <- c(6,7,8,9)
-  pld.period <- 90
-  c <- 3
+  pld.period <- 30
+  c <- 30
   
 }
 
-# Review to change Source and Sink generation
+# Review All [!!]
 
-regionsOfInterest <- "../Data/mainRegions.shp" 
+additional.source.sink <- shapefile(maskSourceSinkSites)
+additional.source.sink$ID <- additional.source.sink$id
+additional.source.sink <- additional.source.sink[,"ID"]
 
-bigmatrix.file <- paste0(project.folder,"/Results/",project.name,"/InternalProc/","particles.reference.desc")
-sorce.sink.cells.file <- paste0(project.folder,"/Results/",project.name,"/InternalProc/","source.sink.bm")
-coordRef <- crs(shapefile(regionsOfInterest))
+coordRef <- crs(additional.source.sink)
+
+reference.file <- paste0(results.folder,"/InternalProc/","particles.reference.desc")
+sorce.sink.cells.file <- paste0(results.folder,"/InternalProc/","source.sink.bm")
+connectivity.file <- paste0(results.folder,"/InternalProc/","connectivityEstimatesAveraged",n.season,".bm")
+
+## --------------------------
+
+source.sink.xy <- read.big.matrix(sorce.sink.cells.file)
+source.sink.xy <- data.table(source.sink.xy[,])
+colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
+source.sink.xy
+
+Connectivity <- read.big.matrix(connectivity.file)
+Connectivity <- data.table(Connectivity[,])
+colnames(Connectivity) <- c("Pair.from","Pair.to","Probability","SD.Probability","Max.Probability","Mean.Time","SD.Time","Time.max","Mean.events","SD.events","Max.events")
+
+source.sink.xy.sp <- source.sink.xy[,2:3]
+coordinates(source.sink.xy.sp) <- ~Lon+Lat
+crs(source.sink.xy.sp) <- coordRef
+
+## ---------------------------------
+
+closest.source.sink.sites <- coordinates(additional.source.sink)
+closest.source.sink.sites <- spDists(as.matrix(source.sink.xy[,c("Lon","Lat")]),closest.source.sink.sites, longlat = TRUE)
+closest.source.sink.sites <- apply(closest.source.sink.sites,1,which.min)
+source.sink.xy$Poly <- closest.source.sink.sites
+
+Connectivity$Poly.from <- sapply( Connectivity$Pair.from,function(x) { as.numeric(source.sink.xy[which(source.sink.xy[,"Pair"] == x),"Poly"]) })
+Connectivity$Poly.to <- sapply( Connectivity$Pair.to,function(x) { as.numeric(source.sink.xy[which(source.sink.xy[,"Pair"] == x),"Poly"]) })
 
 ## ------------------------------------------------------------------------------------------------------------
 ## Read main sources
 
-load(paste0(project.folder,"/Results/",project.name,"/InternalProc/","Parameters.RData"))
+load(paste0(project.folder,"Results/InternalProc/","Parameters.RData"))
 
 sim.extent <-unique(as.numeric(unlist(strsplit(global.simulation.parameters$extent, split=","))))
 months <- unique(as.numeric(unlist(strsplit(global.simulation.parameters$sim.months , split=","))))
@@ -41,19 +71,9 @@ n.particles.per.cell <- global.simulation.parameters$n.particles.per.cell
 n.new.particles.per.day <- global.simulation.parameters$n.new.particles.per.day
 n.steps.per.day <- global.simulation.parameters$n.hours.per.day
 
-source.sink.xy <- read.big.matrix(sorce.sink.cells.file)
-source.sink.xy <- data.table(source.sink.xy[,])
-colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
-source.sink.xy
-
-source.sink.xy.sp <- source.sink.xy[,2:3]
-coordinates(source.sink.xy.sp) <- ~Lon+Lat
-crs(source.sink.xy.sp) <- coordRef
-
 ## ---------------------
 ## ---------------------
 
-regionsOfInterest <- shapefile(regionsOfInterest)
 regionsOfInterest <- gBuffer(regionsOfInterest, byid=TRUE, width=0)
 worldMap <- ne_countries(scale = 10, returnclass = "sp")
 

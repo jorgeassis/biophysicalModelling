@@ -9,53 +9,48 @@ if( ! exists("pipeLiner") ) {
   
   rm( list=(ls()[ls()!="v"]) )
   gc(reset=TRUE)
- 
+  
+  closeAllConnections()
   source("0. Config.R")
-  source("Dependences.R")
+  source("Dependences/mainFunctions.R")
   
   list.dirs(path = paste0("../Results"), recursive = FALSE)
-  season <- "" # Spring; Summer; Autumn; Winter; "" for All
-  c <- 180
-  pld.period <- c
+  season <- "" # c("YearRound","SeasonSummer","SeasonWinter")
+  spawn.p <- 1:12  # spawn.p <- c(6,7,8,9)
+  pld.period <- 30
+  c <- 30
   
 }
 
 ## ------------------
 ## ------------------
 
-worldMap <- ne_countries(scale = 10, returnclass = "sp")
-
-bigmatrix.file <- paste0(results.folder,"/InternalProc/","particles.reference.desc")
-sorce.sink.cells.file <- paste0(results.folder,"/InternalProc/","source.sink.bm")
+source.sink.xy <- loadRData(paste0(results.folder,"/","sourceSinkSites.RData"))
+source.sink.xy <- data.table(source.sink.xy[,])
+colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
 
 # Open connectivity
 
-Connectivity <- read.big.matrix(paste0(results.folder,"/InternalProc/","connectivityEstimatesAveraged",season,".bm"))
-Connectivity <- data.table(Connectivity[,])
-colnames(Connectivity) <- c("Pair.from" , "Pair.to" , "Probability" , "SD.Probability" , "Max.Probability" , "Mean.Time" , "SD.Time" , "Time.max" , "Mean.events" , "SD.events" , "Max.events" )
-Connectivity <- Connectivity[Connectivity$Time.max <= pld.period,]
-Connectivity
-# max(Connectivity$Time.max)
+Connectivity.desc <- paste0(results.folder,"/","particlePairedConnectivityAveragedTable.desc")
+load(file=paste0(results.folder,"/particlePairedConnectivityAveragedTableNames.RData"))
+Connectivity <- attach.big.matrix(Connectivity.desc)
+Connectivity <- as.data.table(Connectivity[])
+colnames(Connectivity) <- particles.connectivity.names
+head(Connectivity)
 
-hexagons.sourcesink.shp <- shapefile(paste0(results.folder,"/sourceSinkSitesHexagons.shp"))
-hexagons.sourcesink.shp <- hexagons.sourcesink.shp[hexagons.sourcesink.shp$SOURCE==1,"ID"]
+#Number of events
+sum(Connectivity$Max.events)
+
+# linking pair of cells
+nrow(Connectivity)
+
+hexagons.sourcesink.shp <- shapefile(paste0(results.folder,"/sourceSinkSites.shp"))
+if( "SOURCE" %in% names(hexagons.sourcesink.shp) ) { hexagons.sourcesink.shp <- hexagons.sourcesink.shp[hexagons.sourcesink.shp$SOURCE==1,"ID"] } 
+names(hexagons.sourcesink.shp)
+plot(hexagons.sourcesink.shp)
 
 ## ------------------------------------------------------------------------------------------------------------
 ## Read main sources
-
-load(paste0(results.folder,"/InternalProc/","Parameters.RData"))
-
-sim.extent <- unique(as.numeric(unlist(strsplit(global.simulation.parameters$extent, split=","))))
-months <- unique(as.numeric(unlist(strsplit(global.simulation.parameters$sim.months , split=","))))
-n.hours.per.day <- global.simulation.parameters$n.hours.per.day
-n.particles.per.cell <- global.simulation.parameters$n.particles.per.cell
-n.new.particles.per.day <- global.simulation.parameters$n.new.particles.per.day
-n.steps.per.day <- global.simulation.parameters$n.hours.per.day
-
-source.sink.xy <- read.big.matrix(sorce.sink.cells.file)
-source.sink.xy <- data.table(source.sink.xy[,])
-colnames(source.sink.xy) <- c("Pair" , "Lon" , "Lat" , "Source" )
-source.sink.xy
 
 source.sink.xy.sp <- source.sink.xy
 coordinates(source.sink.xy.sp) <- ~Lon+Lat
@@ -81,26 +76,6 @@ if(length(missingTo) > 0) {
   
 }
 
-## --------------------------------------------------------------------
-## --------------------------------------------------------------------
-# Temporary Subset
-
-subseter <- as.vector(extent(source.sink.xy.sp) + c(-0.5,0.5,-0.5,0.5)) # c(-11.25,37.85,29.75,46.25)
-
-## --------------------------------------------------------------------
-## --------------------------------------------------------------------
-
-source.sink.xy <- source.sink.xy[source.sink.xy$Lon >= subseter[1] & source.sink.xy$Lon <= subseter[2] & source.sink.xy$Lat >= subseter[3] & source.sink.xy$Lat <= subseter[4], ]
-plot(source.sink.xy[,2:3])
-
-source.sink.xy.sp <- crop(source.sink.xy.sp,extent(subseter))
-worldMap <- crop(worldMap,extent(subseter + c(-20,20,-20,20))  ) 
-
-## -----------------
-
-plot(worldMap , col="Black",border="Black")
-plot(source.sink.xy.sp , col="Red",border="Black", add=T)
-
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------------------------------------------------------
 ## Produce connectivity for different spawning months and pld periods
@@ -108,7 +83,7 @@ plot(source.sink.xy.sp , col="Red",border="Black", add=T)
 RegionNames <- as.character(source.sink.xy$Pair)
 
 if( ! exists("combResults")) {
-
+  
   combResults <- data.frame()
   
   if( ! exists("combinations")) { combinations <- data.frame(1:pld.period) }
@@ -117,12 +92,12 @@ if( ! exists("combResults")) {
   rownames(isolatedResults) <- RegionNames
   colnames(isolatedResults) <- 1:nrow(combinations)
   betweennessResults <- higherBetweennessResults <- eighenCentralityResults <- highereighenCentralityResults <- closenessResults <- higherclosenessResults <- clusterAssignment <- resistanceResults <- higherResistanceResults <- outDegreeResults <- higherOutDegreeResults <- selfRecruitmentResults <- higherSelfRecruitmentResults <- isolatedResults
-
+  
 }
 
 ## ------------------------------------------------------------------------------
 
-project.name.c <- paste0(results.folder,"/connectivityExport/","Sim",season,str_pad(c, 3, pad = "0"),"Days/")
+project.name.c <- paste0(results.folder,"/connectivityExport/","Sim",season,str_pad(pld.period, 3, pad = "0"),"Days/")
 
 ## ----------------------------------------------------
 
@@ -130,6 +105,8 @@ if( ! dir.exists(project.name.c) ) { dir.create(file.path(project.name.c), showW
 if( ! dir.exists(paste0(project.name.c,"/Data")) ) { dir.create(file.path(paste0(project.name.c,"/Data")), showWarnings = FALSE) } 
 if( ! dir.exists(paste0(project.name.c,"/Maps")) ) { dir.create(file.path(paste0(project.name.c,"/Maps")), showWarnings = FALSE) } 
 if( ! dir.exists(paste0(project.name.c,"/Networks")) ) { dir.create(file.path(paste0(project.name.c,"/Networks")), showWarnings = FALSE) } 
+
+write.csv(source.sink.xy,paste0(project.name.c,"/sourceSinkXY.csv"), row.names = FALSE)
 
 ## ------------------------------------------------------------------------------
 ## ------------------------------------------------------------------------------
@@ -222,39 +199,56 @@ theme_map <-
     # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
     panel.grid.major = element_line(color = "#979797", size = 0.05),
     panel.grid.minor = element_blank(),
-    plot.background = element_rect(fill = "#f5f5f2", color = NA), 
-    panel.background = element_rect(fill = "#f5f5f2", color = NA), 
-    legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    plot.background = element_rect(fill = "#FFFFFF", color = NA), 
+    panel.background = element_rect(fill = "#FFFFFF", color = NA), 
+    legend.background = element_rect(fill = "#FFFFFF", color = NA),
     panel.border = element_blank()
   )
 
 connected.pairs <- comb[comb$Probability > 0,]
 colfunc <- colorRampPalette(c("#6C6C6C", "#CC6633","#C40F0F"))
-lineConnections <- list()
 
-for( i in 1:nrow(connected.pairs) ){
-  strenght <- (connected.pairs[i,3] * 100) + 1 
-  routes_sl.1 <- which(source.sink.xy$Pair == connected.pairs[i,1])
-  routes_sl.2 <- which(source.sink.xy$Pair == connected.pairs[i,2])
+if(! file.exists(paste0(project.name.c,"/LineConnections.RData"))) {
   
-# routes_sl <- gcIntermediate(source.sink.xy[routes_sl.1,c("Lon","Lat")],source.sink.xy[routes_sl.2,c("Lon","Lat")],n = 100, addStartEnd = TRUE, sp = TRUE)
-  routes_sl <- gcIntermediate(source.sink.xy[routes_sl.1,c("Lon","Lat")],source.sink.xy[routes_sl.2,c("Lon","Lat")],n = 100, addStartEnd = TRUE, sp = TRUE, breakAtDateLine=TRUE)
+  lineConnections <- list()
   
-  lineConnections = c(lineConnections,sp::SpatialLinesDataFrame(routes_sl, data.frame(ID = i), match.ID = F))
+  for( i in 1:nrow(connected.pairs) ){
+    strenght <- (connected.pairs[i,3] * 100) + 1 
+    routes_sl.1 <- which(source.sink.xy$Pair == connected.pairs[i,1])
+    routes_sl.2 <- which(source.sink.xy$Pair == connected.pairs[i,2])
+    
+    # routes_sl <- gcIntermediate(source.sink.xy[routes_sl.1,c("Lon","Lat")],source.sink.xy[routes_sl.2,c("Lon","Lat")],n = 100, addStartEnd = TRUE, sp = TRUE)
+    routes_sl <- gcIntermediate(source.sink.xy[routes_sl.1,c("Lon","Lat")],source.sink.xy[routes_sl.2,c("Lon","Lat")],n = 100, addStartEnd = TRUE, sp = TRUE, breakAtDateLine=TRUE)
+    
+    lineConnections = c(lineConnections,sp::SpatialLinesDataFrame(routes_sl, data.frame(ID = i), match.ID = F))
+  }
+  
+  lineConnectionsSp <- do.call(rbind, lineConnections)
+  save(lineConnectionsSp, file=paste0(project.name.c,"/LineConnections.RData"))
+  
 }
 
+load(file=paste0(project.name.c,"/LineConnections.RData"))
+
 mapRegionNet <- ggplot() +
-  geom_path(data = do.call(rbind, lineConnections) , size=0.35 , aes(x = long, y = lat, group = group), col = "#797979" ) +
+  geom_path(data = lineConnectionsSp , size=0.35 , aes(x = long, y = lat, group = group), col = "#797979" ) +
+  geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group))  + coord_map() +
+  coord_sf(xlim = c( extent(worldMap)[1], extent(worldMap)[2]), ylim = c(extent(worldMap)[3], extent(worldMap)[4]), expand = FALSE) + 
+  theme_map
+mapRegionNet
+
+mapRegionNet <- ggplot() +
+  geom_path(data = lineConnectionsSp , size=0.35 , aes(x = long, y = lat, group = group), col = "#797979" ) +
   geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group))  + coord_map() +
   coord_sf(xlim = c( extent(worldMap)[1], extent(worldMap)[2]), ylim = c(extent(worldMap)[3], extent(worldMap)[4]), expand = FALSE) + 
   coord_map('lambert', lat0=(subseter[3] + subseter[4] / 2), lat1=45, xlim=c(subseter[1] - 1.5, subseter[2] + 1.5), ylim=c(subseter[3] - 1.5 , subseter[4] + 1.5)) + theme_map
+# mapRegionNet
 
 mapRegionNet <- ggplot() +
   geom_path(data = do.call(rbind, lineConnections) , size=0.35 , aes(x = long, y = lat, group = group), col = "#797979" ) +
   geom_polygon(data = worldMap , fill = "#C4C4C4", colour = "#ffffff" , size=0.25 ,  aes(long, lat, group = group))  + coord_map() +
   coord_sf(xlim = c( extent(worldMap)[1], extent(worldMap)[2]), ylim = c(extent(worldMap)[3], extent(worldMap)[4]), expand = FALSE) + 
   coord_map('lambert', lat0=(subseter[3] + subseter[4] / 2), lat1=45) + theme_map
-
 # mapRegionNet
 
 ## --------------------------------------------------------------------------------
@@ -272,31 +266,31 @@ graph.obj.ss <- graph.obj
 E(graph.obj.ss)$weight <- 1 - E(graph.obj.ss)$weight
 connectivity.matrix.ss <- connectivity.matrix
 for(i in 1:length(V(graph.obj.ss)$name)) {
-  for(j in 1:length(V(graph.obj.ss)$name)) {
-    connectivity.matrix.ss[i,j] <- distances(graph.obj.ss, V(graph.obj.ss)$name[i], V(graph.obj.ss)$name[j])
-  }
+  cat(i, "\n")
+  connectivity.matrix.ss[i,] <- distances(graph.obj.ss, V(graph.obj.ss)$name[i], V(graph.obj.ss)$name, mode="out")
 }
 
-connectivity.matrix.ss[connectivity.matrix.ss == Inf] <- max(connectivity.matrix.ss[connectivity.matrix.ss!=Inf],na.rm=T)
-connectivity.matrix.ss[ is.na(connectivity.matrix.ss)] <- max(connectivity.matrix.ss[connectivity.matrix.ss!=Inf],na.rm=T)
+connectivity.matrix.ss[connectivity.matrix.ss == Inf] <- max(connectivity.matrix.ss[connectivity.matrix.ss!=Inf],na.rm=T) + 1
+connectivity.matrix.ss[ is.na(connectivity.matrix.ss)] <- max(connectivity.matrix.ss[connectivity.matrix.ss!=Inf],na.rm=T) + 1
 
-#unLinked <- which(apply(connectivity.matrix.ss,1,sum) == nrow(connectivity.matrix.ss) - 1 & apply(connectivity.matrix.ss,2,sum) == nrow(connectivity.matrix.ss) - 1)
-#connectivity.matrix.ss <- connectivity.matrix.ss[-unLinked,-unLinked]
+# Euclidean distance and  Hierarchical Clustering with hclust
+dist <- as.dist(connectivity.matrix.ss)
 
-# Euclidean distance
-
-dist <- as.dist(connectivity.matrix.ss) # dist[7] <- 1.1 # Canarias vs. Selvagens 
-
-# Hierarchical Clustering with hclust
+dist <- as.dist( 1 - connectivity.matrix)
+dist[is.na(dist)] <- 0
 hc <- hclust(dist, method = "ward.D")
-
-# Plot the result
 plot(hc)
+
+nKmeans <- fviz_nbclust( 1 - connectivity.matrix , kmeans, method = "wss") +
+  geom_vline(xintercept = 4, linetype = 2) + # add line for better visualisation
+  labs(subtitle = "Elbow method") # add subtitle
 
 ## ------------------------------------------
 ## ------------------------------------------
 
 hexagons.sourcesink.shp[sapply(names(degree(graph.obj)),function(x) which( as.character(hexagons.sourcesink.shp$ID) == x)) ,"degree"] <- degree(graph.obj)
+
+## ------------------
 
 membership.graph <- clusters(graph.obj)$membership
 clusterAssignment[ sapply(names(membership.graph),function(x) which(row.names(clusterAssignment) == x) ),c] <- membership.graph
@@ -316,9 +310,9 @@ membership.mt <- cbind(membership.graph.1,membership.graph.2,membership.graph.3,
 
 membership.consensus <- array(NA,dim=c(nrow(membership.mt),nrow(membership.mt),4)) # 5
 
-for(c in 1:dim(membership.consensus)[3]) { # 5
+for(x in 1:dim(membership.consensus)[3]) {
   
-  vect <- get(paste0("membership.graph.",c))
+  vect <- get(paste0("membership.graph.",x))
   membership.consensus.i <- matrix(NA,nrow=length(vect),ncol=length(vect))
   
   for(i in 1:nrow(membership.consensus.i)) {
@@ -328,10 +322,10 @@ for(c in 1:dim(membership.consensus)[3]) { # 5
   }
   
   membership.consensus[,,c] <- membership.consensus.i
-    
+  
 }
 
-membership.consensus <- apply(membership.consensus,1:2,sum) / dim(membership.consensus)[3] # 5
+membership.consensus <- apply(membership.consensus,1:2,sum) / dim(membership.consensus)[3]
 membership.consensus.vector <- numeric(ncol(membership.consensus))
 membership.consensus.vector.assign <- numeric(0)
 membership.consensus.vector.c <- 0
@@ -385,7 +379,6 @@ dev.off()
 # Plot clusters with connections
 
 cols.to.use <- distinctColors(length(unique(membership.graph)))[membership.graph]
-
 centroids <- source.sink.xy.sp[sapply(names(membership.graph),function(x) which(source.sink.xy.sp$Pair == x)),]
 centroids <- data.frame(centroids)
 
@@ -411,14 +404,14 @@ centroids <- data.frame(centroids)
 if(length(isolated.sourceSink) > 0) {
   centroidsIsolated <- source.sink.xy.sp[sapply(names(isolated.sourceSink),function(x) which(source.sink.xy.sp$Pair == x)),]
   centroidsIsolated <- data.frame(centroidsIsolated)
-  centroidsIsolatedPts <- geom_point(data = centroidsIsolated ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "white", size = 1.5, stroke = 0.35, alpha = 0.9) 
+  centroidsIsolatedPts <- geom_point(data = centroidsIsolated ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = "white", size = 2.25, stroke = 0.35, alpha = 0.9) 
 } else { centroidsIsolatedPts <- NULL }
 
 pdf(file=paste0(project.name.c,"/Maps/clusteringConnectionsConsensus.pdf"), width=12)
 print(
   mapRegionNet + 
     centroidsIsolatedPts +
-    geom_point(data = centroids ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = cols.to.use, size = 1.5, stroke = 0.35, alpha = 0.7)
+    geom_point(data = centroids ,  aes(x = Lon, y = Lat) , shape = 21, colour = "black", fill = cols.to.use, size = 2.25, stroke = 0.35, alpha = 0.7)
 )
 dev.off()
 
@@ -436,11 +429,37 @@ dev.off()
 
 ## ------------------------------------------
 
+closenessIndex <- closeness(graph.obj)
+closenessIndex <- closenessIndex[sort(as.numeric(names(closenessIndex)),decreasing = FALSE,index.return=TRUE)$ix]
+closenessIndex <- (closenessIndex - min(closenessIndex)) / (max(closenessIndex) - min(closenessIndex)) 
+
+write.csv(data.frame(Pair=names(closenessIndex),Closeness=closenessIndex),paste0(project.name.c,"/closenessIndex.csv"), row.names = FALSE)
+
 betweennessIndex <- betweenness(graph.obj)
+betweennessIndex <- betweennessIndex[sort(as.numeric(names(betweennessIndex)),decreasing = FALSE,index.return=TRUE)$ix]
 betweennessIndex <- (betweennessIndex - min(betweennessIndex)) / (max(betweennessIndex) - min(betweennessIndex)) 
+
+write.csv(data.frame(Pair=names(betweennessIndex),Betweenness=betweennessIndex),paste0(project.name.c,"/betweennessIndex.csv"), row.names = FALSE)
+
+# Detemine with clustering
+
+betweennessIndexClusters <- betweennessIndex
+for( c.i in unique(membership.graph) ) {
+  c.i.sites <- names(which(membership.graph == c.i))
+  c.i.values <- betweenness(subgraph(graph.obj, match(c.i.sites, V(graph.obj)$name)))
+  c.i.values <- (c.i.values - min(c.i.values)) / (max(c.i.values) - min(c.i.values)) 
+  
+  for(c.i.i in 1:length(c.i.values)) {
+    betweennessIndexClusters[ which( names(betweennessIndexClusters) == names(c.i.values)[c.i.i] ) ] <- c.i.values[c.i.i]
+  }
+}
+betweennessIndexClusters[is.na(betweennessIndexClusters)] <- 0
+betweennessIndex <- betweennessIndexClusters
+
+# -----
+
 averageBetweenness <- mean(betweennessIndex)
 sdBetweenness <- sd(betweennessIndex)
-
 betweennessQ95 <- betweennessIndex
 betweennessQ95[!is.na(betweennessQ95)] <- 0
 betweennessQ95[which(betweennessIndex >= quantile(betweennessIndex,probs=0.95))] <- 1
@@ -470,6 +489,29 @@ write.csv(higherOutDegreeResults,file=paste0(results.folder,"/higherOutDegree.cs
 
 # Plot centrality indexes with Connections and clusters
 
+indexPlot <- degree(graph.obj, mode="out")
+indexPlot <- (indexPlot - min(indexPlot)) / (max(indexPlot) - min(indexPlot)) 
+
+l <- layout.fruchterman.reingold(graph.obj)
+
+# indexPlot <- indexPlot[sort(as.numeric(names(indexPlot)),decreasing = FALSE,index.return=TRUE)$ix]
+
+# Test this!
+cols.to.use <- colorRampPalette(c("#BAE2FF","yellow","orange"))
+                                   cols.to.use <- cols.to.use(20)[as.numeric(cut(as.numeric(indexPlot),breaks = 20))]
+                                   cols.to.use[which(indexPlot >= quantile(indexPlot,probs=0.95))] <- "#9C2323"
+                                   cols.to.use[which(degree(graph.obj) == 0)] <- "#FFFFFF"
+                                   
+                                   # MPAnames[as.numeric(names(which(indexPlot >= quantile(indexPlot,probs=0.95))))]
+                                   
+                                   pdf(file=paste0("../Results/",project.name,"/Maps/ConnectionsDegree.pdf"), width=12)
+                                   plot(graph.obj,vertex.label.dist=0, edge.arrow.size = 0.5,vertex.label.family="Helvetica",vertex.label.color="Black",vertex.label.cex=0.7,vertex.label=as.numeric(names(reducedNames)),vertex.size=11,edge.curved = F , vertex.color=cols.to.use , layout=l )
+                                   legend("topleft",legend=seq(0,max(indexPlot),length.out=5),pt.cex=1,col="black",pch=21, pt.bg=colorRampPalette(c("#FFFFFF","#BAE2FF","yellow","orange","#9C2323"))(5))
+                                   dev.off()
+                                                                                                                                                     
+                                                                                                                                                     
+                                                                                                                                                     
+                                                                                                                                                     
 betweennessIndexPlot <- betweennessIndex
 betweennessIndexPlot <- (betweennessIndexPlot * 1.25) + 2
 
@@ -557,15 +599,11 @@ combResults <- rbind(combResults,
                                 sdBetweenness=sdBetweenness,
                                 averageOutDegree=averageOutDegree,
                                 sdOutDegree=sdOutDegree
-                            ))
+                     ))
 
 write.csv(combResults,file=paste0(results.folder,"/Results.csv"))
 save(combResults,file=paste0(results.folder,"/allPLDResults.Rdata"))
-
 shapefile(hexagons.sourcesink.shp, filename=paste0(project.name.c,"/Data/sourceSinkSitesResults.shp"), overwrite=TRUE)
-
-# list.memory()
-rm(connectivity.source.sink.xy )
 
 ## ---------------------------------------------------------------------------------------------------
 ## ---------------------------------------------------------------------------------------------------
